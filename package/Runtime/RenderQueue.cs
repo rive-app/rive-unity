@@ -18,30 +18,6 @@ namespace Rive
 {
     public class RenderQueue
     {
-        // public static RenderQueue forTexture(RenderTexture texture)
-        // {
-        //     // User knows what they want, they'll do something with the texture.
-        //     return new TextureRenderQueue(texture);
-        // }
-
-        // public static RenderQueue forCamera(Camera camera)
-        // {
-        //     if (
-        //         UnityEngine.SystemInfo.graphicsDeviceType
-        //         == UnityEngine.Rendering.GraphicsDeviceType.Metal
-        //     )
-        //     {
-        //         // On Metal we support rendering directly to the framebuffer.
-        //         return new CameraRenderQueue(camera);
-        //     }
-        //     else
-        //     {
-        //         // We need to render to a texture and then blit it for the
-        //         // camera.
-        //         return new CameraTextureRenderQueue(camera);
-        //     }
-        // }
-
         public RenderQueue(RenderTexture texture = null)
         {
             if (texture != null)
@@ -164,76 +140,4 @@ namespace Rive
         );
         #endregion
     }
-
-    // class TextureRenderQueue : RenderQueue
-    // {
-    //     internal TextureRenderQueue(RenderTexture texture)
-    //     {
-    //         texture.Create();
-    //         m_nativeRenderQueue = makeRenderQueue(texture.GetNativeTexturePtr());
-    //     }
-    // }
-
-    // class CameraRenderQueue : RenderQueue
-    // {
-    //     internal CameraRenderQueue(Camera camera)
-    //     {
-    //         m_nativeRenderQueue = makeRenderQueue(IntPtr.Zero);
-    //     }
-    // }
-
-    // class CameraTextureRenderQueue : RenderQueue
-    // {
-    //     private Camera m_camera;
-    //     private RenderTexture m_renderTexture;
-    //     private int m_pixelWidth;
-    //     private int m_pixelHeight;
-    //     private CommandBuffer m_commandBuffer;
-
-    //     internal CameraTextureRenderQueue(Camera camera)
-    //     {
-    //         m_camera = camera;
-    //         updateTexture();
-    //     }
-
-    //     ~CameraTextureRenderQueue()
-    //     {
-    //         cleanup();
-    //     }
-
-    //     void cleanup()
-    //     {
-    //         if (m_renderTexture != null)
-    //         {
-    //             m_renderTexture.Release();
-    //         }
-    //         if (m_commandBuffer != null)
-    //         {
-    //             m_camera.RemoveCommandBuffer(CameraEvent.AfterEverything, m_commandBuffer);
-    //             m_commandBuffer = null;
-    //         }
-    //         unrefRenderQueue(m_nativeRenderQueue);
-    //     }
-
-    //     void updateTexturdoublede()
-    //     {
-    //         if (m_pixelWidth == m_camera.pixelWidth && m_pixelHeight == m_camera.pixelHeight)
-    //         {
-    //             return;
-    //         }
-    //         cleanup();
-
-    //         m_renderTexture = new RenderTexture(
-    //             m_camera.pixelWidth,
-    //             m_camera.pixelHeight,
-    //             0,
-    //             RenderTextureFormat.ARGB32
-    //         );
-    //         m_renderTexture.Create();
-    //         m_nativeRenderQueue = makeRenderQueue(m_renderTexture.GetNativeTexturePtr());
-
-    //         m_commandBuffer = toCommandBuffer();
-    //         m_camera.AddCommandBuffer(CameraEvent.AfterEverything, m_commandBuffer);
-    //     }
-    // }
 }
