@@ -67,14 +67,22 @@ namespace Rive
 
         public void addToCommandBuffer(CommandBuffer commandBuffer)
         {
-            if (UnityEngine.SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Metal)
+            if (
+                UnityEngine.SystemInfo.graphicsDeviceType
+                == UnityEngine.Rendering.GraphicsDeviceType.Metal
+            )
             {
                 // Unity seems to have the wrong texture bound when querying the
                 // exposed CurrentRenderPassDescriptor's colorAttachment. This
                 // forces the Metal backend to catch up.
-                commandBuffer.DrawMesh(getResetMesh(), new UnityEngine.Matrix4x4(), getResetMaterial());
+                commandBuffer.DrawMesh(
+                    getResetMesh(),
+                    new UnityEngine.Matrix4x4(),
+                    getResetMaterial()
+                );
             }
             commandBuffer.IssuePluginEventAndData(getSubmitQueueCallback(), 0, m_nativeRenderQueue);
+            commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
         }
 
         private static UnityEngine.Material m_resetMaterial;
@@ -114,6 +122,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getSubmitQueueCallback();
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getInvalidateState();
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getSubmitAndClearQueueCallback();

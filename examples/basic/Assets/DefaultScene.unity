@@ -228,7 +228,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be9ef6d540eab453fbc315eada29175a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  asset: {fileID: 4900000, guid: d8ce733c4717ea743849d70e5c1c9b6a, type: 3}
+  asset: {fileID: 4900000, guid: 141d8f4026cdd4df68120b8f05d0c7ae, type: 3}
   cameraEvent: 20
   fit: 1
   material: {fileID: 2100000, guid: 22f7fc8567d336549a691b6170ce4dee, type: 2}
@@ -350,9 +350,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 767af53655c401d42a3b0bc545930973, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  asset: {fileID: 4900000, guid: e701198df2d27485fb2b16deff2889e0, type: 3}
-  renderTexture: {fileID: 8400000, guid: b77eb55b961dc724ebb1433a64e969e9, type: 2}
-  fit: 1
 --- !u!1 &1685465319
 GameObject:
   m_ObjectHideFlags: 0

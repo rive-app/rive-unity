@@ -26,7 +26,7 @@ namespace Rive
         static Dictionary<int, WeakReference<File>> _activeFiles =
             new Dictionary<int, WeakReference<File>>();
 
-        static public File load(string name, byte[] contents, int id)
+        public static File load(string name, byte[] contents, int id)
         {
             WeakReference<File> fileReference;
             File activeFile;

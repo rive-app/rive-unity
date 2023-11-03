@@ -13,8 +13,8 @@ namespace Rive
         private delegate void LogDelegate(IntPtr message);
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-	[DllImport ("__Internal")]
-	private static extern void RegisterPlugin();
+        [DllImport("__Internal")]
+        private static extern void RegisterPlugin();
 #endif
 
 #if (UNITY_IOS || UNITY_TVOS || UNITY_WEBGL || UNITY_SWITCH) && !UNITY_EDITOR
@@ -22,6 +22,7 @@ namespace Rive
 #else
         public const string name = "rive";
 #endif
+
         [DllImport(NativeLibrary.name)]
         private static extern void setUnityLog(LogDelegate callback);
 
@@ -29,8 +30,10 @@ namespace Rive
         static void OnBeforeSceneLoadRuntimeMethod()
         {
             setUnityLog(UnityLog);
+            NativeLibrary.initialize();
+
 #if UNITY_WEBGL && !UNITY_EDITOR
-		RegisterPlugin();
+            RegisterPlugin();
 #endif
         }
 
@@ -39,5 +42,23 @@ namespace Rive
         {
             Debug.Log("RiveNative: " + Marshal.PtrToStringAnsi(message));
         }
+
+        public static bool m_initialized;
+
+        public static void initialize()
+        {
+            if (m_initialized)
+            {
+                return;
+            }
+            m_initialized = true;
+            var commandBuffer = new CommandBuffer();
+            commandBuffer.IssuePluginEvent(getInitGraphics(), 0);
+            Graphics.ExecuteCommandBuffer(commandBuffer);
+            GL.InvalidateState();
+        }
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getInitGraphics();
     }
 }

@@ -36,8 +36,8 @@ namespace Rive
                 rt.Create();
 
                 var cmb = new CommandBuffer();
-                cmb.SetRenderTarget(rt);
-                cmb.ClearRenderTarget(true, true, UnityEngine.Color.clear, 0.0f);
+                // cmb.SetRenderTarget(rt);
+                // cmb.ClearRenderTarget(true, true, UnityEngine.Color.clear, 0.0f);
 
                 if (m_file == null)
                 {
@@ -69,6 +69,7 @@ namespace Rive
                 }
 
                 Graphics.ExecuteCommandBuffer(cmb);
+                GL.InvalidateState();
                 UnityEditor.EditorGUI.DrawPreviewTexture(
                     flipY() ? new Rect(rect.x, rect.y + height, width, -height) : rect,
                     rt
