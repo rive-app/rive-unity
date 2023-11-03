@@ -1,0 +1,9 @@
+{
+  "name": "Rive.Runtime",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "overrideReferences": false,
+  "autoReferenced": true,
+  "noEngineReferences": false
+}
