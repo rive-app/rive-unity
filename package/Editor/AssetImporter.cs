@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEditor.AssetImporters;
+using UnityEditor;
 
 namespace Rive
 {
@@ -11,10 +12,10 @@ namespace Rive
             Rive.Asset file = ScriptableObject.CreateInstance<Rive.Asset>();
             file.bytes = System.IO.File.ReadAllBytes(ctx.assetPath);
 
-            // ctx.AddObjectToAsset("RIVE", file);
-            // Texture2D icon = (Texture2D)AssetDatabase.LoadAssetAtPath("Packages/app.rive.rive-unity/Editor/icon.png", typeof(Texture2D));
             ctx.AddObjectToAsset("RIVE", file);
             ctx.SetMainObject(file);
+            Texture2D icon = (Texture2D)AssetDatabase.LoadAssetAtPath("Packages/app.rive.rive-unity/Editor/Icons/rive.png", typeof(Texture2D));
+            EditorGUIUtility.SetIconForObject(file, icon);
         }
     }
 }
