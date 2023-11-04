@@ -54,7 +54,6 @@ namespace Rive
             }
             else
             {
-                Debug.Log("File was loaded fine!");
                 activeFile = new File(address, id);
                 _activeFiles.Add(id, new WeakReference<File>(activeFile));
                 return activeFile;
