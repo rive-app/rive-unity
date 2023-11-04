@@ -14,8 +14,6 @@ namespace Rive
 
             ctx.AddObjectToAsset("RIVE", file);
             ctx.SetMainObject(file);
-            Texture2D icon = (Texture2D)AssetDatabase.LoadAssetAtPath("Packages/app.rive.rive-unity/Editor/Icons/rive.png", typeof(Texture2D));
-            EditorGUIUtility.SetIconForObject(file, icon);
         }
     }
 }
