@@ -1,0 +1,21 @@
+{
+    "name": "app.rive.rive-unity",
+    "version": "1.0.0",
+    "displayName": "Rive",
+    "description": "Create and ship interactive animations to any platform",
+    "unity": "2020.1",
+    "unityRelease": "0a10",
+    "documentationUrl": "https://rive.app/",
+    "changelogUrl": "https://github.com/rive-app/rive-unity-docs/changelog",
+    "licensesUrl": "https://github.com/rive-app/rive-unity/license",
+    "keywords": [
+        "Vector",
+        "Graphics",
+        "Animation"
+    ],
+    "author": {
+        "name": "Rive Team",
+        "email": "hello@rive.app",
+        "url": "https://rive.app"
+    }
+}
