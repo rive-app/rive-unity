@@ -3,7 +3,7 @@
 
 # Rive Unity
 
-![Rive hero image](https://cdn.rive.app/rive_logo_dark_bg.png)
+![rive x unity image](https://github.com/rive-app/rive/assets/13705472/65130bf0-dff8-49cd-ae3a-9abe159c4b20)
 
 A Unity runtime library for [Rive](https://rive.app). This is currently a **technical preview** for Mac and Windows installs of Unity. We're hoping to gather feedback about the API and feature-set as we expand platform support.
 
@@ -48,6 +48,10 @@ open-source runtime libraries allow them to load their animations into apps, gam
 
 ## Getting Started
 
+See the official examples repository to easily run a project locally: https://github.com/rive-app/rive-unity-examples
+
+See the [Rive Unity docs](https://help.rive.app/game-runtimes/unity) for more information.
+
 You will need a Unity editor that supports OpenGL or D3D11 for Windows, or a Mac with ARM64 (M1, M2, etc) architecture.
 
 Select either D3D11/OpenGL for Windows, or Metal for Mac/iOS as the Graphics API under Project Settings -> Player in Unity.
@@ -60,11 +64,10 @@ git@github.com:rive-app/rive-unity.git?path=package#v0.1.10
 
 You can also add it manually to your projects `Packages/manifest.json` file:
 
-```
+```json
 {
   "dependencies": {
     "app.rive.rive-unity": "git@github.com:rive-app/rive-unity.git?path=package#v0.1.10",
-    ...
   }
 }
 ```
