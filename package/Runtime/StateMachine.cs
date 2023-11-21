@@ -49,21 +49,38 @@ namespace Rive
             pointerUpStateMachine(m_nativeStateMachine, position.x, position.y);
         }
 
+        public List<ReportedEvent> reportedEvents()
+        {
+            uint count = getReportedEventCount(m_nativeStateMachine);
+            var list = new List<ReportedEvent>();
+            for (uint i = 0; i < count; i++)
+            {
+                list.Add(new ReportedEvent(getReportedEventAt(m_nativeStateMachine, i)));
+            }
+            return list;
+        }
+
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr unrefStateMachine(IntPtr StateMachine);
+        internal static extern IntPtr unrefStateMachine(IntPtr stateMachine);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern bool advanceStateMachine(IntPtr StateMachine, float seconds);
+        internal static extern bool advanceStateMachine(IntPtr stateMachine, float seconds);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void pointerMoveStateMachine(IntPtr StateMachine, float x, float y);
+        internal static extern void pointerMoveStateMachine(IntPtr stateMachine, float x, float y);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void pointerDownStateMachine(IntPtr StateMachine, float x, float y);
+        internal static extern void pointerDownStateMachine(IntPtr stateMachine, float x, float y);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void pointerUpStateMachine(IntPtr StateMachine, float x, float y);
+        internal static extern void pointerUpStateMachine(IntPtr stateMachine, float x, float y);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern uint getReportedEventCount(IntPtr stateMachine);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern ReportedEventData getReportedEventAt(IntPtr stateMachine, uint index);
         #endregion
     }
 }
