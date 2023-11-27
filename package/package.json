@@ -5,8 +5,8 @@
     "description": "Create and ship interactive animations to any platform",
     "unity": "2020.1",
     "unityRelease": "0a10",
-    "documentationUrl": "https://rive.app/",
-    "changelogUrl": "https://github.com/rive-app/rive-unity-docs/changelog",
+    "documentationUrl": "https://help.rive.app/game-runtimes/unity/getting-started",
+    "changelogUrl": "https://github.com/rive-app/rive-unity/tags",
     "licensesUrl": "https://github.com/rive-app/rive-unity/license",
     "keywords": [
         "Vector",
