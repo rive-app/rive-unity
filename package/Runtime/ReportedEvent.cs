@@ -30,6 +30,9 @@ namespace Rive
     {
         private float m_secondsDelay;
         private string m_name;
+
+        private ushort m_type;
+
         private Dictionary<string, object> m_properties;
 
         public float secondsDelay
@@ -42,6 +45,11 @@ namespace Rive
             get { return m_name; }
         }
 
+        public ushort type
+        {
+            get { return m_type; }
+        }
+
 
         public object this[string index]
         {
@@ -52,6 +60,7 @@ namespace Rive
         {
             m_secondsDelay = data.secondsDelay;
             m_name = Marshal.PtrToStringAnsi(getEventName(data.nativeEvent));
+            m_type = getEventType(data.nativeEvent);
             var propertyCount = getEventCustomPropertyCount(data.nativeEvent);
             if (propertyCount != 0)
             {
@@ -82,6 +91,9 @@ namespace Rive
         #region Native Methods
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getEventName(IntPtr nativeEvent);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern ushort getEventType(IntPtr nativeEvent);
 
         [DllImport(NativeLibrary.name)]
         internal static extern uint getEventCustomPropertyCount(IntPtr nativeEvent);
