@@ -49,6 +49,31 @@ namespace Rive
             renderQueueDrawArtboard(m_nativeRenderQueue, artboard.nativeArtboard);
         }
 
+        public void draw(Path path, Paint paint)
+        {
+            renderQueueDrawPath(m_nativeRenderQueue, path.nativePath, paint.nativePaint);
+        }
+
+        public void clip(Path path)
+        {
+            renderQueueClipPath(m_nativeRenderQueue, path.nativePath);
+        }
+
+        public void save()
+        {
+            renderQueueSave(m_nativeRenderQueue);
+        }
+
+        public void restore()
+        {
+            renderQueueRestore(m_nativeRenderQueue);
+        }
+
+        public void transform(Mat2D matrix)
+        {
+            renderQueueTransform(m_nativeRenderQueue, matrix.xx, matrix.xy, matrix.yx, matrix.yy, matrix.tx, matrix.ty);
+        }
+
         public void align(Fit fit, Alignment alignment, Artboard artboard)
         {
             renderQueueAlign(
@@ -65,7 +90,13 @@ namespace Rive
             var commandBuffer = new RiveCommandBuffer(this);
             commandBuffer.IssuePluginEventAndData(getSubmitQueueCallback(), 0, m_nativeRenderQueue);
             Graphics.ExecuteCommandBuffer(commandBuffer);
-            // camera.AddCommandBuffer(CameraEvent.AfterEverything, commandBuffer);
+        }
+
+        public void submitAndClear()
+        {
+            var commandBuffer = new RiveCommandBuffer(this);
+            commandBuffer.IssuePluginEventAndData(getSubmitAndClearQueueCallback(), 0, m_nativeRenderQueue);
+            Graphics.ExecuteCommandBuffer(commandBuffer);
         }
 
         public CommandBuffer toCommandBuffer()
@@ -147,6 +178,21 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern void renderQueueDrawArtboard(IntPtr renderQueue, IntPtr artboard);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueDrawPath(IntPtr renderQueue, IntPtr path, IntPtr Paint);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueClipPath(IntPtr renderQueue, IntPtr path);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueSave(IntPtr renderQueue);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueRestore(IntPtr renderQueue);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueTransform(IntPtr renderQueue, float xx, float xy, float yx, float yy, float tx, float ty);
 
         [DllImport(NativeLibrary.name)]
         public static extern bool supportsDrawingToScreen();

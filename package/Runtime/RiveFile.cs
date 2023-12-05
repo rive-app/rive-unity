@@ -44,9 +44,7 @@ namespace Rive
                 }
             }
 
-            GCHandle bytes = GCHandle.Alloc(contents, GCHandleType.Pinned);
-
-            var address = loadRiveFile(bytes.AddrOfPinnedObject(), (uint)contents.Length);
+            var address = loadRiveFile(contents, (uint)contents.Length);
             if (address == IntPtr.Zero)
             {
                 Debug.Log("Failed to load TextAsset \"" + name + "\" as a Rive file.");
@@ -124,7 +122,7 @@ namespace Rive
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        private static extern IntPtr loadRiveFile(IntPtr bytes, uint byteCount);
+        private static extern IntPtr loadRiveFile(byte[] bytes, uint byteCount);
 
         [DllImport(NativeLibrary.name)]
         private static extern void unrefRiveFile(IntPtr riveFile);
