@@ -45,6 +45,8 @@ namespace Rive
             get { return m_name; }
         }
 
+        public Dictionary<string, object> properties => m_properties;
+
         public ushort type
         {
             get { return m_type; }

@@ -413,7 +413,7 @@ namespace Rive
             }
         }
 
-        StrokeCap cap
+        public StrokeCap cap
         {
             get { return m_cap; }
             set
@@ -427,7 +427,7 @@ namespace Rive
             }
         }
 
-        Gradient gradient
+        public Gradient gradient
         {
             get { return m_gradient; }
             set
