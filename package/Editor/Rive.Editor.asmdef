@@ -2,8 +2,10 @@
   "name": "Rive.Editor",
   "references": [
     "Rive.Runtime",
-    "Editor",
-    "EditorCoroutines"
+    "Editor"
+  ],
+  "includePlatforms": [
+      "Editor"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

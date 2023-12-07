@@ -18,6 +18,9 @@ namespace Rive
         private IntPtr m_nativeFile;
         private int m_assetKey;
 
+        // Only valid when the file was loaded from a Rive.Asset.
+        private Asset m_asset;
+
         internal IntPtr nativeFile
         {
             get { return m_nativeFile; }
@@ -26,7 +29,7 @@ namespace Rive
         static Dictionary<int, WeakReference<File>> _activeFiles =
             new Dictionary<int, WeakReference<File>>();
 
-        public static File load(string name, byte[] contents, int id)
+        public static File load(string name, byte[] contents, int id, Asset asset = null)
         {
             WeakReference<File> fileReference;
             File activeFile;
@@ -44,15 +47,29 @@ namespace Rive
                 }
             }
 
-            var address = loadRiveFile(contents, (uint)contents.Length);
+            List<byte> assetMap = new List<byte>();
+            if (asset != null)
+            {
+                asset.loadOOBAssets(assetMap);
+            }
+
+            var assetMapArray = assetMap.ToArray();
+            var address = loadRiveFile(
+                contents,
+                (uint)contents.Length,
+                assetMapArray,
+                (uint)assetMapArray.Length
+            );
+
             if (address == IntPtr.Zero)
             {
+                asset.unloadOOBAssets();
                 Debug.Log("Failed to load TextAsset \"" + name + "\" as a Rive file.");
                 return null;
             }
             else
             {
-                activeFile = new File(address, id);
+                activeFile = new File(address, id, asset);
                 _activeFiles.Add(id, new WeakReference<File>(activeFile));
                 return activeFile;
             }
@@ -69,17 +86,22 @@ namespace Rive
         /// was already in memory, we'll return a cached version of it.
         static public File load(Asset asset)
         {
-            return load(asset.name, asset.bytes, asset.GetInstanceID());
+            return load(asset.name, asset.bytes, asset.GetInstanceID(), asset);
         }
 
-        private File(IntPtr nativeFile, int assetKey)
+        private File(IntPtr nativeFile, int assetKey, Asset asset = null)
         {
             m_nativeFile = nativeFile;
             m_assetKey = assetKey;
+            m_asset = asset;
         }
 
         ~File()
         {
+            if (m_asset != null)
+            {
+                m_asset.unloadOOBAssets();
+            }
             _activeFiles.Remove(m_assetKey);
             unrefRiveFile(m_nativeFile);
         }
@@ -122,7 +144,12 @@ namespace Rive
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        private static extern IntPtr loadRiveFile(byte[] bytes, uint byteCount);
+        private static extern IntPtr loadRiveFile(
+            byte[] bytes,
+            uint byteCount,
+            byte[] assetMapBytes,
+            uint assetMapByteCount
+        );
 
         [DllImport(NativeLibrary.name)]
         private static extern void unrefRiveFile(IntPtr riveFile);

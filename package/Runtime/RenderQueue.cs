@@ -133,7 +133,7 @@ namespace Rive
         {
             if (m_resetMaterial == null)
             {
-                m_resetMaterial = new UnityEngine.Material(UnityEngine.Shader.Find("Unlit/Color"));
+                m_resetMaterial = new UnityEngine.Material(UnityEngine.Shader.Find("UI/Default"));
             }
             return m_resetMaterial;
         }
