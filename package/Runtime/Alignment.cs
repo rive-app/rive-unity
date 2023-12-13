@@ -1,5 +1,9 @@
 namespace Rive
 {
+    /// <summary>
+    /// Alignment is used to align the content of a Rive animation within the
+    /// available bounds.
+    /// </summary>
     public class Alignment
     {
         public Alignment(float x, float y)

@@ -6,14 +6,26 @@ using System.Runtime.CompilerServices;
 
 namespace Rive
 {
+
     public abstract class Gradient
     {
         private Vec2D m_start;
         private List<Rive.Color> m_colors;
         private List<float> m_stops;
 
+        /// <summary>
+        ///  The start point of the gradient.
+        /// </summary>
         public Vec2D start { get { return m_start; } }
+
+        /// <summary>
+        /// The list of colors in the gradient.
+        /// </summary>
         public List<Rive.Color> colors { get { return m_colors; } }
+
+        /// <summary>
+        /// The list of stops in the gradient.
+        /// </summary>
         public List<float> stops { get { return m_stops; } }
 
         public Gradient(Vec2D start, List<Rive.Color> colors, List<float> stops)
@@ -24,6 +36,12 @@ namespace Rive
         }
     }
 
+    /// <summary>
+    /// A radial gradient. The gradient will be a circle with the given radius
+    /// centered at the start point.
+    /// 
+    /// Provide a list of colors and stops to define the gradient.
+    /// </summary>
     public class RadialGradient : Gradient
     {
         private float m_radius;
@@ -35,6 +53,12 @@ namespace Rive
         public float radius { get { return m_radius; } }
     }
 
+    /// <summary>
+    /// A linear gradient. The gradient will be a line from the start point to the
+    /// end point.
+    /// 
+    /// Provide a list of colors and stops to define the gradient.
+    /// </summary>
     public class LinearGradient : Gradient
     {
         private Vec2D m_end;
@@ -56,6 +80,12 @@ namespace Rive
     }
 
 
+    /// <summary>
+    /// A path is a series of drawing commands. The path is used to define the
+    /// outline of a shape or to define a clipping mask.
+    /// 
+    /// Paths are built by calling moveTo, lineTo, quadTo, cubicTo, close, etc.
+    /// </summary>
     public class Path
     {
         IntPtr m_nativePath = IntPtr.Zero;
@@ -94,14 +124,29 @@ namespace Rive
         }
 
 
+        /// <summary>
+        /// Resets the path to an empty state.
+        /// 
+        /// This is called automatically when the path is flushed (see flush).
+        /// </summary>
         public void reset()
         {
             m_verbs.Clear();
             m_points.Clear();
         }
 
+        /// <summary>
+        /// Closes the path. This will draw a line from the current point to the
+        /// first point in the path.
+        /// </summary>
         public void close() { m_verbs.Add((byte)PathVerb.close); }
 
+        /// <summary>
+        /// Adds a cubic bezier curve to the path.
+        /// 
+        /// The curve starts at the current point and ends at the given point (x, y).
+        /// The control points (ox, oy) and (ix, iy) are used to define the curve.
+        /// </summary>
         public void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
         {
             m_points.Add(ox);
@@ -113,6 +158,11 @@ namespace Rive
             m_verbs.Add((byte)PathVerb.cubic);
         }
 
+        /// <summary>
+        /// Adds a circle to the path.
+        /// 
+        /// The circle is centered at (centerX, centerY) and has the given radius.
+        /// </summary>
         public void circle(float centerX, float centerY, float radius)
         {
             const float circleConstant = 0.552284749831f;
@@ -141,6 +191,10 @@ namespace Rive
                     ox, oy - radiusY);
         }
 
+        /// <summary>
+        /// Adds a quadratic bezier segment that curves from the current point
+        /// to the given point (x,y), using the control point (cx,cy).
+        /// </summary>
         public void quadTo(float cx, float cy, float x, float y)
         {
             m_points.Add(cx);
@@ -151,6 +205,9 @@ namespace Rive
         }
 
 
+        /// <summary>
+        /// Adds a straight line from the current point to the given point (x,y).
+        /// </summary>
         public void lineTo(float x, float y)
         {
             m_points.Add(x);
@@ -158,6 +215,9 @@ namespace Rive
             m_verbs.Add((byte)PathVerb.line);
         }
 
+        /// <summary>
+        /// Moves the current point to the given point (x,y).
+        /// </summary>
         public void moveTo(float x, float y)
         {
             m_points.Add(x);
@@ -165,7 +225,10 @@ namespace Rive
             m_verbs.Add((byte)PathVerb.move);
         }
 
-        void addPath(Path path, Mat2D transform)
+        /// <summary>
+        /// Adds the sub-paths of path to this path, transformed by the provided matrix (Mat2D).
+        /// </summary>
+        public void addPath(Path path, Mat2D transform)
         {
             if (m_nativePath == null)
             {
@@ -183,6 +246,9 @@ namespace Rive
             );
         }
 
+        /// <summary>
+        /// Flushes the path to native memory.
+        /// </summary>
         public void flush()
         {
             if (m_verbs.Count == 0)
@@ -257,6 +323,12 @@ namespace Rive
         #endregion
     }
 
+    /// <summary>
+    /// Algorithms to use when painting on the canvas.
+    /// 
+    /// When painting the algorithm is used to blend the source
+    /// pixels with the destination pixels.
+    /// </summary>
     public enum BlendMode : byte
     {
         srcOver = 3,
@@ -277,23 +349,64 @@ namespace Rive
         luminosity = 28
     }
 
+    /// <summary>
+    /// The style to use when painting on the canvas.
+    /// 
+    /// When painting the style is used to determine if the
+    /// shape is filled or stroked.
+    /// </summary>
     public enum PaintingStyle : byte
     {
+        /// <summary>
+        /// Fill the shape.
+        /// </summary>
         fill = 0,
+        /// <summary>
+        /// Stroke the shape.
+        /// </summary>
         stroke = 1
     }
 
+    /// <summary>
+    /// The cap to use when stroking a path.
+    /// 
+    /// When stroking a path the cap is used to determine how the
+    /// end points of the path are drawn.
+    /// </summary>
     public enum StrokeCap : byte
     {
+        /// <summary>
+        /// The end of the path is squared off.
+        /// </summary>
         butt = 0,
+        /// <summary>
+        /// The end of the path is rounded.
+        /// </summary>
         round = 1,
+        /// <summary>
+        /// The end of the path is squared off and extends past the end of the path.
+        /// </summary>
         square = 2
     }
 
+    /// <summary>
+    /// The join to use when stroking a path.
+    /// 
+    /// The kind of finish to place on the joins between segments.
+    /// </summary>
     public enum StrokeJoin : byte
     {
+        /// <summary>
+        /// Joins between segments are sharp.
+        /// </summary>
         miter = 0,
+        /// <summary>
+        /// Joins between segments are rounded.
+        /// </summary>
         round = 1,
+        /// <summary>
+        /// Joins between segments are beveled.
+        /// </summary>
         bevel = 2
     }
 
@@ -316,6 +429,11 @@ namespace Rive
     }
 
 
+    /// <summary>
+    /// A paint is used to describe how to draw a shape.
+    /// 
+    /// The paint describes the color, gradient, style, thickness, etc.
+    /// </summary>
     public class Paint
     {
         IntPtr m_nativePaint;
@@ -343,6 +461,12 @@ namespace Rive
             get { flush(); return m_nativePaint; }
         }
 
+        /// <summary>
+        /// The blend mode to use when painting.
+        /// 
+        /// When painting the blend mode is used to determine how the
+        /// source pixels are blended with the destination pixels.
+        /// </summary>
         public BlendMode blendMode
         {
             get { return m_blendMode; }
@@ -357,6 +481,12 @@ namespace Rive
             }
         }
 
+        /// <summary>
+        /// The color to use when painting.
+        /// 
+        /// When painting the color is used to determine the color of the
+        /// shape.
+        /// </summary>
         public Color color
         {
             get { return m_color; }
@@ -371,6 +501,12 @@ namespace Rive
             }
         }
 
+        /// <summary>
+        /// The style to use when painting.
+        /// 
+        /// When painting the style is used to determine if the
+        /// shape is filled or stroked.
+        /// </summary>
         public PaintingStyle style
         {
             get { return m_style; }
@@ -385,6 +521,9 @@ namespace Rive
             }
         }
 
+        /// <summary>
+        /// The thickness to use when stroking.
+        /// </summary>
         public float thickness
         {
             get { return m_thickness; }
@@ -399,6 +538,11 @@ namespace Rive
             }
         }
 
+        /// <summary>
+        /// The join to use when stroking.
+        /// 
+        /// The kind of finish to place on the joins between segments.
+        /// </summary>
         public StrokeJoin join
         {
             get { return m_join; }
@@ -413,6 +557,12 @@ namespace Rive
             }
         }
 
+        /// <summary>
+        /// The cap to use when stroking.
+        /// 
+        /// When stroking a path the cap is used to determine how the
+        /// end points of the path are drawn.
+        /// </summary>
         public StrokeCap cap
         {
             get { return m_cap; }
@@ -427,6 +577,12 @@ namespace Rive
             }
         }
 
+        /// <summary>
+        /// The gradient to use when painting.
+        /// 
+        /// When painting the gradient is used to determine the color of the
+        /// shape.
+        /// </summary>
         public Gradient gradient
         {
             get { return m_gradient; }
@@ -441,6 +597,9 @@ namespace Rive
             }
         }
 
+        /// <summary>
+        /// Flushes the paint to native memory.
+        /// </summary>
         public void flush()
         {
             if (m_dirty == PaintDirt.none)

@@ -9,6 +9,9 @@ namespace Rive
     {
         public uint value;
 
+        /// <summary>
+        /// Creates a new color from the given ARGB values.
+        /// </summary>
         static public Color fromARGB(uint a, uint r, uint g, uint b)
         {
             return new Color(
@@ -18,6 +21,9 @@ namespace Rive
                 ((b & 0xff) << 0));
         }
 
+        /// <summary>
+        /// Creates a new color from the given RGBO values.
+        /// </summary>
         static public Color fromRGBO(uint r, uint g, uint b, float opacity)
         {
             return new Color(
@@ -27,6 +33,9 @@ namespace Rive
                       ((b & 0xff) << 0));
         }
 
+        /// <summary>
+        /// Creates a new color from the given 32 bit value.
+        /// </summary>
         public Color(uint value)
         {
             this.value = value & 0xffffffff;
@@ -42,12 +51,18 @@ namespace Rive
 
         uint blue { get { return (0x000000ff & value) >> 0; } }
 
-        Color withAlpha(uint a)
+        /// <summary>
+        /// Returns a new color from this color with the given alpha value.
+        /// </summary>
+        public Color withAlpha(uint a)
         {
             return Color.fromARGB(a, red, green, blue);
         }
 
-        Color withOpacity(float opacity)
+        /// <summary>
+        /// Returns a new color from this color with the given opacity value.
+        /// </summary>
+        public Color withOpacity(float opacity)
         {
             return withAlpha((uint)Mathf.RoundToInt(255.0f * opacity));
         }

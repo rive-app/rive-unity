@@ -4,6 +4,9 @@ using System.Runtime.InteropServices;
 
 namespace Rive
 {
+    /// <summary>
+    /// Represents an out-of-band Rive image asset.
+    /// </summary>
     public class ImageAsset : OutOfBandAsset
     {
         protected override IntPtr loadNative(byte[] data)

@@ -83,7 +83,12 @@ namespace Rive
             return list;
         }
 
+        /// <summary>
         /// Get a SMIBool by name.
+        /// </summary>
+        /// <remarks>
+        /// A SMIBool.value is a boolean that can be get/set
+        /// </remarks>
         public SMIBool getBool(string name)
         {
             IntPtr ptr = getSMIBoolStateMachine(m_nativeStateMachine, name);
@@ -93,7 +98,12 @@ namespace Rive
 
         }
 
+        /// <summary>
         /// Get a SMITrigger by name.
+        /// </summary>
+        /// <remarks>
+        /// A SMITrigger contains a fire method to trigger.
+        /// </remarks>
         public SMITrigger getTrigger(string name)
         {
             IntPtr ptr = getSMITriggerStateMachine(m_nativeStateMachine, name);
@@ -103,7 +113,12 @@ namespace Rive
 
         }
 
+        /// <summary>
         /// Get a SMINumber by name.
+        /// </summary>
+        /// <remarks>
+        /// A SMINumber.value is a float that can be get/set
+        /// </remarks>
         public SMINumber getNumber(string name)
         {
             IntPtr ptr = getSMINumberStateMachine(m_nativeStateMachine, name);
@@ -113,21 +128,33 @@ namespace Rive
 
         }
 
+        /// <summary>
+        /// Move the pointer to the given position on the state machine
+        /// </summary>
         public void pointerMove(Vector2 position)
         {
             pointerMoveStateMachine(m_nativeStateMachine, position.x, position.y);
         }
 
+        /// <summary>
+        /// Press the pointer at the given position on the state machine
+        /// </summary>
         public void pointerDown(Vector2 position)
         {
             pointerDownStateMachine(m_nativeStateMachine, position.x, position.y);
         }
 
+        /// <summary>
+        /// Release the pointer at the given position on the state machine
+        /// </summary>
         public void pointerUp(Vector2 position)
         {
             pointerUpStateMachine(m_nativeStateMachine, position.x, position.y);
         }
 
+        /// <summary>
+        /// A list of all the reported events.
+        /// </summary>
         public List<ReportedEvent> reportedEvents()
         {
             uint count = getReportedEventCount(m_nativeStateMachine);

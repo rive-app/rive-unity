@@ -4,6 +4,9 @@ using System.Runtime.InteropServices;
 
 namespace Rive
 {
+    /// <summary>
+    /// Represents an out-of-band Rive font asset.
+    /// </summary>
     public class FontAsset : OutOfBandAsset
     {
         protected override IntPtr loadNative(byte[] data)

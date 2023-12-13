@@ -35,16 +35,38 @@ namespace Rive
 
         private Dictionary<string, object> m_properties;
 
+        /// <summary>
+        /// The number of seconds after the event was triggered that it was reported.
+        /// </summary>
         public float secondsDelay
         {
             get { return m_secondsDelay; }
         }
 
+        /// <summary>
+        /// The name of the event.
+        /// </summary>
         public String name
         {
             get { return m_name; }
         }
 
+        /// <summary>
+        /// The associated properties of the event.
+        /// 
+        /// The properties are a dictionary of key/value pairs.
+        /// The key is the name of the property.
+        /// The value can be a string, float, or boolean.
+        /// </summary>
+        /// <remarks>
+        /// The properties can also be accessed by name using the indexer.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// event["myProperty"];
+        /// event.properties["myProperty"]; // instead of
+        /// </code>
+        /// </example>
         public Dictionary<string, object> properties => m_properties;
 
         public ushort type
@@ -53,6 +75,9 @@ namespace Rive
         }
 
 
+        /// <summary>
+        /// Get a property by name.
+        /// </summary>
         public object this[string index]
         {
             get { return m_properties == null ? null : m_properties[index]; }

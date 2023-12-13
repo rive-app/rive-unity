@@ -44,36 +44,57 @@ namespace Rive
             unrefRenderQueue(m_nativeRenderQueue);
         }
 
+        /// <summary>
+        /// Draw the given artboard to the render queue.
+        /// </summary>
         public void draw(Artboard artboard)
         {
             renderQueueDrawArtboard(m_nativeRenderQueue, artboard.nativeArtboard);
         }
 
+        /// <summary>
+        /// Draw the given path and paint to the render queue.
+        /// </summary>
         public void draw(Path path, Paint paint)
         {
             renderQueueDrawPath(m_nativeRenderQueue, path.nativePath, paint.nativePaint);
         }
 
+        /// <summary>
+        /// Clip the render queue to the given path.
+        /// </summary>
         public void clip(Path path)
         {
             renderQueueClipPath(m_nativeRenderQueue, path.nativePath);
         }
 
+        /// <summary>
+        /// Save the current render queue state.
+        /// </summary>
         public void save()
         {
             renderQueueSave(m_nativeRenderQueue);
         }
 
+        /// <summary>
+        /// Restore the last saved render queue state.
+        /// </summary>
         public void restore()
         {
             renderQueueRestore(m_nativeRenderQueue);
         }
 
+        /// <summary>
+        /// Transform the render queue by the given matrix.
+        /// </summary>
         public void transform(Mat2D matrix)
         {
             renderQueueTransform(m_nativeRenderQueue, matrix.xx, matrix.xy, matrix.yx, matrix.yy, matrix.tx, matrix.ty);
         }
 
+        /// <summary>
+        /// Align the artboard to the given fit and alignment.
+        /// </summary>
         public void align(Fit fit, Alignment alignment, Artboard artboard)
         {
             renderQueueAlign(
@@ -147,6 +168,9 @@ namespace Rive
             return m_resetMesh;
         }
 
+        /// <summary>
+        /// Update the render queue's target texture.
+        /// </summary>
         public void updateTexture(RenderTexture texture)
         {
             renderQueueUpdateRenderTexture(m_nativeRenderQueue, texture.GetNativeTexturePtr());

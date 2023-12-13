@@ -7,6 +7,9 @@ using UnityEditor;
 
 namespace Rive
 {
+    /// <summary>
+    /// Represents the type of an embedded asset in a Rive asset.
+    /// </summary>
     public enum EmbeddedAssetType : ushort
     {
         unknown = 0,
@@ -14,6 +17,9 @@ namespace Rive
         font = 141
     }
 
+    /// <summary>
+    /// Represents an out of band asset (OOB) that is embedded/referenced in a Rive asset.
+    /// </summary>
     [Serializable]
     public class EmbeddedAsset
     {
@@ -27,11 +33,17 @@ namespace Rive
         internal uint refCount;
     }
 
+    /// <summary>
+    /// Represents a Rive asset (.riv)
+    /// </summary>
     public class Asset : ScriptableObject
     {
         [HideInInspector]
         public byte[] bytes;
 
+        /// <summary>
+        /// A list of all the embedded assets in this Rive asset
+        /// </summary>
         public EmbeddedAsset[] assets;
 
         internal void loadOOBAssets(List<byte> assetMap)

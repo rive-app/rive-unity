@@ -28,6 +28,9 @@ namespace Rive
             m_stateMachineReference = stateMachineReference;
         }
 
+        /// <summary>
+        /// The name of the State Machine Input.
+        /// </summary>
         public string name
         {
             get
@@ -89,7 +92,7 @@ namespace Rive
     /// Represents a State Machine Boolean.
     /// </summary>
     /// <remarks>
-    /// A SMIBool is a boolean that can be set to true or false.
+    /// A SMIBool contains a value of type boolean that can be get/set.
     /// The SMIBool keeps the StateMachine alive by maintaining a reference to it.
     /// </remarks>
     public sealed class SMIBool : SMIInput
@@ -118,7 +121,7 @@ namespace Rive
     /// Represents a State Machine Number.
     /// </summary>
     /// <remarks>
-    /// A SMINumber is a float that can be set to any value.
+    /// A SMINumber contain a value of type float that can be get/set.
     /// The SMINumber keeps the StateMachine alive by maintaining a reference to it.
     /// </remarks>
     public sealed class SMINumber : SMIInput
