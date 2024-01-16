@@ -51,6 +51,16 @@ namespace Rive
             return new Vector2(vec.x, vec.y);
         }
 
+        /// <summary>
+        /// Returns the width of the artboard instance.
+        /// </summary>
+        public float width => getArtboardWidth(m_nativeArtboard);
+
+        /// <summary>
+        /// Returns the height of the artboard instance.
+        /// </summary>
+        public float height => getArtboardHeight(m_nativeArtboard);
+
         /// Returns the number of StateMachines stored in the artboard.
         public uint stateMachineCount
         {
@@ -108,6 +118,12 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getStateMachineName(IntPtr artboard, uint index);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern float getArtboardWidth(IntPtr artboard);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern float getArtboardHeight(IntPtr artboard);
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr instanceStateMachineAtIndex(IntPtr artboard, uint index);
