@@ -139,8 +139,11 @@ namespace Rive
 
         void drawRive(RenderQueue queue)
         {
-            queue.align(fit, alignment, m_artboard);
-            queue.draw(m_artboard);
+            if (m_artboard != null)
+            {
+                queue.align(fit, alignment, m_artboard);
+                queue.draw(m_artboard);
+            }
         }
 
         private Vector2 m_lastMousePosition;

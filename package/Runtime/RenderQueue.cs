@@ -30,6 +30,7 @@ namespace Rive
     {
         public RenderQueue(RenderTexture texture = null)
         {
+            validateRenderTexture(texture);
             if (texture != null)
             {
                 texture.Create();
@@ -44,11 +45,37 @@ namespace Rive
             unrefRenderQueue(m_nativeRenderQueue);
         }
 
+        void validateRenderTexture(RenderTexture texture)
+        {
+            if (texture == null)
+            {
+                throw new ArgumentException("A non null RenderTexture must be provided.");
+            }
+            if (texture == null)
+            {
+                throw new ArgumentException("A non null RenderTexture must be provided.");
+            }
+            if (
+                UnityEngine.SystemInfo.graphicsDeviceType
+                    == UnityEngine.Rendering.GraphicsDeviceType.Direct3D11
+                && !texture.enableRandomWrite
+            )
+            {
+                throw new ArgumentException(
+                    "RenderTexture must have enableRandomWrite set to true for D3D11."
+                );
+            }
+        }
+
         /// <summary>
         /// Draw the given artboard to the render queue.
         /// </summary>
         public void draw(Artboard artboard)
         {
+            if (artboard == null)
+            {
+                throw new ArgumentException("A non null artboard must be provided.");
+            }
             renderQueueDrawArtboard(m_nativeRenderQueue, artboard.nativeArtboard);
         }
 
@@ -89,7 +116,15 @@ namespace Rive
         /// </summary>
         public void transform(Mat2D matrix)
         {
-            renderQueueTransform(m_nativeRenderQueue, matrix.xx, matrix.xy, matrix.yx, matrix.yy, matrix.tx, matrix.ty);
+            renderQueueTransform(
+                m_nativeRenderQueue,
+                matrix.xx,
+                matrix.xy,
+                matrix.yx,
+                matrix.yy,
+                matrix.tx,
+                matrix.ty
+            );
         }
 
         /// <summary>
@@ -97,6 +132,10 @@ namespace Rive
         /// </summary>
         public void align(Fit fit, Alignment alignment, Artboard artboard)
         {
+            if (artboard == null)
+            {
+                throw new ArgumentException("A non null artboard must be provided.");
+            }
             renderQueueAlign(
                 m_nativeRenderQueue,
                 (byte)fit,
@@ -116,7 +155,11 @@ namespace Rive
         public void submitAndClear()
         {
             var commandBuffer = new RiveCommandBuffer(this);
-            commandBuffer.IssuePluginEventAndData(getSubmitAndClearQueueCallback(), 0, m_nativeRenderQueue);
+            commandBuffer.IssuePluginEventAndData(
+                getSubmitAndClearQueueCallback(),
+                0,
+                m_nativeRenderQueue
+            );
             Graphics.ExecuteCommandBuffer(commandBuffer);
         }
 
@@ -173,6 +216,7 @@ namespace Rive
         /// </summary>
         public void updateTexture(RenderTexture texture)
         {
+            validateRenderTexture(texture);
             renderQueueUpdateRenderTexture(m_nativeRenderQueue, texture.GetNativeTexturePtr());
         }
 
@@ -204,7 +248,11 @@ namespace Rive
         internal static extern void renderQueueDrawArtboard(IntPtr renderQueue, IntPtr artboard);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueDrawPath(IntPtr renderQueue, IntPtr path, IntPtr Paint);
+        internal static extern void renderQueueDrawPath(
+            IntPtr renderQueue,
+            IntPtr path,
+            IntPtr Paint
+        );
 
         [DllImport(NativeLibrary.name)]
         internal static extern void renderQueueClipPath(IntPtr renderQueue, IntPtr path);
@@ -216,7 +264,15 @@ namespace Rive
         internal static extern void renderQueueRestore(IntPtr renderQueue);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueTransform(IntPtr renderQueue, float xx, float xy, float yx, float yy, float tx, float ty);
+        internal static extern void renderQueueTransform(
+            IntPtr renderQueue,
+            float xx,
+            float xy,
+            float yx,
+            float yy,
+            float tx,
+            float ty
+        );
 
         [DllImport(NativeLibrary.name)]
         public static extern bool supportsDrawingToScreen();
