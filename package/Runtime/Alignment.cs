@@ -8,36 +8,31 @@ namespace Rive
     {
         public Alignment(float x, float y)
         {
-            m_x = x; m_y = y;
+            m_x = x;
+            m_y = y;
         }
 
-        private float m_x;
-        private float m_y;
+        private readonly float m_x;
+        private readonly float m_y;
 
-        public float x
+        public float X
         {
-            get
-            {
-                return m_x;
-            }
+            get { return m_x; }
         }
 
-        public float y
+        public float Y
         {
-            get
-            {
-                return m_y;
-            }
+            get { return m_y; }
         }
 
-        public static readonly Alignment topLeft = new Alignment(-1.0f, -1.0f);
-        public static readonly Alignment topCenter = new Alignment(0.0f, -1.0f);
-        public static readonly Alignment topRight = new Alignment(1.0f, -1.0f);
-        public static readonly Alignment centerLeft = new Alignment(-1.0f, 0.0f);
-        public static readonly Alignment center = new Alignment(0.0f, 0.0f);
-        public static readonly Alignment centerRight = new Alignment(1.0f, 0.0f);
-        public static readonly Alignment bottomLeft = new Alignment(-1.0f, 1.0f);
-        public static readonly Alignment bottomCenter = new Alignment(0.0f, 1.0f);
-        public static readonly Alignment bottomRight = new Alignment(1.0f, 1.0f);
+        public static readonly Alignment TopLeft = new(-1.0f, -1.0f);
+        public static readonly Alignment TopCenter = new(0.0f, -1.0f);
+        public static readonly Alignment TopRight = new(1.0f, -1.0f);
+        public static readonly Alignment CenterLeft = new(-1.0f, 0.0f);
+        public static readonly Alignment Center = new(0.0f, 0.0f);
+        public static readonly Alignment CenterRight = new(1.0f, 0.0f);
+        public static readonly Alignment BottomLeft = new(-1.0f, 1.0f);
+        public static readonly Alignment BottomCenter = new(0.0f, 1.0f);
+        public static readonly Alignment BottomRight = new(1.0f, 1.0f);
     }
 }

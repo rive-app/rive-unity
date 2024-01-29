@@ -13,7 +13,7 @@ namespace Rive
         public Rive.Asset asset;
         public RenderTexture renderTexture;
         public Fit fit = Fit.contain;
-        public Alignment alignment = Alignment.center;
+        public Alignment alignment = Alignment.Center;
 
         private RenderQueue m_renderQueue;
         private CommandBuffer m_commandBuffer;
@@ -29,21 +29,21 @@ namespace Rive
             m_renderQueue = new RenderQueue(renderTexture);
             if (asset != null)
             {
-                m_file = Rive.File.load(asset);
-                m_artboard = m_file.artboard(0);
-                m_stateMachine = m_artboard?.stateMachine();
+                m_file = Rive.File.Load(asset);
+                m_artboard = m_file.Artboard(0);
+                m_stateMachine = m_artboard?.StateMachine();
             }
 
             if (m_artboard != null && renderTexture != null)
             {
-                m_renderQueue.align(fit, alignment, m_artboard);
-                m_renderQueue.draw(m_artboard);
+                m_renderQueue.Align(fit, alignment, m_artboard);
+                m_renderQueue.Draw(m_artboard);
 
                 m_commandBuffer = new CommandBuffer();
-                m_renderQueue.toCommandBuffer();
+                m_renderQueue.ToCommandBuffer();
                 m_commandBuffer.SetRenderTarget(renderTexture);
                 m_commandBuffer.ClearRenderTarget(true, true, UnityEngine.Color.clear, 0.0f);
-                m_renderQueue.addToCommandBuffer(m_commandBuffer);
+                m_renderQueue.AddToCommandBuffer(m_commandBuffer);
                 m_camera = Camera.main;
                 if (m_camera != null)
                 {
@@ -102,7 +102,7 @@ namespace Rive
             }
             if (m_stateMachine != null)
             {
-                m_stateMachine.advance(Time.deltaTime);
+                m_stateMachine.Advance(Time.deltaTime);
             }
         }
 

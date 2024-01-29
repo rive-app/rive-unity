@@ -1,43 +1,285 @@
 using System;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.SceneManagement;
-using LoadAction = UnityEngine.Rendering.RenderBufferLoadAction;
-using StoreAction = UnityEngine.Rendering.RenderBufferStoreAction;
-#if UNITY_EDITOR
-using UnityEditor;
-using UnityEditor.SceneManagement;
-#endif
-
-using System.Collections.Generic;
+using System.Numerics;
 
 namespace Rive
 {
     public class RiveCommandBuffer : CommandBuffer
     {
-        private RenderQueue m_renderQueue;
+        private readonly Renderer m_renderer;
 
-        public RiveCommandBuffer(RenderQueue renderQueue)
+        public RiveCommandBuffer(Renderer renderer)
         {
-            m_renderQueue = renderQueue;
+            m_renderer = renderer;
         }
+    }
+
+    public class Renderer
+    {
+        protected RenderQueue m_renderQueue;
+        private IntPtr m_nativeRenderQueue = IntPtr.Zero;
+        private uint m_index;
+
+        internal Renderer(RenderQueue queue)
+        {
+            m_renderQueue = queue;
+            m_nativeRenderQueue = queue.m_nativeRenderQueue;
+            m_index = getNextCommandBufferIndex(m_nativeRenderQueue);
+        }
+
+        void Release()
+        {
+            releaseCommandBuffer(m_nativeRenderQueue, m_index);
+        }
+
+        /// <summary>
+        /// Draw the given artboard to the render queue.
+        /// </summary>
+        public void Draw(Artboard artboard)
+        {
+            if (artboard == null)
+            {
+                throw new ArgumentException("A non null artboard must be provided.");
+            }
+            renderQueueDrawArtboard(m_nativeRenderQueue, m_index, artboard.NativeArtboard);
+        }
+
+        /// <summary>
+        /// Draw the given path and paint to the render queue.
+        /// </summary>
+        public void Draw(Path path, Paint paint)
+        {
+            renderQueueDrawPath(m_nativeRenderQueue, m_index, path.NativePath, paint.NativePaint);
+        }
+
+        /// <summary>
+        /// Clip the render queue to the given path.
+        /// </summary>
+        public void Clip(Path path)
+        {
+            renderQueueClipPath(m_nativeRenderQueue, m_index, path.NativePath);
+        }
+
+        /// <summary>
+        /// Save the current render queue state.
+        /// </summary>
+        public void Save()
+        {
+            renderQueueSave(m_nativeRenderQueue, m_index);
+        }
+
+        /// <summary>
+        /// Restore the last saved render queue state.
+        /// </summary>
+        public void Restore()
+        {
+            renderQueueRestore(m_nativeRenderQueue, m_index);
+        }
+
+        /// <summary>
+        /// Transform the render queue by the given matrix.
+        /// </summary>
+        public void Transform(Matrix3x2 matrix)
+        {
+            renderQueueTransform(
+                m_nativeRenderQueue,
+                m_index,
+                matrix.M11,
+                matrix.M12,
+                matrix.M21,
+                matrix.M22,
+                matrix.M31,
+                matrix.M32
+            );
+        }
+
+        /// <summary>
+        /// Align the artboard to the given fit and alignment.
+        /// </summary>
+        public void Align(Fit fit, Alignment alignment, Artboard artboard)
+        {
+            if (artboard == null)
+            {
+                throw new ArgumentException("A non null artboard must be provided.");
+            }
+            renderQueueAlign(
+                m_nativeRenderQueue,
+                m_index,
+                (byte)fit,
+                alignment.X,
+                alignment.Y,
+                artboard.NativeArtboard
+            );
+        }
+
+        public void Submit()
+        {
+            var commandBuffer = new RiveCommandBuffer(this);
+            commandBuffer.IssuePluginEventAndData(
+                getRenderCommandBufferCallback(),
+                (int)m_index,
+                m_nativeRenderQueue
+            );
+            Graphics.ExecuteCommandBuffer(commandBuffer);
+        }
+
+        public void SubmitAndRelease()
+        {
+            var commandBuffer = new RiveCommandBuffer(this);
+            commandBuffer.IssuePluginEventAndData(
+                getRenderAndReleaseCommandBufferCallback(),
+                (int)m_index,
+                m_nativeRenderQueue
+            );
+            Graphics.ExecuteCommandBuffer(commandBuffer);
+        }
+
+        public CommandBuffer ToCommandBuffer()
+        {
+            var commandBuffer = new RiveCommandBuffer(this);
+            AddToCommandBuffer(commandBuffer);
+            return commandBuffer;
+        }
+
+        public void AddToCommandBuffer(CommandBuffer commandBuffer, bool release = false)
+        {
+            if (
+                UnityEngine.SystemInfo.graphicsDeviceType
+                == UnityEngine.Rendering.GraphicsDeviceType.Metal
+            )
+            {
+                // Unity seems to have the wrong texture bound when querying the
+                // exposed CurrentRenderPassDescriptor's colorAttachment. This
+                // forces the Metal backend to catch up.
+                commandBuffer.DrawMesh(
+                    GetResetMesh(),
+                    new UnityEngine.Matrix4x4(),
+                    GetResetMaterial()
+                );
+            }
+            commandBuffer.IssuePluginEventAndData(
+                release
+                    ? getRenderAndReleaseCommandBufferCallback()
+                    : getRenderCommandBufferCallback(),
+                (int)m_index,
+                m_nativeRenderQueue
+            );
+            commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
+        }
+
+        private static Material m_resetMaterial;
+        private static Mesh m_resetMesh;
+
+        private static Material GetResetMaterial()
+        {
+            if (m_resetMaterial == null)
+            {
+                m_resetMaterial = new Material(UnityEngine.Shader.Find("UI/Default"));
+            }
+            return m_resetMaterial;
+        }
+
+        private static Mesh GetResetMesh()
+        {
+            if (m_resetMesh == null)
+            {
+                m_resetMesh = new Mesh();
+            }
+            return m_resetMesh;
+        }
+
+        #region Native Methods
+        [DllImport(NativeLibrary.name)]
+        protected static extern uint getNextCommandBufferIndex(IntPtr renderQueue);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getRenderCommandBufferCallback();
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void releaseCommandBuffer(
+            IntPtr renderQueue,
+            uint commandBufferIndex
+        );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueDrawArtboard(
+            IntPtr renderQueue,
+            uint commandBufferIndex,
+            IntPtr artboard
+        );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueDrawPath(
+            IntPtr renderQueue,
+            uint commandBufferIndex,
+            IntPtr path,
+            IntPtr Paint
+        );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueClipPath(
+            IntPtr renderQueue,
+            uint commandBufferIndex,
+            IntPtr path
+        );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueSave(IntPtr renderQueue, uint commandBufferIndex);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueRestore(IntPtr renderQueue, uint commandBufferIndex);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueTransform(
+            IntPtr renderQueue,
+            uint commandBufferIndex,
+            float xx,
+            float xy,
+            float yx,
+            float yy,
+            float tx,
+            float ty
+        );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueAlign(
+            IntPtr renderQueue,
+            uint commandBufferIndex,
+            byte fit,
+            float alignX,
+            float alignY,
+            IntPtr artboard
+        );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getRenderAndReleaseCommandBufferCallback();
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getInvalidateState();
+        #endregion
     }
 
     public class RenderQueue
     {
         public RenderQueue(RenderTexture texture = null)
         {
-            validateRenderTexture(texture);
+            ValidateRenderTexture(texture, true);
             if (texture != null)
             {
                 texture.Create();
             }
             m_nativeRenderQueue = makeRenderQueue(
-                texture == null ? IntPtr.Zero : texture.GetNativeTexturePtr()
+                texture == null ? IntPtr.Zero : texture.GetNativeTexturePtr(),
+                (uint)(texture?.width ?? 0),
+                (uint)(texture?.height ?? 0)
             );
+        }
+
+        public Renderer Renderer()
+        {
+            return new Renderer(this);
         }
 
         ~RenderQueue()
@@ -45,11 +287,11 @@ namespace Rive
             unrefRenderQueue(m_nativeRenderQueue);
         }
 
-        void validateRenderTexture(RenderTexture texture)
+        static void ValidateRenderTexture(RenderTexture texture, bool allowNull = false)
         {
-            if (texture == null)
+            if (allowNull && texture == null)
             {
-                throw new ArgumentException("A non null RenderTexture must be provided.");
+                return;
             }
             if (texture == null)
             {
@@ -68,223 +310,42 @@ namespace Rive
         }
 
         /// <summary>
-        /// Draw the given artboard to the render queue.
-        /// </summary>
-        public void draw(Artboard artboard)
-        {
-            if (artboard == null)
-            {
-                throw new ArgumentException("A non null artboard must be provided.");
-            }
-            renderQueueDrawArtboard(m_nativeRenderQueue, artboard.nativeArtboard);
-        }
-
-        /// <summary>
-        /// Draw the given path and paint to the render queue.
-        /// </summary>
-        public void draw(Path path, Paint paint)
-        {
-            renderQueueDrawPath(m_nativeRenderQueue, path.nativePath, paint.nativePaint);
-        }
-
-        /// <summary>
-        /// Clip the render queue to the given path.
-        /// </summary>
-        public void clip(Path path)
-        {
-            renderQueueClipPath(m_nativeRenderQueue, path.nativePath);
-        }
-
-        /// <summary>
-        /// Save the current render queue state.
-        /// </summary>
-        public void save()
-        {
-            renderQueueSave(m_nativeRenderQueue);
-        }
-
-        /// <summary>
-        /// Restore the last saved render queue state.
-        /// </summary>
-        public void restore()
-        {
-            renderQueueRestore(m_nativeRenderQueue);
-        }
-
-        /// <summary>
-        /// Transform the render queue by the given matrix.
-        /// </summary>
-        public void transform(Mat2D matrix)
-        {
-            renderQueueTransform(
-                m_nativeRenderQueue,
-                matrix.xx,
-                matrix.xy,
-                matrix.yx,
-                matrix.yy,
-                matrix.tx,
-                matrix.ty
-            );
-        }
-
-        /// <summary>
-        /// Align the artboard to the given fit and alignment.
-        /// </summary>
-        public void align(Fit fit, Alignment alignment, Artboard artboard)
-        {
-            if (artboard == null)
-            {
-                throw new ArgumentException("A non null artboard must be provided.");
-            }
-            renderQueueAlign(
-                m_nativeRenderQueue,
-                (byte)fit,
-                alignment.x,
-                alignment.y,
-                artboard.nativeArtboard
-            );
-        }
-
-        public void submit()
-        {
-            var commandBuffer = new RiveCommandBuffer(this);
-            commandBuffer.IssuePluginEventAndData(getSubmitQueueCallback(), 0, m_nativeRenderQueue);
-            Graphics.ExecuteCommandBuffer(commandBuffer);
-        }
-
-        public void submitAndClear()
-        {
-            var commandBuffer = new RiveCommandBuffer(this);
-            commandBuffer.IssuePluginEventAndData(
-                getSubmitAndClearQueueCallback(),
-                0,
-                m_nativeRenderQueue
-            );
-            Graphics.ExecuteCommandBuffer(commandBuffer);
-        }
-
-        public CommandBuffer toCommandBuffer()
-        {
-            var commandBuffer = new RiveCommandBuffer(this);
-            addToCommandBuffer(commandBuffer);
-            return commandBuffer;
-        }
-
-        public void addToCommandBuffer(CommandBuffer commandBuffer)
-        {
-            if (
-                UnityEngine.SystemInfo.graphicsDeviceType
-                == UnityEngine.Rendering.GraphicsDeviceType.Metal
-            )
-            {
-                // Unity seems to have the wrong texture bound when querying the
-                // exposed CurrentRenderPassDescriptor's colorAttachment. This
-                // forces the Metal backend to catch up.
-                commandBuffer.DrawMesh(
-                    getResetMesh(),
-                    new UnityEngine.Matrix4x4(),
-                    getResetMaterial()
-                );
-            }
-            commandBuffer.IssuePluginEventAndData(getSubmitQueueCallback(), 0, m_nativeRenderQueue);
-            commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
-        }
-
-        private static UnityEngine.Material m_resetMaterial;
-        private static UnityEngine.Mesh m_resetMesh;
-
-        private static UnityEngine.Material getResetMaterial()
-        {
-            if (m_resetMaterial == null)
-            {
-                m_resetMaterial = new UnityEngine.Material(UnityEngine.Shader.Find("UI/Default"));
-            }
-            return m_resetMaterial;
-        }
-
-        private static UnityEngine.Mesh getResetMesh()
-        {
-            if (m_resetMesh == null)
-            {
-                m_resetMesh = new UnityEngine.Mesh();
-            }
-            return m_resetMesh;
-        }
-
-        /// <summary>
         /// Update the render queue's target texture.
         /// </summary>
-        public void updateTexture(RenderTexture texture)
+        public void UpdateTexture(RenderTexture texture)
         {
-            validateRenderTexture(texture);
-            renderQueueUpdateRenderTexture(m_nativeRenderQueue, texture.GetNativeTexturePtr());
+            ValidateRenderTexture(texture);
+            renderQueueUpdateRenderTexture(
+                m_nativeRenderQueue,
+                texture.GetNativeTexturePtr(),
+                (uint)texture.width,
+                (uint)texture.height
+            );
         }
 
-        protected IntPtr m_nativeRenderQueue = IntPtr.Zero;
+        internal IntPtr m_nativeRenderQueue = IntPtr.Zero;
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        protected static extern IntPtr makeRenderQueue(IntPtr renderTexture);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getSubmitQueueCallback();
+        protected static extern IntPtr makeRenderQueue(
+            IntPtr renderTexture,
+            uint width,
+            uint height
+        );
 
         [DllImport(NativeLibrary.name)]
         internal static extern void unrefRenderQueue(IntPtr renderQueue);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getInvalidateState();
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getSubmitAndClearQueueCallback();
-
-        [DllImport(NativeLibrary.name)]
         internal static extern void renderQueueUpdateRenderTexture(
             IntPtr renderQueue,
-            IntPtr texture
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueDrawArtboard(IntPtr renderQueue, IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueDrawPath(
-            IntPtr renderQueue,
-            IntPtr path,
-            IntPtr Paint
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueClipPath(IntPtr renderQueue, IntPtr path);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueSave(IntPtr renderQueue);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueRestore(IntPtr renderQueue);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueTransform(
-            IntPtr renderQueue,
-            float xx,
-            float xy,
-            float yx,
-            float yy,
-            float tx,
-            float ty
+            IntPtr texture,
+            uint width,
+            uint heigh
         );
 
         [DllImport(NativeLibrary.name)]
         public static extern bool supportsDrawingToScreen();
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueAlign(
-            IntPtr renderQueue,
-            byte fit,
-            float alignX,
-            float alignY,
-            IntPtr artboard
-        );
         #endregion
     }
 }

@@ -1,4 +1,3 @@
-using UnityEngine;
 using System;
 using System.Runtime.InteropServices;
 
@@ -9,12 +8,12 @@ namespace Rive
     /// </summary>
     public class FontAsset : OutOfBandAsset
     {
-        protected override IntPtr loadNative(byte[] data)
+        protected override IntPtr LoadNative(byte[] data)
         {
             return loadRiveFont(data, (nuint)data.Length);
         }
 
-        protected override void unloadNative(IntPtr nativePtr)
+        protected override void UnloadNative(IntPtr nativePtr)
         {
             unrefRiveFont(nativePtr);
         }

@@ -1,15 +1,13 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEditor;
-using System.Collections;
-using System.Collections.Generic;
 
 namespace Rive
 {
-    [CustomEditor(typeof(Rive.Asset))]
+    [CustomEditor(typeof(Asset))]
     public class AssetEditor : Editor
     {
-        Rive.File m_file;
+        File m_file;
         private Artboard m_artboard;
         private StateMachine m_stateMachine;
         private double m_lastTime = 0.0;
@@ -24,7 +22,7 @@ namespace Rive
 
         public override void OnInspectorGUI()
         {
-            var riveAsset = (Rive.Asset)target;
+            var riveAsset = (Asset)target;
 
             m_showAssets = EditorGUILayout.BeginFoldoutHeaderGroup(m_showAssets, "File Assets");
             if (m_showAssets)
@@ -38,7 +36,7 @@ namespace Rive
                     {
                         EditorGUILayout.TextField(
                             "Embedded: ",
-                            formatBytes(embeddedAsset.embeddedBytes)
+                            FormatBytes(embeddedAsset.embeddedBytes)
                         );
                     }
                     else
@@ -91,12 +89,12 @@ namespace Rive
             // those buffers may not be ready in time.
             switch (UnityEngine.SystemInfo.graphicsDeviceType)
             {
-                case UnityEngine.Rendering.GraphicsDeviceType.Metal:
+                case GraphicsDeviceType.Metal:
                     return null;
             }
             RenderTexture prev = RenderTexture.active;
-            var rect = new UnityEngine.Rect(0, 0, width, height);
-            RenderTexture rt = render(rect, true);
+            var rect = new Rect(0, 0, width, height);
+            RenderTexture rt = Render(rect, true);
 
             if (rt != null)
             {
@@ -112,7 +110,7 @@ namespace Rive
             return null;
         }
 
-        RenderTexture render(UnityEngine.Rect rect, bool isStatic = false)
+        RenderTexture Render(Rect rect, bool isStatic = false)
         {
             int width = (int)rect.width;
             int height = (int)rect.height;
@@ -144,27 +142,28 @@ namespace Rive
             if (m_file == null)
             {
                 var riveAsset = (Rive.Asset)target;
-                m_file = Rive.File.load(riveAsset);
-                m_artboard = m_file?.artboard(0);
-                m_stateMachine = m_artboard?.stateMachine();
+                m_file = Rive.File.Load(riveAsset);
+                m_artboard = m_file?.Artboard(0);
+                m_stateMachine = m_artboard?.StateMachine();
             }
 
             if (m_artboard != null)
             {
                 var rq = new RenderQueue(rt);
-                rq.align(Fit.contain, Alignment.center, m_artboard);
-                rq.draw(m_artboard);
-                rq.addToCommandBuffer(cmb);
+                var renderer = rq.Renderer();
+                renderer.Align(Fit.contain, Alignment.Center, m_artboard);
+                renderer.Draw(m_artboard);
+                renderer.AddToCommandBuffer(cmb);
                 if (!isStatic)
                 {
                     var now = EditorApplication.timeSinceStartup;
                     double time = now - m_lastTime;
-                    m_stateMachine?.advance((float)(now - m_lastTime));
+                    m_stateMachine?.Advance((float)(now - m_lastTime));
                     m_lastTime = now;
                 }
                 else
                 {
-                    m_stateMachine?.advance(0.0f);
+                    m_stateMachine?.Advance(0.0f);
                 }
             }
             var prev = RenderTexture.active;
@@ -172,7 +171,7 @@ namespace Rive
             GL.InvalidateState();
             cmb.Clear();
 
-            if (isStatic && flipY())
+            if (isStatic && FlipY())
             {
                 RenderTexture temp = RenderTexture.GetTemporary(
                     width,
@@ -192,14 +191,14 @@ namespace Rive
             return rt;
         }
 
-        public override void OnPreviewGUI(UnityEngine.Rect rect, GUIStyle background)
+        public override void OnPreviewGUI(Rect rect, GUIStyle background)
         {
             if (Event.current.type == EventType.Repaint)
             {
-                RenderTexture rt = render(rect);
+                RenderTexture rt = Render(rect);
 
                 UnityEditor.EditorGUI.DrawPreviewTexture(
-                    flipY()
+                    FlipY()
                         ? new Rect(rect.x, rect.y + rect.height, rect.width, -rect.height)
                         : rect,
                     rt
@@ -207,7 +206,7 @@ namespace Rive
             }
         }
 
-        private void unloadPreview()
+        private void UnloadPreview()
         {
             m_stateMachine = null;
             m_artboard = null;
@@ -217,29 +216,29 @@ namespace Rive
         public void OnDisable()
         {
             var riveAsset = (Rive.Asset)target;
-            unloadPreview();
+            UnloadPreview();
         }
 
-        private static bool flipY()
+        private static bool FlipY()
         {
             switch (UnityEngine.SystemInfo.graphicsDeviceType)
             {
-                case UnityEngine.Rendering.GraphicsDeviceType.Metal:
-                case UnityEngine.Rendering.GraphicsDeviceType.Direct3D11:
+                case GraphicsDeviceType.Metal:
+                case GraphicsDeviceType.Direct3D11:
                     return true;
                 default:
                     return false;
             }
         }
 
-        static string formatBytes(uint byteCount)
+        static string FormatBytes(uint byteCount)
         {
             string[] sizes = { "B", "KB", "MB", "GB", "TB" };
             int order = 0;
             while (byteCount >= 1024 && order < sizes.Length - 1)
             {
                 order++;
-                byteCount = byteCount / 1024;
+                byteCount /= 1024;
             }
 
             // Adjust the format string to your preferences. For example "{0:0.#}{1}" would

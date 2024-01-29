@@ -12,9 +12,9 @@ namespace Rive
     /// </summary>
     public class StateMachine
     {
-        private IntPtr m_nativeStateMachine;
+        private readonly IntPtr m_nativeStateMachine;
 
-        internal IntPtr nativeStateMachine => m_nativeStateMachine;
+        internal IntPtr NativeStateMachine => m_nativeStateMachine;
 
         internal StateMachine(IntPtr nativeStateMachine)
         {
@@ -26,37 +26,37 @@ namespace Rive
             unrefStateMachine(m_nativeStateMachine);
         }
 
-        public bool advance(float seconds)
+        public bool Advance(float seconds)
         {
             return advanceStateMachine(m_nativeStateMachine, seconds);
         }
 
         /// The number of Inputs stored in the StateMachine.
-        public uint inputCount()
+        public uint InputCount()
         {
             return getSMIInputCountStateMachine(m_nativeStateMachine);
         }
 
         /// The SMIInput at the given index.
-        public SMIInput input(uint index)
+        public SMIInput Input(uint index)
         {
             IntPtr ptr = getSMIInputFromIndexStateMachine(m_nativeStateMachine, index);
             return ptr == IntPtr.Zero ? null : new SMIInput(ptr, this);
         }
 
-        private SMIInput convertInput(SMIInput input)
+        private SMIInput ConvertInput(SMIInput input)
         {
-            if (input.isBoolean)
+            if (input.IsBoolean)
             {
-                return new SMIBool(input.nativeSMI, this);
+                return new SMIBool(input.NativeSMI, this);
             }
-            else if (input.isTrigger)
+            else if (input.IsTrigger)
             {
-                return new SMITrigger(input.nativeSMI, this);
+                return new SMITrigger(input.NativeSMI, this);
             }
-            else if (input.isNumber)
+            else if (input.IsNumber)
             {
-                return new SMINumber(input.nativeSMI, this);
+                return new SMINumber(input.NativeSMI, this);
             }
             else
             {
@@ -65,15 +65,18 @@ namespace Rive
         }
 
         /// A list of all the SMIInputs stored in the StateMachine.
-        public List<SMIInput> inputs()
+        public List<SMIInput> Inputs()
         {
             var list = new List<SMIInput>();
-            for (uint i = 0; i < inputCount(); i++)
+            for (uint i = 0; i < InputCount(); i++)
             {
-                var inputAtIndex = input(i);
-                if (inputAtIndex == null) continue;
+                var inputAtIndex = Input(i);
+                if (inputAtIndex == null)
+                {
+                    continue;
+                }
 
-                var converted = convertInput(inputAtIndex);
+                var converted = ConvertInput(inputAtIndex);
                 if (converted != null)
                 {
                     list.Add(converted);
@@ -89,13 +92,13 @@ namespace Rive
         /// <remarks>
         /// A SMIBool.value is a boolean that can be get/set
         /// </remarks>
-        public SMIBool getBool(string name)
+        public SMIBool GetBool(string name)
         {
             IntPtr ptr = getSMIBoolStateMachine(m_nativeStateMachine, name);
-            if (ptr != IntPtr.Zero) return new SMIBool(ptr, this);
+            if (ptr != IntPtr.Zero)
+                return new SMIBool(ptr, this);
             Debug.Log($"No SMIBool found with name: {name}.");
             return null;
-
         }
 
         /// <summary>
@@ -104,13 +107,13 @@ namespace Rive
         /// <remarks>
         /// A SMITrigger contains a fire method to trigger.
         /// </remarks>
-        public SMITrigger getTrigger(string name)
+        public SMITrigger GetTrigger(string name)
         {
             IntPtr ptr = getSMITriggerStateMachine(m_nativeStateMachine, name);
-            if (ptr != IntPtr.Zero) return new SMITrigger(ptr, this);
+            if (ptr != IntPtr.Zero)
+                return new SMITrigger(ptr, this);
             Debug.Log($"No SMITrigger found with name: {name}.");
             return null;
-
         }
 
         /// <summary>
@@ -119,19 +122,19 @@ namespace Rive
         /// <remarks>
         /// A SMINumber.value is a float that can be get/set
         /// </remarks>
-        public SMINumber getNumber(string name)
+        public SMINumber GetNumber(string name)
         {
             IntPtr ptr = getSMINumberStateMachine(m_nativeStateMachine, name);
-            if (ptr != IntPtr.Zero) return new SMINumber(ptr, this);
+            if (ptr != IntPtr.Zero)
+                return new SMINumber(ptr, this);
             Debug.Log($"No SMINumber found with name: {name}.");
             return null;
-
         }
 
         /// <summary>
         /// Move the pointer to the given position on the state machine
         /// </summary>
-        public void pointerMove(Vector2 position)
+        public void PointerMove(Vector2 position)
         {
             pointerMoveStateMachine(m_nativeStateMachine, position.x, position.y);
         }
@@ -139,7 +142,7 @@ namespace Rive
         /// <summary>
         /// Press the pointer at the given position on the state machine
         /// </summary>
-        public void pointerDown(Vector2 position)
+        public void PointerDown(Vector2 position)
         {
             pointerDownStateMachine(m_nativeStateMachine, position.x, position.y);
         }
@@ -147,7 +150,7 @@ namespace Rive
         /// <summary>
         /// Release the pointer at the given position on the state machine
         /// </summary>
-        public void pointerUp(Vector2 position)
+        public void PointerUp(Vector2 position)
         {
             pointerUpStateMachine(m_nativeStateMachine, position.x, position.y);
         }
@@ -155,7 +158,7 @@ namespace Rive
         /// <summary>
         /// A list of all the reported events.
         /// </summary>
-        public List<ReportedEvent> reportedEvents()
+        public List<ReportedEvent> ReportedEvents()
         {
             uint count = getReportedEventCount(m_nativeStateMachine);
             var list = new List<ReportedEvent>();
@@ -177,7 +180,10 @@ namespace Rive
         internal static extern uint getSMIInputCountStateMachine(IntPtr stateMachine);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getSMIInputFromIndexStateMachine(IntPtr stateMachine, uint index);
+        internal static extern IntPtr getSMIInputFromIndexStateMachine(
+            IntPtr stateMachine,
+            uint index
+        );
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getSMIBoolStateMachine(IntPtr stateMachine, string name);
@@ -201,7 +207,10 @@ namespace Rive
         internal static extern uint getReportedEventCount(IntPtr stateMachine);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern ReportedEventData getReportedEventAt(IntPtr stateMachine, uint index);
+        internal static extern ReportedEventData getReportedEventAt(
+            IntPtr stateMachine,
+            uint index
+        );
         #endregion
     }
 }

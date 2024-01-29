@@ -6,7 +6,7 @@ namespace Rive
 {
     /// <summary>
     /// Represents an out-of-band Rive asset.
-    /// 
+    ///
     /// Out-of-band assets are assets that are referenced in a Rive asset, but are not
     /// part of the Rive asset itself. For example, images and fonts can be marked as
     /// referenced and linked separately.
@@ -16,20 +16,20 @@ namespace Rive
         [HideInInspector]
         public byte[] bytes;
 
-        [System.NonSerialized]
+        [NonSerialized]
         private int m_refCount;
 
-        [System.NonSerialized]
+        [NonSerialized]
         private IntPtr m_nativeAsset = IntPtr.Zero;
 
-        protected abstract IntPtr loadNative(byte[] bytes);
-        protected abstract void unloadNative(IntPtr nativePtr);
+        protected abstract IntPtr LoadNative(byte[] bytes);
+        protected abstract void UnloadNative(IntPtr nativePtr);
 
-        public void load(EmbeddedAsset embeddedDetails, List<byte> assetMap)
+        public void Load(EmbeddedAsset embeddedDetails, List<byte> assetMap)
         {
             if (m_refCount == 0)
             {
-                m_nativeAsset = loadNative(bytes);
+                m_nativeAsset = LoadNative(bytes);
             }
             m_refCount++;
 
@@ -54,17 +54,15 @@ namespace Rive
             }
         }
 
-        public void unload()
+        public void Unload()
         {
             m_refCount--;
             if (m_refCount == 0)
             {
                 IntPtr nativeAsset = m_nativeAsset;
                 m_nativeAsset = IntPtr.Zero;
-                unloadNative(nativeAsset);
+                UnloadNative(nativeAsset);
             }
         }
-
-
     }
 }

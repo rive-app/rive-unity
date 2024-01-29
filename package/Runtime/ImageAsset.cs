@@ -9,13 +9,13 @@ namespace Rive
     /// </summary>
     public class ImageAsset : OutOfBandAsset
     {
-        protected override IntPtr loadNative(byte[] data)
+        protected override IntPtr LoadNative(byte[] data)
         {
             var inp = loadRiveImage(data, (nuint)data.Length);
             return inp;
         }
 
-        protected override void unloadNative(IntPtr nativePtr)
+        protected override void UnloadNative(IntPtr nativePtr)
         {
             unrefRiveImage(nativePtr);
         }

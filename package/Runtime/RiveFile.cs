@@ -1,9 +1,7 @@
 using UnityEngine;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using UnityEngine.Rendering;
 
 namespace Rive
 {
@@ -15,25 +13,23 @@ namespace Rive
     /// </remarks>
     public class File
     {
-        private IntPtr m_nativeFile;
-        private int m_assetKey;
+        private readonly IntPtr m_nativeFile;
+        private readonly int m_assetKey;
 
         // Only valid when the file was loaded from a Rive.Asset.
-        private Asset m_asset;
+        private readonly Asset m_asset;
 
-        internal IntPtr nativeFile
+        internal IntPtr NativeFile
         {
             get { return m_nativeFile; }
         }
 
-        static Dictionary<int, WeakReference<File>> _activeFiles =
-            new Dictionary<int, WeakReference<File>>();
+        private static readonly Dictionary<int, WeakReference<File>> m_activeFiles = new();
 
-        public static File load(string name, byte[] contents, int id, Asset asset = null)
+        public static File Load(string name, byte[] contents, int id, Asset asset = null)
         {
-            WeakReference<File> fileReference;
             File activeFile;
-            if (_activeFiles.TryGetValue(id, out fileReference))
+            if (m_activeFiles.TryGetValue(id, out WeakReference<File> fileReference))
             {
                 // File was in our cache, see if the reference is still good.
                 if (fileReference.TryGetTarget(out activeFile))
@@ -43,14 +39,14 @@ namespace Rive
                 else
                 {
                     // No longer referenced, remove it from the active list.
-                    _activeFiles.Remove(id);
+                    m_activeFiles.Remove(id);
                 }
             }
 
-            List<byte> assetMap = new List<byte>();
+            List<byte> assetMap = new();
             if (asset != null)
             {
-                asset.loadOOBAssets(assetMap);
+                asset.LoadOOBAssets(assetMap);
             }
 
             var assetMapArray = assetMap.ToArray();
@@ -63,30 +59,30 @@ namespace Rive
 
             if (address == IntPtr.Zero)
             {
-                asset.unloadOOBAssets();
+                asset.UnloadOOBAssets();
                 Debug.Log("Failed to load TextAsset \"" + name + "\" as a Rive file.");
                 return null;
             }
             else
             {
                 activeFile = new File(address, id, asset);
-                _activeFiles.Add(id, new WeakReference<File>(activeFile));
+                m_activeFiles.Add(id, new WeakReference<File>(activeFile));
                 return activeFile;
             }
         }
 
         /// Load a .riv File from a Unity TextAsset. Note that the if the file
         /// was already in memory, we'll return a cached version of it.
-        static public File load(TextAsset asset)
+        static public File Load(TextAsset asset)
         {
-            return load(asset.name, asset.bytes, asset.GetInstanceID());
+            return Load(asset.name, asset.bytes, asset.GetInstanceID());
         }
 
         /// Load a .riv File from a Unity Rive.Asset. Note that the if the file
         /// was already in memory, we'll return a cached version of it.
-        static public File load(Asset asset)
+        static public File Load(Asset asset)
         {
-            return load(asset.name, asset.bytes, asset.GetInstanceID(), asset);
+            return Load(asset.name, asset.bytes, asset.GetInstanceID(), asset);
         }
 
         private File(IntPtr nativeFile, int assetKey, Asset asset = null)
@@ -100,26 +96,26 @@ namespace Rive
         {
             if (m_asset != null)
             {
-                m_asset.unloadOOBAssets();
+                m_asset.UnloadOOBAssets();
             }
-            _activeFiles.Remove(m_assetKey);
+            m_activeFiles.Remove(m_assetKey);
             unrefRiveFile(m_nativeFile);
         }
 
         /// Returns the number of artboards stored in the file.
-        public uint artboardCount
+        public uint ArtboardCount
         {
             get { return getArtboardCount(m_nativeFile); }
         }
 
         /// Returns the name of the artboard at the given index.
-        public string artboardName(uint index)
+        public string ArtboardName(uint index)
         {
             return Marshal.PtrToStringAnsi(getArtboardName(m_nativeFile, index));
         }
 
         /// Instance an Artboard from the RiveFile.
-        public Artboard artboard(uint index)
+        public Artboard Artboard(uint index)
         {
             IntPtr ptr = instanceArtboardAtIndex(m_nativeFile, index);
             if (ptr == IntPtr.Zero)
@@ -131,7 +127,7 @@ namespace Rive
         }
 
         /// Instance an Artboard from the RiveFile.
-        public Artboard artboard(string name)
+        public Artboard Artboard(string name)
         {
             IntPtr ptr = instanceArtboardWithName(m_nativeFile, name);
             if (ptr == IntPtr.Zero)

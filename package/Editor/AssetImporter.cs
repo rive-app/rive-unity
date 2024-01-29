@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEditor.AssetImporters;
 using UnityEditor;
 using System;
-using System.IO;
 using System.Runtime.InteropServices;
 
 namespace Rive
@@ -13,17 +12,17 @@ namespace Rive
     {
         delegate void Callback();
 
-        void afterUpdate(Callback call)
+        void AfterUpdate(Callback call)
         {
-            EditorApplication.CallbackFunction callback = null;
-            callback = () =>
+            void callback()
             {
                 if (!EditorApplication.isCompiling && !EditorApplication.isUpdating)
                 {
                     call();
                     EditorApplication.update -= callback;
                 }
-            };
+            }
+
             EditorApplication.update += callback;
         }
 
@@ -33,7 +32,7 @@ namespace Rive
         public override void OnImportAsset(AssetImportContext ctx)
         {
             bool isFirstImport = importSettingsMissing;
-            Rive.Asset file = ScriptableObject.CreateInstance<Rive.Asset>();
+            Asset file = ScriptableObject.CreateInstance<Asset>();
             var assetPath = ctx.assetPath;
             file.bytes = System.IO.File.ReadAllBytes(assetPath);
 
@@ -62,7 +61,7 @@ namespace Rive
                 {
                     case EmbeddedAssetType.font:
                         foreach (
-                            var path in assetPaths(
+                            var path in AssetPaths(
                                 basePath,
                                 embeddedAsset.name,
                                 embeddedAsset.id,
@@ -93,7 +92,7 @@ namespace Rive
                         break;
                     case EmbeddedAssetType.image:
                         foreach (
-                            var path in assetPaths(
+                            var path in AssetPaths(
                                 basePath,
                                 embeddedAsset.name,
                                 embeddedAsset.id,
@@ -135,9 +134,9 @@ namespace Rive
                 // them. We only do this on first import so the user can go
                 // manually change auto-detected OOB assets to use a different
                 // importer if they want.
-                afterUpdate(() =>
+                AfterUpdate(() =>
                 {
-                    importOutOfBandAssets(assetPath);
+                    ImportOutOfBandAssets(assetPath);
                 });
             }
             ctx.SetMainObject(file);
@@ -168,7 +167,7 @@ namespace Rive
 
 
         // Pre-import any out of band assets.
-        private void importOutOfBandAssets(string assetPath)
+        private void ImportOutOfBandAssets(string assetPath)
         {
             var bytes = System.IO.File.ReadAllBytes(assetPath);
 
@@ -187,7 +186,7 @@ namespace Rive
                 {
                     case EmbeddedAssetType.font:
                         foreach (
-                            var path in assetPaths(basePath, name, id, AssetImporter.fontExtensions)
+                            var path in AssetPaths(basePath, name, id, AssetImporter.fontExtensions)
                         )
                         {
                             if (
@@ -203,7 +202,7 @@ namespace Rive
                         break;
                     case EmbeddedAssetType.image:
                         foreach (
-                            var path in assetPaths(
+                            var path in AssetPaths(
                                 basePath,
                                 name,
                                 id,
@@ -227,7 +226,7 @@ namespace Rive
             AssetImporter.deleteEmbeddedAssetList(listPtr);
         }
 
-        string[] assetPaths(string basePath, string name, uint id, string[] extensions)
+        string[] AssetPaths(string basePath, string name, uint id, string[] extensions)
         {
             List<string> paths = new List<string>();
             foreach (var extension in extensions)

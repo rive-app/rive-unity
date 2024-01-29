@@ -1,9 +1,5 @@
 using UnityEngine;
-using System.Collections.Generic;
 using UnityEditor.AssetImporters;
-using UnityEditor;
-using System;
-using System.Runtime.InteropServices;
 
 namespace Rive
 {
@@ -12,7 +8,7 @@ namespace Rive
     {
         public override void OnImportAsset(AssetImportContext ctx)
         {
-            Rive.ImageAsset file = ScriptableObject.CreateInstance<Rive.ImageAsset>();
+            ImageAsset file = ScriptableObject.CreateInstance<ImageAsset>();
             file.bytes = System.IO.File.ReadAllBytes(ctx.assetPath);
 
             ctx.AddObjectToAsset("rive-image", file);

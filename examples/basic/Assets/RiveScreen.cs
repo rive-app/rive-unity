@@ -62,7 +62,7 @@ namespace Rive
             );
             m_renderTexture.enableRandomWrite = true;
             m_renderTexture.Create();
-            m_renderQueue.updateTexture(m_renderTexture);
+            m_renderQueue.UpdateTexture(m_renderTexture);
             return true;
         }
     }
@@ -74,7 +74,7 @@ namespace Rive
         public Rive.Asset asset;
         public CameraEvent cameraEvent = CameraEvent.BeforeImageEffects;
         public Fit fit = Fit.contain;
-        public Alignment alignment = Alignment.center;
+        public Alignment alignment = Alignment.Center;
 
         private RenderQueue m_renderQueue;
         private CommandBuffer m_commandBuffer;
@@ -120,15 +120,15 @@ namespace Rive
         {
             if (asset != null)
             {
-                m_file = Rive.File.load(asset);
-                m_artboard = m_file.artboard(0);
-                m_stateMachine = m_artboard?.stateMachine();
+                m_file = Rive.File.Load(asset);
+                m_artboard = m_file.Artboard(0);
+                m_stateMachine = m_artboard?.StateMachine();
             }
 
             Camera camera = gameObject.GetComponent<Camera>();
             Assert.IsNotNull(camera, "TestRive must be attached to a camera.");
             m_renderQueue = new RenderQueue();
-            m_commandBuffer = m_renderQueue.toCommandBuffer();
+            m_commandBuffer = m_renderQueue.ToCommandBuffer();
             camera.AddCommandBuffer(cameraEvent, m_commandBuffer);
             if (!RenderQueue.supportsDrawingToScreen())
             {
@@ -141,8 +141,8 @@ namespace Rive
         {
             if (m_artboard != null)
             {
-                queue.align(fit, alignment, m_artboard);
-                queue.draw(m_artboard);
+                queue.Align(fit, alignment, m_artboard);
+                queue.Draw(m_artboard);
             }
         }
 
@@ -162,39 +162,39 @@ namespace Rive
                 );
                 if (m_artboard != null && m_lastMousePosition != mouseRiveScreenPos)
                 {
-                    Vector2 local = m_artboard.localCoordinate(
+                    Vector2 local = m_artboard.LocalCoordinate(
                         mouseRiveScreenPos,
                         new Rect(0, 0, camera.pixelWidth, camera.pixelHeight),
                         fit,
                         alignment
                     );
-                    m_stateMachine?.pointerMove(local);
+                    m_stateMachine?.PointerMove(local);
                     m_lastMousePosition = mouseRiveScreenPos;
                 }
                 if (Input.GetMouseButtonDown(0))
                 {
-                    Vector2 local = m_artboard.localCoordinate(
+                    Vector2 local = m_artboard.LocalCoordinate(
                         mouseRiveScreenPos,
                         new Rect(0, 0, camera.pixelWidth, camera.pixelHeight),
                         fit,
                         alignment
                     );
-                    m_stateMachine?.pointerDown(local);
+                    m_stateMachine?.PointerDown(local);
                     m_wasMouseDown = true;
                 }
                 else if (m_wasMouseDown)
                 {
                     m_wasMouseDown = false;
-                    Vector2 local = m_artboard.localCoordinate(
+                    Vector2 local = m_artboard.LocalCoordinate(
                         mouseRiveScreenPos,
                         new Rect(0, 0, camera.pixelWidth, camera.pixelHeight),
                         fit,
                         alignment
                     );
-                    m_stateMachine?.pointerUp(local);
+                    m_stateMachine?.PointerUp(local);
                 }
             }
-            m_stateMachine?.advance(Time.deltaTime);
+            m_stateMachine?.Advance(Time.deltaTime);
         }
 
         private void OnDisable()

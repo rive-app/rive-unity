@@ -46,7 +46,7 @@ namespace Rive
         /// </summary>
         public EmbeddedAsset[] assets;
 
-        internal void loadOOBAssets(List<byte> assetMap)
+        internal void LoadOOBAssets(List<byte> assetMap)
         {
             foreach (var embeddedAsset in assets)
             {
@@ -55,11 +55,11 @@ namespace Rive
                 {
                     continue;
                 }
-                oobAsset.load(embeddedAsset, assetMap);
+                oobAsset.Load(embeddedAsset, assetMap);
             }
         }
 
-        internal void unloadOOBAssets()
+        internal void UnloadOOBAssets()
         {
             foreach (var embeddedAsset in assets)
             {
@@ -68,7 +68,7 @@ namespace Rive
                 {
                     continue;
                 }
-                oobAsset.unload();
+                oobAsset.Unload();
             }
         }
     }

@@ -12,25 +12,24 @@ namespace Rive
         /// <summary>
         /// Creates a new color from the given ARGB values.
         /// </summary>
-        static public Color fromARGB(uint a, uint r, uint g, uint b)
+        static public Color FromARGB(uint a, uint r, uint g, uint b)
         {
             return new Color(
-                ((a & 0xff) << 24) |
-                ((r & 0xff) << 16) |
-                ((g & 0xff) << 8) |
-                ((b & 0xff) << 0));
+                ((a & 0xff) << 24) | ((r & 0xff) << 16) | ((g & 0xff) << 8) | ((b & 0xff) << 0)
+            );
         }
 
         /// <summary>
         /// Creates a new color from the given RGBO values.
         /// </summary>
-        static public Color fromRGBO(uint r, uint g, uint b, float opacity)
+        static public Color FromRGBO(uint r, uint g, uint b, float opacity)
         {
             return new Color(
-                      ((((uint)Mathf.FloorToInt(opacity * 0xff)) & 0xff) << 24) |
-                      ((r & 0xff) << 16) |
-                      ((g & 0xff) << 8) |
-                      ((b & 0xff) << 0));
+                ((((uint)Mathf.FloorToInt(opacity * 0xff)) & 0xff) << 24)
+                    | ((r & 0xff) << 16)
+                    | ((g & 0xff) << 8)
+                    | ((b & 0xff) << 0)
+            );
         }
 
         /// <summary>
@@ -41,34 +40,48 @@ namespace Rive
             this.value = value & 0xffffffff;
         }
 
-        uint alpha { get { return (0xff000000 & value) >> 24; } }
+        readonly uint Alpha
+        {
+            get { return (0xff000000 & value) >> 24; }
+        }
 
-        float opacity { get { return alpha / 0xff; } }
+        float Opacity
+        {
+            get { return Alpha / 0xff; }
+        }
 
-        uint red { get { return (0x00ff0000 & value) >> 16; } }
+        readonly uint Red
+        {
+            get { return (0x00ff0000 & value) >> 16; }
+        }
 
-        uint green { get { return (0x0000ff00 & value) >> 8; } }
+        readonly uint Green
+        {
+            get { return (0x0000ff00 & value) >> 8; }
+        }
 
-        uint blue { get { return (0x000000ff & value) >> 0; } }
+        readonly uint Blue
+        {
+            get { return (0x000000ff & value) >> 0; }
+        }
 
         /// <summary>
         /// Returns a new color from this color with the given alpha value.
         /// </summary>
-        public Color withAlpha(uint a)
+        public Color WithAlpha(uint a)
         {
-            return Color.fromARGB(a, red, green, blue);
+            return Color.FromARGB(a, Red, Green, Blue);
         }
 
         /// <summary>
         /// Returns a new color from this color with the given opacity value.
         /// </summary>
-        public Color withOpacity(float opacity)
+        public Color WithOpacity(float opacity)
         {
-            return withAlpha((uint)Mathf.RoundToInt(255.0f * opacity));
+            return WithAlpha((uint)Mathf.RoundToInt(255.0f * opacity));
         }
 
-
-        public override bool Equals(object obj)
+        public override readonly bool Equals(object obj)
         {
             if (obj == null || GetType() != obj.GetType())
             {
@@ -78,7 +91,6 @@ namespace Rive
             var other = (Color)obj;
 
             return other.value == value;
-
         }
 
         public static bool operator ==(Color c1, Color c2)
@@ -91,10 +103,9 @@ namespace Rive
             return c1.value != c2.value;
         }
 
-        public override int GetHashCode()
+        public override readonly int GetHashCode()
         {
             return (int)value;
         }
     }
-
 }

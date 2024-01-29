@@ -1,9 +1,6 @@
 using UnityEngine;
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using UnityEngine.Rendering;
 
 namespace Rive
 {
@@ -12,12 +9,14 @@ namespace Rive
     /// </summary>
     public class Artboard
     {
-        private IntPtr m_nativeArtboard;
+        private readonly IntPtr m_nativeArtboard;
 
-        internal IntPtr nativeArtboard
+        internal IntPtr NativeArtboard
         {
             get { return m_nativeArtboard; }
         }
+
+        public bool isValid => false;
 
         internal Artboard(IntPtr nativeArtboard)
         {
@@ -29,7 +28,7 @@ namespace Rive
             unrefArtboard(m_nativeArtboard);
         }
 
-        public Vector2 localCoordinate(
+        public Vector2 LocalCoordinate(
             Vector2 screenPosition,
             Rect screen,
             Fit fit,
@@ -44,8 +43,8 @@ namespace Rive
                 screen.xMax,
                 screen.yMax,
                 (byte)fit,
-                alignment.x,
-                alignment.y,
+                alignment.X,
+                alignment.Y,
                 m_nativeArtboard
             );
             return new Vector2(vec.x, vec.y);
@@ -54,27 +53,27 @@ namespace Rive
         /// <summary>
         /// Returns the width of the artboard instance.
         /// </summary>
-        public float width => getArtboardWidth(m_nativeArtboard);
+        public float Width => getArtboardWidth(m_nativeArtboard);
 
         /// <summary>
         /// Returns the height of the artboard instance.
         /// </summary>
-        public float height => getArtboardHeight(m_nativeArtboard);
+        public float Height => getArtboardHeight(m_nativeArtboard);
 
         /// Returns the number of StateMachines stored in the artboard.
-        public uint stateMachineCount
+        public uint StateMachineCount
         {
             get { return getStateMachineCount(m_nativeArtboard); }
         }
 
         /// Returns the name of the StateMachine at the given index.
-        public string stateMachineName(uint index)
+        public string StateMachineName(uint index)
         {
             return Marshal.PtrToStringAnsi(getStateMachineName(m_nativeArtboard, index));
         }
 
         /// Instance a StateMachine from the Artboard.
-        public StateMachine stateMachine(uint index)
+        public StateMachine StateMachine(uint index)
         {
             IntPtr ptr = instanceStateMachineAtIndex(m_nativeArtboard, index);
             if (ptr == IntPtr.Zero)
@@ -86,7 +85,7 @@ namespace Rive
         }
 
         /// Instance a StateMachine from the Artboard.
-        public StateMachine stateMachine(string name)
+        public StateMachine StateMachine(string name)
         {
             IntPtr ptr = instanceStateMachineWithName(m_nativeArtboard, name);
             if (ptr == IntPtr.Zero)
@@ -98,7 +97,7 @@ namespace Rive
         }
 
         /// Instance the default StateMachine from the Artboard.
-        public StateMachine stateMachine()
+        public StateMachine StateMachine()
         {
             IntPtr ptr = instanceStateMachineDefault(m_nativeArtboard);
             if (ptr == IntPtr.Zero)

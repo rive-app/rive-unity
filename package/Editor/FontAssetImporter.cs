@@ -1,9 +1,5 @@
 using UnityEngine;
-using System.Collections.Generic;
 using UnityEditor.AssetImporters;
-using UnityEditor;
-using System;
-using System.Runtime.InteropServices;
 
 namespace Rive
 {
@@ -12,7 +8,7 @@ namespace Rive
     {
         public override void OnImportAsset(AssetImportContext ctx)
         {
-            Rive.FontAsset file = ScriptableObject.CreateInstance<Rive.FontAsset>();
+            FontAsset file = ScriptableObject.CreateInstance<FontAsset>();
             file.bytes = System.IO.File.ReadAllBytes(ctx.assetPath);
 
             ctx.AddObjectToAsset("rive-font", file);

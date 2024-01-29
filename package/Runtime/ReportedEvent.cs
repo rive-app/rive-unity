@@ -22,23 +22,22 @@ namespace Rive
         public ushort type;
     }
 
-
     /// <summary>
     /// Represents an event reported by a StateMachine.
     /// </summary>
     public class ReportedEvent
     {
-        private float m_secondsDelay;
-        private string m_name;
+        private readonly float m_secondsDelay;
+        private readonly string m_name;
 
-        private ushort m_type;
+        private readonly ushort m_type;
 
-        private Dictionary<string, object> m_properties;
+        private readonly Dictionary<string, object> m_properties;
 
         /// <summary>
         /// The number of seconds after the event was triggered that it was reported.
         /// </summary>
-        public float secondsDelay
+        public float SecondsDelay
         {
             get { return m_secondsDelay; }
         }
@@ -46,14 +45,14 @@ namespace Rive
         /// <summary>
         /// The name of the event.
         /// </summary>
-        public String name
+        public string Name
         {
             get { return m_name; }
         }
 
         /// <summary>
         /// The associated properties of the event.
-        /// 
+        ///
         /// The properties are a dictionary of key/value pairs.
         /// The key is the name of the property.
         /// The value can be a string, float, or boolean.
@@ -67,20 +66,19 @@ namespace Rive
         /// event.properties["myProperty"]; // instead of
         /// </code>
         /// </example>
-        public Dictionary<string, object> properties => m_properties;
+        public Dictionary<string, object> Properties => m_properties;
 
-        public ushort type
+        public ushort Type
         {
             get { return m_type; }
         }
-
 
         /// <summary>
         /// Get a property by name.
         /// </summary>
         public object this[string index]
         {
-            get { return m_properties == null ? null : m_properties[index]; }
+            get { return m_properties?[index]; }
         }
 
         internal ReportedEvent(ReportedEventData data)
@@ -103,14 +101,15 @@ namespace Rive
                             break;
 
                         case 130:
-                            m_properties[name] = Marshal.PtrToStringAnsi(getCustomString(property.nativeProperty));
+                            m_properties[name] = Marshal.PtrToStringAnsi(
+                                getCustomString(property.nativeProperty)
+                            );
                             break;
 
                         case 127:
                             m_properties[name] = getCustomNumber(property.nativeProperty);
                             break;
                     }
-
                 }
             }
         }
@@ -126,7 +125,10 @@ namespace Rive
         internal static extern uint getEventCustomPropertyCount(IntPtr nativeEvent);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern UnityCustomProperty getEventCustomProperty(IntPtr nativeEvent, uint index);
+        internal static extern UnityCustomProperty getEventCustomProperty(
+            IntPtr nativeEvent,
+            uint index
+        );
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getCustomString(IntPtr nativeProperty);
@@ -138,7 +140,5 @@ namespace Rive
         internal static extern float getCustomNumber(IntPtr nativeProperty);
 
         #endregion
-
     }
 }
-
