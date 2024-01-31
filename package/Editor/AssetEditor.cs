@@ -115,23 +115,7 @@ namespace Rive
             int width = (int)rect.width;
             int height = (int)rect.height;
 
-            var descriptor = new RenderTextureDescriptor(
-                width,
-                height,
-                RenderTextureFormat.Default
-            );
-
-            if (
-                UnityEngine.SystemInfo.graphicsDeviceType
-                == UnityEngine.Rendering.GraphicsDeviceType.Direct3D11
-            )
-            {
-                // Enabling random write with metal textures was causing
-                // problems with render to texture so we make sure to set
-                // this only when we really need it.
-                descriptor.enableRandomWrite = true;
-            }
-
+            var descriptor = Rive.TextureHelper.Descriptor(width, height);
             RenderTexture rt = RenderTexture.GetTemporary(descriptor);
 
             var cmb = new CommandBuffer();
