@@ -59,12 +59,12 @@ Select either D3D11/OpenGL for Windows, or Metal for Mac/iOS as the Graphics API
 You can install the Rive package for Unity by opening the Package Manager (Window -> Package Manager) and adding the [latest tag](https://github.com/rive-app/rive-unity/tags) as a git dependency:
 
 ```
-git@github.com:rive-app/rive-unity.git?path=package#v0.1.30
+git@github.com:rive-app/rive-unity.git?path=package#v0.1.69
 ```
 
 Or through HTTP:
 ```
-https://github.com/rive-app/rive-unity.git?path=package#v0.1.30
+https://github.com/rive-app/rive-unity.git?path=package#v0.1.69
 ```
 
 You can also add it manually to your projects `Packages/manifest.json` file:
@@ -72,7 +72,7 @@ You can also add it manually to your projects `Packages/manifest.json` file:
 ```json
 {
   "dependencies": {
-    "app.rive.rive-unity": "git@github.com:rive-app/rive-unity.git?path=package#v0.1.30",
+    "app.rive.rive-unity": "git@github.com:rive-app/rive-unity.git?path=package#v0.1.69",
   }
 }
 ```
