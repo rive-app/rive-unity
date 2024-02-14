@@ -108,6 +108,11 @@ namespace Rive
             return new StateMachine(ptr);
         }
 
+        public void SetAudioEngine(AudioEngine audioEngine) 
+        {
+            setArtboardAudioEngine(m_nativeArtboard, audioEngine.m_nativeAudioEngine);
+        }
+
         #region Native Methods
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr unrefArtboard(IntPtr artboard);
@@ -146,6 +151,9 @@ namespace Rive
             float alignY,
             IntPtr artboard
         );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void setArtboardAudioEngine(IntPtr artboard, IntPtr audioEngine);
         #endregion
     }
 }

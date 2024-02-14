@@ -114,6 +114,17 @@ public class RiveScreen : MonoBehaviour
         }
     }
 
+    private Rive.AudioEngine m_audioEngine;
+
+    void OnAudioFilterRead(float[] data, int channels)
+    {
+        if(m_audioEngine == null) 
+        {
+            return;
+        }
+        m_audioEngine.Sum(data, channels);
+    }
+
     private void Start()
     {
         if (asset != null)
@@ -121,6 +132,33 @@ public class RiveScreen : MonoBehaviour
             m_file = Rive.File.Load(asset);
             m_artboard = m_file.Artboard(0);
             m_stateMachine = m_artboard?.StateMachine();
+            int channelCount = 1;
+            switch(AudioSettings.speakerMode) {
+                case AudioSpeakerMode.Mono:
+                    channelCount = 1;
+                    break;
+                case AudioSpeakerMode.Stereo:
+                    channelCount = 2;
+                    break;
+                case AudioSpeakerMode.Quad:
+                    channelCount = 4;
+                    break;
+                case AudioSpeakerMode.Surround:
+                    channelCount = 5;
+                    break;
+                case AudioSpeakerMode.Mode5point1:
+                    channelCount = 6;
+                    break;
+                case AudioSpeakerMode.Mode7point1:
+                    channelCount = 8;
+                    break;
+                case AudioSpeakerMode.Prologic:
+                    channelCount = 2;
+                    break;
+            }
+
+            m_audioEngine = Rive.AudioEngine.Make(channelCount, AudioSettings.outputSampleRate);
+            m_artboard.SetAudioEngine(m_audioEngine);
         }
 
         Camera camera = gameObject.GetComponent<Camera>();
