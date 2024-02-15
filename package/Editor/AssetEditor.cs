@@ -68,6 +68,17 @@ namespace Rive
                                     );
                                 }
                                 break;
+
+                            case EmbeddedAssetType.audio:
+
+                                {
+                                    EditorGUILayout.ObjectField(
+                                        embeddedAsset.asset,
+                                        typeof(AudioAsset),
+                                        false
+                                    );
+                                }
+                                break;
                         }
                         EditorGUILayout.EndHorizontal();
                     }

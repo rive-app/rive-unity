@@ -14,7 +14,8 @@ namespace Rive
     {
         unknown = 0,
         image = 105,
-        font = 141
+        font = 141,
+        audio = 406
     }
 
     /// <summary>

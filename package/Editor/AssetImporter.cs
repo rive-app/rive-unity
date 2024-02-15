@@ -28,6 +28,7 @@ namespace Rive
 
         public static string[] fontExtensions = new string[] { "ttf", "otf" };
         public static string[] imageExtensions = new string[] { "png" };
+        public static string[] audioExtensions = new string[] { "wav", "mp3", "flac" };
 
         public override void OnImportAsset(AssetImportContext ctx)
         {
@@ -112,6 +113,37 @@ namespace Rive
                                     // If the ImageAsset doesn't exit, make sure we import it before our Rive asset imports.
                                     ImageAsset referencedAsset =
                                         AssetDatabase.LoadAssetAtPath<ImageAsset>(path);
+                                    if (referencedAsset != null)
+                                    {
+                                        embeddedAsset.asset = referencedAsset;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        break;
+                    case EmbeddedAssetType.audio:
+                        foreach (
+                            var path in AssetPaths(
+                                basePath,
+                                embeddedAsset.name,
+                                embeddedAsset.id,
+                                AssetImporter.audioExtensions
+                            )
+                        )
+                        {
+                            if (System.IO.File.Exists(path))
+                            {
+                                oobAssetCount++;
+                                // We depend on the image asset so any time it
+                                // re-importer/settings change this .riv asset
+                                // re-imports too.
+                                ctx.DependsOnArtifact(path);
+                                if (!String.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path)))
+                                {
+                                    // If the AudioAsset doesn't exit, make sure we import it before our Rive asset imports.
+                                    AudioAsset referencedAsset =
+                                        AssetDatabase.LoadAssetAtPath<AudioAsset>(path);
                                     if (referencedAsset != null)
                                     {
                                         embeddedAsset.asset = referencedAsset;
@@ -216,6 +248,27 @@ namespace Rive
                             )
                             {
                                 AssetDatabase.SetImporterOverride<ImageAssetImporter>(path);
+                                AssetDatabase.ImportAsset(path);
+                                break;
+                            }
+                        }
+                        break;
+                    case EmbeddedAssetType.audio:
+                        foreach (
+                            var path in AssetPaths(
+                                basePath,
+                                name,
+                                id,
+                                AssetImporter.audioExtensions
+                            )
+                        )
+                        {
+                            if (
+                                System.IO.File.Exists(path)
+                                && AssetDatabase.GetImporterOverride(path) == null
+                            )
+                            {
+                                AssetDatabase.SetImporterOverride<AudioAssetImporter>(path);
                                 AssetDatabase.ImportAsset(path);
                                 break;
                             }

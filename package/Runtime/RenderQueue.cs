@@ -263,7 +263,7 @@ namespace Rive
 
     public class RenderQueue
     {
-        public RenderQueue(RenderTexture texture = null)
+        public RenderQueue(RenderTexture texture = null, bool clear = true)
         {
             ValidateRenderTexture(texture, true);
             if (texture != null)
@@ -273,7 +273,8 @@ namespace Rive
             m_nativeRenderQueue = makeRenderQueue(
                 texture == null ? IntPtr.Zero : texture.GetNativeTexturePtr(),
                 (uint)(texture?.width ?? 0),
-                (uint)(texture?.height ?? 0)
+                (uint)(texture?.height ?? 0),
+                clear
             );
         }
 
@@ -330,7 +331,8 @@ namespace Rive
         protected static extern IntPtr makeRenderQueue(
             IntPtr renderTexture,
             uint width,
-            uint height
+            uint height,
+            bool clear
         );
 
         [DllImport(NativeLibrary.name)]
