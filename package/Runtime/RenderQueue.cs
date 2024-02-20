@@ -79,6 +79,31 @@ namespace Rive
         }
 
         /// <summary>
+        /// Transform the render queue by the given translation.
+        /// </summary>
+        public void Translate(System.Numerics.Vector2 translation)
+        {
+            renderQueueTransform(
+                m_nativeRenderQueue,
+                m_index,
+                1.0f,
+                0.0f,
+                0.0f,
+                1.0f,
+                translation.X,
+                translation.Y
+            );
+        }
+
+        /// <summary>
+        /// Transform the render queue by the given translation.
+        /// </summary>
+        public void Translate(float x, float y)
+        {
+            renderQueueTransform(m_nativeRenderQueue, m_index, 1.0f, 0.0f, 0.0f, 1.0f, x, y);
+        }
+
+        /// <summary>
         /// Transform the render queue by the given matrix.
         /// </summary>
         public void Transform(Matrix3x2 matrix)

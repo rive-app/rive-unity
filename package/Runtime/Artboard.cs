@@ -16,8 +16,6 @@ namespace Rive
             get { return m_nativeArtboard; }
         }
 
-        public bool isValid => false;
-
         internal Artboard(IntPtr nativeArtboard)
         {
             m_nativeArtboard = nativeArtboard;
@@ -48,6 +46,21 @@ namespace Rive
                 m_nativeArtboard
             );
             return new Vector2(vec.x, vec.y);
+        }
+
+        public Component Component(string name)
+        {
+            var ptr = artboardComponentNamed(m_nativeArtboard, name);
+            if (ptr == IntPtr.Zero)
+            {
+                return null;
+            }
+            return new Component(ptr);
+        }
+
+        public bool SetTextRun(string name, string value)
+        {
+            return artboardSetRunValue(m_nativeArtboard, name, value);
         }
 
         /// <summary>
@@ -108,7 +121,7 @@ namespace Rive
             return new StateMachine(ptr);
         }
 
-        public void SetAudioEngine(AudioEngine audioEngine) 
+        public void SetAudioEngine(AudioEngine audioEngine)
         {
             setArtboardAudioEngine(m_nativeArtboard, audioEngine.m_nativeAudioEngine);
         }
@@ -154,6 +167,16 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern void setArtboardAudioEngine(IntPtr artboard, IntPtr audioEngine);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr artboardComponentNamed(IntPtr artboard, string name);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern bool artboardSetRunValue(
+            IntPtr artboard,
+            string runName,
+            string text
+        );
         #endregion
     }
 }
