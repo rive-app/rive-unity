@@ -330,7 +330,7 @@ namespace Rive
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        private static extern IntPtr appendCommands(byte[] bytes, uint commandCount);
+        private static extern void appendCommands(byte[] bytes, uint commandCount);
 
         [DllImport(NativeLibrary.name)]
         private static extern IntPtr makeRenderPath();
@@ -782,7 +782,7 @@ namespace Rive
         private static extern void unrefRenderPaint(IntPtr nativePaint);
 
         [DllImport(NativeLibrary.name)]
-        private static extern IntPtr updatePaint(
+        private static extern void updatePaint(
             IntPtr nativePaint,
             ushort dirt,
             byte[] bytes,

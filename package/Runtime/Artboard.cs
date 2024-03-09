@@ -128,7 +128,7 @@ namespace Rive
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr unrefArtboard(IntPtr artboard);
+        internal static extern void unrefArtboard(IntPtr artboard);
 
         [DllImport(NativeLibrary.name)]
         internal static extern uint getStateMachineCount(IntPtr artboard);

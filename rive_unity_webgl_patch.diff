@@ -1,0 +1,16 @@
+diff --git a/library_c_preprocessor.js b/library_c_preprocessor.js
+index c0487b4..6305ee1 100644
+--- a/library_c_preprocessor.js
++++ b/library_c_preprocessor.js
+@@ -37,6 +37,9 @@ mergeInto(LibraryManager.library, {
+   // predefs: Specifies a dictionary of { 'key1': function(arg0, arg1) {...}, 'key2': ... } of predefined preprocessing variables
+   $preprocess_c_code__deps: ['$jstoi_q', '$find_closing_parens_index'],
+   $preprocess_c_code: function(code, defs = {}) {
++    if(code.indexOf('GL_ANGLE_shader_pixel_local_storage') != -1) {
++      return code;
++    }
+     var i = 0, // iterator over the input string
+       len = code.length, // cache input length
+       out = '', // generates the preprocessed output string
+
+       

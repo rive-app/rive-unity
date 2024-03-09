@@ -11,15 +11,16 @@ A Unity runtime library for [Rive](https://rive.app). This is currently a **tech
 
 Currently supported platforms and backends include:
 
+- [WebGL](WEBGL.md)
 - Metal on Mac
 - Metal on iOS
 - D3D11 on Windows
 - OpenGL on Windows
+- OpenGL on Android
 
 Planned support for:
 
 - D3D12
-- WebGL
 - Vulkan
 
 ### Feature Support
@@ -63,6 +64,7 @@ git@github.com:rive-app/rive-unity.git?path=package#v0.1.69
 ```
 
 Or through HTTP:
+
 ```
 https://github.com/rive-app/rive-unity.git?path=package#v0.1.69
 ```
@@ -72,7 +74,7 @@ You can also add it manually to your projects `Packages/manifest.json` file:
 ```json
 {
   "dependencies": {
-    "app.rive.rive-unity": "git@github.com:rive-app/rive-unity.git?path=package#v0.1.69",
+    "app.rive.rive-unity": "git@github.com:rive-app/rive-unity.git?path=package#v0.1.69"
   }
 }
 ```

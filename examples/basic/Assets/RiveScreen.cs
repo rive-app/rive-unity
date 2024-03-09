@@ -51,13 +51,10 @@ internal class CameraTextureHelper
 
         m_pixelWidth = m_camera.pixelWidth;
         m_pixelHeight = m_camera.pixelHeight;
+
         m_renderTexture = new RenderTexture(
-            m_camera.pixelWidth,
-            m_camera.pixelHeight,
-            0,
-            RenderTextureFormat.ARGB32
+            TextureHelper.Descriptor(m_camera.pixelWidth, m_camera.pixelHeight)
         );
-        m_renderTexture.enableRandomWrite = true;
         m_renderTexture.Create();
         m_renderQueue.UpdateTexture(m_renderTexture);
         return true;
@@ -118,7 +115,7 @@ public class RiveScreen : MonoBehaviour
 
     void OnAudioFilterRead(float[] data, int channels)
     {
-        if(m_audioEngine == null) 
+        if (m_audioEngine == null)
         {
             return;
         }
@@ -133,7 +130,8 @@ public class RiveScreen : MonoBehaviour
             m_artboard = m_file.Artboard(0);
             m_stateMachine = m_artboard?.StateMachine();
             int channelCount = 1;
-            switch(AudioSettings.speakerMode) {
+            switch (AudioSettings.speakerMode)
+            {
                 case AudioSpeakerMode.Mono:
                     channelCount = 1;
                     break;

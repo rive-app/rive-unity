@@ -43,14 +43,14 @@ namespace Rive
         private static extern void unrefAudioEngine(IntPtr audioEngine);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern uint readAudioEngine(
+        internal static extern void readAudioEngine(
             IntPtr audioEngine,
             float[] frames,
             uint frameCount
         );
 
         [DllImport(NativeLibrary.name)]
-        internal static extern uint sumAudioEngine(
+        internal static extern void sumAudioEngine(
             IntPtr audioEngine,
             float[] frames,
             uint frameCount

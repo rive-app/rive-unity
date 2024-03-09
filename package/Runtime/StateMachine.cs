@@ -171,7 +171,7 @@ namespace Rive
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr unrefStateMachine(IntPtr stateMachine);
+        internal static extern void unrefStateMachine(IntPtr stateMachine);
 
         [DllImport(NativeLibrary.name)]
         internal static extern bool advanceStateMachine(IntPtr stateMachine, float seconds);

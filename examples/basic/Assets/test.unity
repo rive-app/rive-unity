@@ -149,12 +149,12 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 243258138}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f238ee7dff7464ff08faf8b5fddf6ec1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  asset: {fileID: -2913039369088064392, guid: 85b550ac637974f07b698d56b4852cdb, type: 3}
+  asset: {fileID: -4516626237390682484, guid: caef4a05b2e604822a3804834b00d35d, type: 3}
   cameraEvent: 20
   fit: 1
   material: {fileID: 0}

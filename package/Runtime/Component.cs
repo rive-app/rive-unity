@@ -33,7 +33,7 @@ namespace Rive
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr unrefArtboardComponent(IntPtr component);
+        internal static extern void unrefArtboardComponent(IntPtr component);
 
         [DllImport(NativeLibrary.name)]
         internal static extern AABB componentBounds(IntPtr component);
