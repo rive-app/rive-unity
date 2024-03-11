@@ -7,7 +7,7 @@
 
 A Unity runtime library for [Rive](https://rive.app). This is currently a **technical preview** for Mac and Windows installs of Unity. We're hoping to gather feedback about the API and feature-set as we expand platform support.
 
-### Rendering Support
+### Rendering support
 
 Currently supported platforms and backends include:
 
@@ -23,9 +23,23 @@ Planned support for:
 - D3D12
 - Vulkan
 
-### Feature Support
+### Feature support
 
-The rive-unity runtime utilizes the latest Rive C++ runtime. All Rive features are supported for playback. Work is in progress to add runtime configuration support to the Unity package for Rive-specific features. For additional information, see here: https://help.rive.app/game-runtimes/unity#feature-support
+The rive-unity runtime uses the latest Rive C++ runtime.
+
+| Feature                                                                                                                                  | Supported   |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| [Animation Playback](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/runtimes/playback)                            | ✅           |
+| [Fit and Alignment](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/runtimes/layout)                               | ✅           |
+| [Listeners](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/listeners)                         | ✅           |
+| [Setting State Machine Inputs](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/state-machines) | ✅           |
+| [Listening to Events](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/rive-events)             | ✅           |
+| [Updating text at runtime](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/text)               | ✅           |
+| [Out-of-band assets](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/loading-assets)           | ✅           |
+| [Procedural rendering](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/procedural-rendering)   | ✅           |
+| PNG images                                                                                                                               | ✅           |
+| WEBP and JPEG images                                                                                                                     | Coming soon |
+
 
 ## Table of contents
 
@@ -34,7 +48,7 @@ The rive-unity runtime utilizes the latest Rive C++ runtime. All Rive features a
 - 👨‍💻 [Contributing](#contributing)
 - ❓ [Issues](#issues)
 
-## Rive Overview
+## Rive overview
 
 [Rive](https://rive.app) is a real-time interactive design and animation tool that helps teams
 create and run interactive animations anywhere. Designers and developers use our collaborative
@@ -47,7 +61,7 @@ open-source runtime libraries allow them to load their animations into apps, gam
 
 🛠 [Learning Rive](https://rive.app/learn-rive/)
 
-## Getting Started
+## Getting started
 
 See the official examples repository to easily run a project locally: https://github.com/rive-app/rive-unity-examples
 
