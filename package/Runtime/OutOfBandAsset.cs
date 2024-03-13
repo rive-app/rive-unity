@@ -46,7 +46,13 @@ namespace Rive
                 {
                     assetMap.Add(bytes[j]);
                 }
+#if UNITY_WEBGL && !UNITY_EDITOR
+                // nint is incorrectly reported as 64 bit on wasm which would
+                // break Rive's native code.
+                bytes = BitConverter.GetBytes((int)m_nativeAsset);
+#else
                 bytes = BitConverter.GetBytes((nint)m_nativeAsset);
+#endif
                 for (int j = 0; j < bytes.Length; j++)
                 {
                     assetMap.Add(bytes[j]);
