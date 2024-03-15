@@ -161,11 +161,12 @@ public class RiveScreen : MonoBehaviour
 
         Camera camera = gameObject.GetComponent<Camera>();
         Assert.IsNotNull(camera, "TestRive must be attached to a camera.");
-        m_renderQueue = new Rive.RenderQueue();
+        bool drawToScreen = Rive.RenderQueue.supportsDrawingToScreen();
+        m_renderQueue = new Rive.RenderQueue(null, !drawToScreen);
         m_riveRenderer = m_renderQueue.Renderer();
         m_commandBuffer = m_riveRenderer.ToCommandBuffer();
         camera.AddCommandBuffer(cameraEvent, m_commandBuffer);
-        if (!Rive.RenderQueue.supportsDrawingToScreen())
+        if (!drawToScreen)
         {
             m_helper = new CameraTextureHelper(camera, m_renderQueue);
         }

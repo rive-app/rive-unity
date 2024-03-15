@@ -95,14 +95,6 @@ namespace Rive
             int height
         )
         {
-            // Because we create our own MTLCommandBuffer there's contention for
-            // when Unity flushes and we do, which means Textures shared across
-            // those buffers may not be ready in time.
-            switch (UnityEngine.SystemInfo.graphicsDeviceType)
-            {
-                case GraphicsDeviceType.Metal:
-                    return null;
-            }
             RenderTexture prev = RenderTexture.active;
             var rect = new Rect(0, 0, width, height);
             RenderTexture rt = Render(rect, true);
@@ -144,7 +136,11 @@ namespace Rive
 
             if (m_artboard != null)
             {
-                var rq = new RenderQueue(rt);
+                var rq = new RenderQueue(
+                    UnityEngine.SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal
+                        ? null
+                        : rt
+                );
                 var renderer = rq.Renderer();
                 renderer.Align(Fit.contain, Alignment.Center, m_artboard);
                 renderer.Draw(m_artboard);
