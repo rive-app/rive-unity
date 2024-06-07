@@ -126,6 +126,167 @@ namespace Rive
             setArtboardAudioEngine(m_nativeArtboard, audioEngine.m_nativeAudioEngine);
         }
 
+        internal IntPtr GetInputAtPath(string inputName, string path)
+        {
+            // Validate the input parameters
+            if (string.IsNullOrEmpty(inputName))
+            {
+                Debug.LogWarning($"No input name provided for path '{path}' .");
+                return IntPtr.Zero;
+            }
+
+            if (string.IsNullOrEmpty(path))
+            {
+                Debug.LogWarning($"No path provided for input '{inputName}'.");
+                return IntPtr.Zero;
+            }
+
+
+            IntPtr ptr = getSMIInputAtPathArtboard(m_nativeArtboard, inputName, path);
+
+            return ptr;
+        }
+
+        private void LogMissingInputWarning(string inputName, string path)
+        {
+            Debug.LogWarning($"No input found at path '{path}' with name '{inputName}'.");
+        }
+
+        private void LogIncorrectInputTypeWarning(string inputName, string path, string expectedType)
+        {
+            Debug.LogWarning($"Input '{inputName}' at path: '{path}' is not a {expectedType} input.");
+        }
+
+        // Add this description to the method: Set the boolean input with the provided name at the given path with value
+
+        /// <summary>
+        /// Set the boolean input with the provided name at the given path with value.
+        /// </summary>
+        /// <param name="inputName">The name of the input to set.</param>
+        /// <param name="value">The value to set the input to.</param>
+        /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
+        public void SetBooleanInputStateAtPath(string inputName, bool value, string path)
+        {
+            var nativeSmi = GetInputAtPath(inputName, path);
+            if (nativeSmi == IntPtr.Zero)
+            {
+                LogMissingInputWarning(inputName, path);
+                return;
+            }
+
+            if (SMIInput.isSMIBoolean(nativeSmi))
+            {
+
+                SMIBool.setSMIBoolValueStateMachine(nativeSmi, value);
+            }
+            else
+            {
+                LogIncorrectInputTypeWarning(inputName, path, "boolean");
+            }
+
+        }
+
+        /// <summary>
+        /// Get the boolean input value with the provided name at the given path.
+        /// </summary>
+        /// <param name="inputName">The state machine input name</param>
+        /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
+        /// <returns>The value of the boolean input.</returns>
+        public bool? GetBooleanInputStateAtPath(string inputName, string path)
+        {
+            var nativeSmi = GetInputAtPath(inputName, path);
+            if (nativeSmi == IntPtr.Zero)
+            {
+                LogMissingInputWarning(inputName, path);
+                return null;
+            }
+
+            if (SMIInput.isSMIBoolean(nativeSmi))
+            {
+                return SMIBool.getSMIBoolValueStateMachine(nativeSmi);
+            }
+            else
+            {
+                LogIncorrectInputTypeWarning(inputName, path, "boolean");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Set the number input with the provided name at the given path with value.
+        /// </summary>
+        /// <param name="inputName"The state machine input name</param>
+        /// <param name="value">The number value to set the input to.</param>
+        /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
+        public void SetNumberInputStateAtPath(string inputName, float value, string path)
+        {
+            var nativeSmi = GetInputAtPath(inputName, path);
+            if (nativeSmi == IntPtr.Zero)
+            {
+                LogMissingInputWarning(inputName, path);
+                return;
+            }
+
+            if (SMIInput.isSMINumber(nativeSmi))
+            {
+                SMINumber.setSMINumberValueStateMachine(nativeSmi, value);
+            }
+            else
+            {
+                LogIncorrectInputTypeWarning(inputName, path, "number");
+            }
+        }
+
+        /// <summary>
+        /// Get the number input value with the provided name at the given path.
+        /// </summary>
+        /// <param name="inputName">The state machine input name</param>
+        /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
+        /// <returns>The value of the number input.</returns>
+        public float? GetNumberInputStateAtPath(string inputName, string path)
+        {
+            var nativeSmi = GetInputAtPath(inputName, path);
+            if (nativeSmi == IntPtr.Zero)
+            {
+                LogMissingInputWarning(inputName, path);
+                return null;
+            }
+
+            if (SMIInput.isSMINumber(nativeSmi))
+            {
+                return SMINumber.getSMINumberValueStateMachine(nativeSmi);
+            }
+            else
+            {
+                LogIncorrectInputTypeWarning(inputName, path, "number");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Fire the trigger input with the provided name at the given path
+        /// </summary>
+        /// <param name="inputName">The state machine input name</param>
+        /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
+        public void FireInputStateAtPath(string inputName, string path)
+        {
+            var nativeSmi = GetInputAtPath(inputName, path);
+            if (nativeSmi == IntPtr.Zero)
+            {
+                LogMissingInputWarning(inputName, path);
+                return;
+            }
+
+            if (SMIInput.isSMITrigger(nativeSmi))
+            {
+                SMITrigger.fireSMITriggerStateMachine(nativeSmi);
+            }
+            else
+            {
+                LogIncorrectInputTypeWarning(inputName, path, "trigger");
+            }
+        }
+
         #region Native Methods
         [DllImport(NativeLibrary.name)]
         internal static extern void unrefArtboard(IntPtr artboard);
@@ -177,6 +338,9 @@ namespace Rive
             string runName,
             string text
         );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getSMIInputAtPathArtboard(IntPtr artboard, string inputName, string path);
         #endregion
     }
 }

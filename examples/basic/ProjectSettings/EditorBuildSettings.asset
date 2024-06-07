@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Tests/PlayModeTests/NestedInputs/NestedInputsTest.unity
+    guid: 1e95807620fb644baa940134786b931f
   m_configObjects: {}

@@ -70,6 +70,12 @@ public class RiveScreen : MonoBehaviour
     public Fit fit = Fit.contain;
     public Alignment alignment = Alignment.Center;
 
+
+    public delegate void RiveEventDelegate(ReportedEvent reportedEvent);
+    public event RiveEventDelegate OnRiveEvent;
+
+
+
     private Rive.RenderQueue m_renderQueue;
     private Rive.Renderer m_riveRenderer;
     private CommandBuffer m_commandBuffer;
@@ -78,8 +84,19 @@ public class RiveScreen : MonoBehaviour
     private Artboard m_artboard;
     private StateMachine m_stateMachine;
     private CameraTextureHelper m_helper;
+    private Camera m_camera;
 
     public Material material;
+
+    public Artboard Artboard
+    {
+        get { return m_artboard; }
+    }
+
+    public StateMachine StateMachine
+    {
+        get { return m_stateMachine; }
+    }
 
     private static bool FlipY()
     {
@@ -159,16 +176,17 @@ public class RiveScreen : MonoBehaviour
             m_artboard.SetAudioEngine(m_audioEngine);
         }
 
-        Camera camera = gameObject.GetComponent<Camera>();
-        Assert.IsNotNull(camera, "TestRive must be attached to a camera.");
+        m_camera = gameObject.GetComponent<Camera>();
+
+        Assert.IsNotNull(m_camera, "TestRive must be attached to a camera.");
         bool drawToScreen = Rive.RenderQueue.supportsDrawingToScreen();
         m_renderQueue = new Rive.RenderQueue(null, !drawToScreen);
         m_riveRenderer = m_renderQueue.Renderer();
         m_commandBuffer = m_riveRenderer.ToCommandBuffer();
-        camera.AddCommandBuffer(cameraEvent, m_commandBuffer);
+        m_camera.AddCommandBuffer(cameraEvent, m_commandBuffer);
         if (!drawToScreen)
         {
-            m_helper = new CameraTextureHelper(camera, m_renderQueue);
+            m_helper = new CameraTextureHelper(m_camera, m_renderQueue);
         }
         DrawRive(m_renderQueue);
     }
@@ -188,19 +206,18 @@ public class RiveScreen : MonoBehaviour
     private void Update()
     {
         m_helper?.update();
-        Camera camera = gameObject.GetComponent<Camera>();
-        if (camera != null)
+        if (m_camera != null)
         {
-            Vector3 mousePos = camera.ScreenToViewportPoint(Input.mousePosition);
+            Vector3 mousePos = m_camera.ScreenToViewportPoint(Input.mousePosition);
             Vector2 mouseRiveScreenPos = new Vector2(
-                mousePos.x * camera.pixelWidth,
-                (1 - mousePos.y) * camera.pixelHeight
+                mousePos.x * m_camera.pixelWidth,
+                (1 - mousePos.y) * m_camera.pixelHeight
             );
             if (m_artboard != null && m_lastMousePosition != mouseRiveScreenPos)
             {
                 Vector2 local = m_artboard.LocalCoordinate(
                     mouseRiveScreenPos,
-                    new Rect(0, 0, camera.pixelWidth, camera.pixelHeight),
+                    new Rect(0, 0, m_camera.pixelWidth, m_camera.pixelHeight),
                     fit,
                     alignment
                 );
@@ -211,7 +228,7 @@ public class RiveScreen : MonoBehaviour
             {
                 Vector2 local = m_artboard.LocalCoordinate(
                     mouseRiveScreenPos,
-                    new Rect(0, 0, camera.pixelWidth, camera.pixelHeight),
+                    new Rect(0, 0, m_camera.pixelWidth, m_camera.pixelHeight),
                     fit,
                     alignment
                 );
@@ -223,13 +240,23 @@ public class RiveScreen : MonoBehaviour
                 m_wasMouseDown = false;
                 Vector2 local = m_artboard.LocalCoordinate(
                     mouseRiveScreenPos,
-                    new Rect(0, 0, camera.pixelWidth, camera.pixelHeight),
+                    new Rect(0, 0, m_camera.pixelWidth, m_camera.pixelHeight),
                     fit,
                     alignment
                 );
                 m_stateMachine?.PointerUp(local);
             }
         }
+
+        // Find reported Rive events before calling advance.
+        if (m_stateMachine != null)
+        {
+            foreach (var reportedEvent in m_stateMachine.ReportedEvents())
+            {
+                OnRiveEvent?.Invoke(reportedEvent);
+            }
+        }
+
         m_stateMachine?.Advance(Time.deltaTime);
     }
 
