@@ -142,6 +142,10 @@ namespace Rive
         public void Submit()
         {
             var commandBuffer = new RiveCommandBuffer(this);
+            if (m_renderQueue.Texture != null)
+            {
+                commandBuffer.SetRenderTarget(m_renderQueue.Texture);
+            }
             commandBuffer.IssuePluginEventAndData(
                 getRenderCommandBufferCallback(),
                 (int)m_index,
@@ -153,6 +157,10 @@ namespace Rive
         public void SubmitAndRelease()
         {
             var commandBuffer = new RiveCommandBuffer(this);
+            if (m_renderQueue.Texture != null)
+            {
+                commandBuffer.SetRenderTarget(m_renderQueue.Texture);
+            }
             commandBuffer.IssuePluginEventAndData(
                 getRenderAndReleaseCommandBufferCallback(),
                 (int)m_index,
@@ -288,8 +296,11 @@ namespace Rive
 
     public class RenderQueue
     {
+        public RenderTexture Texture { get; private set; }
+
         public RenderQueue(RenderTexture texture = null, bool clear = true)
         {
+            Texture = texture;
             ValidateRenderTexture(texture, true);
             if (texture != null)
             {
