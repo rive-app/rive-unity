@@ -58,9 +58,48 @@ namespace Rive
             return new Component(ptr);
         }
 
+        /// <summary>
+        /// Sets the value of a text run with the provided name.
+        /// </summary>
+        /// <param name="name">The name of the text run.</param>
+        /// <param name="value"> The new value for the text run.</param>
+        /// <returns></returns>
         public bool SetTextRun(string name, string value)
         {
             return artboardSetRunValue(m_nativeArtboard, name, value);
+        }
+
+        /// <summary>
+        /// Gets the value of a text run with the provided name.
+        /// </summary>
+        /// <param name="runName">The name of the text run.</param>
+        /// <returns>The value of the text run, or null if not found.</returns>
+        public string GetTextRunValue(string runName)
+        {
+            return Marshal.PtrToStringAnsi(artboardGetTextRunValue(m_nativeArtboard, runName));
+        }
+
+        /// <summary>
+        /// Sets the value of a text run with the provided name at the given path.
+        /// </summary>
+        /// <param name="runName">The name of the text run.</param>
+        /// <param name="path">The path to the nested artboard where the text run is located.</param>
+        /// <param name="value">The new value for the text run.</param>
+        /// <returns>True if the text run was successfully set, false otherwise.</returns>
+        public bool SetTextRunValueAtPath(string runName, string path, string value)
+        {
+            return artboardSetTextRunValueAtPath(m_nativeArtboard, runName, path, value);
+        }
+
+        /// <summary>
+        /// Gets the value of a text run with the provided name at the given path.
+        /// </summary>
+        /// <param name="runName">The name of the text run.</param>
+        /// <param name="path">The path to the nested artboard where the text run is located.</param>
+        /// <returns>The value of the text run, or null if not found.</returns>
+        public string GetTextRunValueAtPath(string runName, string path)
+        {
+            return Marshal.PtrToStringAnsi(artboardGetTextRunValueAtPath(m_nativeArtboard, runName, path));
         }
 
         /// <summary>
@@ -287,6 +326,7 @@ namespace Rive
             }
         }
 
+
         #region Native Methods
         [DllImport(NativeLibrary.name)]
         internal static extern void unrefArtboard(IntPtr artboard);
@@ -341,6 +381,15 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getSMIInputAtPathArtboard(IntPtr artboard, string inputName, string path);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr artboardGetTextRunValue(IntPtr artboard, string runName);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern bool artboardSetTextRunValueAtPath(IntPtr artboard, string runName, string path, string text);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr artboardGetTextRunValueAtPath(IntPtr artboard, string runName, string path);
         #endregion
     }
 }
