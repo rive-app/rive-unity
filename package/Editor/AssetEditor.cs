@@ -232,7 +232,7 @@ namespace Rive
                 byteCount /= 1024;
             }
 
-            // Adjust the format string to your preferences. For example "{0:0.#}{1}" would
+            // Comment adjust the format string to your preferences. For example "{0:0.#}{1}" would
             // show a single decimal place, and no space.
             return string.Format("{0:0.##} {1}", byteCount, sizes[order]);
         }
