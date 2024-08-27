@@ -29,16 +29,16 @@ The rive-unity runtime uses the latest Rive C++ runtime.
 
 | Feature                                                                                                                                  | Supported   |
 | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| [Animation Playback](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/runtimes/playback)                            | ✅           |
-| [Fit and Alignment](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/runtimes/layout)                               | ✅           |
-| [Listeners](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/listeners)                         | ✅           |
-| [Setting State Machine Inputs](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/state-machines) | ✅           |
-| [Listening to Events](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/rive-events)             | ✅           |
-| [Updating text at runtime](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/text)               | ✅           |
-| [Out-of-band assets](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/loading-assets)           | ✅           |
-| [Procedural rendering](https://app.gitbook.com/o/-LLf9WNWru58qo4lWjp9/s/-M3EXlibk6bj2FzPQW-9/game-runtimes/unity/procedural-rendering)   | ✅           |
+| [Animation Playback](https://rive.app/community/doc/animation-playback/docDKKxsr7ko)                            | ✅           |
+| [Fit and Alignment](https://rive.app/community/doc/layout/docBl81zd1GB)                               | ✅           |
+| [Listeners](https://rive.app/community/doc/listeners/docRlEVvrCZW)                         | ✅           |
+| [Setting State Machine Inputs](https://rive.app/community/doc/state-machines/docHnjaSeIIr) | ✅           |
+| [Listening to Events](https://rive.app/community/doc/rive-events/docvlavjXfq8)             | ✅           |
+| [Updating text at runtime](https://rive.app/community/doc/text/docn2E6y1lXo)               | ✅           |
+| [Out-of-band assets](https://rive.app/community/doc/loading-assets/doc1etuJJdEC)           | ✅           |
+| [Procedural rendering](https://rive.app/community/doc/procedural-rendering/docF2fNqCP1W)   | ✅           |
 | PNG images                                                                                                                               | ✅           |
-| WEBP and JPEG images                                                                                                                     | Coming soon |
+| WEBP and JPEG images                                                                                                                     | ✅  |
 
 
 ## Table of contents
@@ -57,7 +57,7 @@ open-source runtime libraries allow them to load their animations into apps, gam
 
 🏡 [Homepage](https://rive.app/)
 
-📘 [General help docs](https://help.rive.app/) · [Rive Unity docs](https://help.rive.app/game-runtimes/unity)
+📘 [General help docs](https://rive.app/community/doc/introduction/docvphVOrBbl) · [Rive Unity docs](https://rive.app/community/doc/unity/doc31LHoppdv)
 
 🛠 [Learning Rive](https://rive.app/learn-rive/)
 
@@ -65,30 +65,30 @@ open-source runtime libraries allow them to load their animations into apps, gam
 
 See the official examples repository to easily run a project locally: https://github.com/rive-app/rive-unity-examples
 
-See the [Rive Unity docs](https://help.rive.app/game-runtimes/unity) for more information.
+See the [Rive Unity docs](https://rive.app/community/doc/unity/doc31LHoppdv) for more information.
 
-You will need a Unity editor that supports OpenGL or D3D11 for Windows, or a Mac with ARM64 (M1, M2, etc) architecture.
+You will need a Unity editor that supports OpenGL or D3D11 for Windows, or a Mac with ARM64 (M1, M2, etc) architecture and OS 11.0 or later.
 
 Select either D3D11/OpenGL for Windows, or Metal for Mac/iOS as the Graphics API under Project Settings -> Player in Unity.
 
-You can install the Rive package for Unity by opening the Package Manager (Window -> Package Manager) and adding the [latest tag](https://github.com/rive-app/rive-unity/tags) as a git dependency:
+You can install the Rive package for Unity by opening the Package Manager (Window -> Package Manager) and adding the [latest tag](https://github.com/rive-app/rive-unity/tags) as a git dependency, for example (replace 0.0.0 with the [latest release](https://github.com/rive-app/rive-unity/releases)):
 
 ```
-git@github.com:rive-app/rive-unity.git?path=package#v0.1.69
+git@github.com:rive-app/rive-unity.git?path=package#v0.0.0
 ```
 
-Or through HTTP:
+Or through HTTP (replace 0.0.0 with the [latest release](https://github.com/rive-app/rive-unity/releases)):
 
 ```
-https://github.com/rive-app/rive-unity.git?path=package#v0.1.69
+https://github.com/rive-app/rive-unity.git?path=package#v0.0.0
 ```
 
-You can also add it manually to your projects `Packages/manifest.json` file:
+You can also add it manually to your projects `Packages/manifest.json` file (replace 0.0.0 with the [latest release](https://github.com/rive-app/rive-unity/releases)):
 
 ```json
 {
   "dependencies": {
-    "app.rive.rive-unity": "git@github.com:rive-app/rive-unity.git?path=package#v0.1.69"
+    "app.rive.rive-unity": "git@github.com:rive-app/rive-unity.git?path=package#v0.0.0"
   }
 }
 ```
