@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Default Local Group
+  m_EditorClassIdentifier: 
+  m_GroupName: Default Local Group
+  m_Data:
+    m_SerializedData: []
+  m_GUID: 0aa77c9c1a0324739acec95edeb80bdb
+  m_SerializeEntries:
+  - m_GUID: 7158be389b29f4f158481e3b1ab4767c
+    m_Address: Assets/Tests/PlayModeTests/Assets/sophia-iii-hud.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: cef9e458c25934265945037a356fb5d9
+    m_Address: Assets/Tests/PlayModeTests/Assets/robo_dude.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b577a4df6df3548668ab749e86847290
+    m_Address: Assets/Tests/PlayModeTests/Assets/game_hud_scope.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0b279b305298f4a10b2f964432c79012
+    m_Address: Assets/Tests/PlayModeTests/Assets/robo_dude.bytes
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 91ba03ac383e641d6b3e54255227fd91
+    m_Address: Assets/Tests/PlayModeTests/Assets/stormtrooper_bird.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: cdcd061d7484942b0ba6baa247d1dce0, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 4017c6fcfeb8349e8b02bef6cbaa34e6, type: 2}
+    - {fileID: 11400000, guid: 3cdd21ee4667e499aae7919760104b9a, type: 2}

@@ -5,12 +5,13 @@ using UnityEngine.Rendering;
 using UnityEngine;
 
 [assembly: InternalsVisibleTo("Rive.Editor")]
-
+[assembly: InternalsVisibleTo("Rive.Tests.PlayMode")]
+[assembly: InternalsVisibleTo("Rive.Tests.Shared")]
 namespace Rive
 {
-    internal class NativeLibrary
-    {
-        private delegate void LogDelegate(IntPtr message);
+        internal class NativeLibrary
+        {
+                private delegate void LogDelegate(IntPtr message);
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")]
@@ -20,26 +21,26 @@ namespace Rive
 #if (UNITY_IOS || UNITY_TVOS || UNITY_WEBGL || UNITY_SWITCH) && !UNITY_EDITOR
         public const string name = "__Internal";
 #else
-        public const string name = "rive";
+                public const string name = "rive";
 #endif
 
-        [DllImport(NativeLibrary.name)]
-        private static extern void setUnityLog(LogDelegate callback);
+                [DllImport(NativeLibrary.name)]
+                private static extern void setUnityLog(LogDelegate callback);
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void OnBeforeSceneLoadRuntimeMethod()
-        {
-            setUnityLog(UnityLog);
+                [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+                static void OnBeforeSceneLoadRuntimeMethod()
+                {
+                        setUnityLog(UnityLog);
 
 #if UNITY_WEBGL && !UNITY_EDITOR
             RegisterPlugin();
 #endif
-        }
+                }
 
-        [AOT.MonoPInvokeCallback(typeof(LogDelegate))]
-        static void UnityLog(IntPtr message)
-        {
-            Debug.Log("RiveNative: " + Marshal.PtrToStringAnsi(message));
+                [AOT.MonoPInvokeCallback(typeof(LogDelegate))]
+                static void UnityLog(IntPtr message)
+                {
+                        Debug.Log("RiveNative: " + Marshal.PtrToStringAnsi(message));
+                }
         }
-    }
 }

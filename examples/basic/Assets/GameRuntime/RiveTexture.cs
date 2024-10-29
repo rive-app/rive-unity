@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using Rive;
+using static Rive.File;
+using System;
 
 public class RiveTexture : MonoBehaviour
 {
@@ -18,6 +20,7 @@ public class RiveTexture : MonoBehaviour
     private StateMachine m_stateMachine;
 
     private Camera m_camera;
+
 
     private void Start()
     {
@@ -48,6 +51,8 @@ public class RiveTexture : MonoBehaviour
         }
     }
 
+
+
     private void Update()
     {
         if (m_stateMachine != null)
@@ -62,6 +67,14 @@ public class RiveTexture : MonoBehaviour
         if (m_camera != null && m_commandBuffer != null)
         {
             m_camera.RemoveCommandBuffer(CameraEvent.AfterEverything, m_commandBuffer);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (m_file != null)
+        {
+            m_file.Dispose();
         }
     }
 }

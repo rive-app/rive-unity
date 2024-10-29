@@ -1,38 +1,9 @@
-using System;
-using UnityEngine;
 using System.Collections.Generic;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
+using UnityEngine;
 
 namespace Rive
 {
-    /// <summary>
-    /// Represents the type of an embedded asset in a Rive asset.
-    /// </summary>
-    public enum EmbeddedAssetType : ushort
-    {
-        unknown = 0,
-        image = 105,
-        font = 141,
-        audio = 406
-    }
 
-    /// <summary>
-    /// Represents an out of band asset (OOB) that is embedded/referenced in a Rive asset.
-    /// </summary>
-    [Serializable]
-    public class EmbeddedAsset
-    {
-        public EmbeddedAssetType type;
-        public uint id;
-        public string name;
-        public uint embeddedBytes;
-        public OutOfBandAsset asset;
-
-        [NonSerialized]
-        internal uint refCount;
-    }
 
     /// <summary>
     /// Represents a Rive asset (.riv)
@@ -40,37 +11,53 @@ namespace Rive
     public class Asset : ScriptableObject
     {
         [HideInInspector]
-        public byte[] bytes;
+        [SerializeField]
+        private byte[] m_Bytes;
 
         /// <summary>
-        /// A list of all the embedded assets in this Rive asset
+        /// The raw bytes of the Rive asset
         /// </summary>
-        public EmbeddedAsset[] assets;
+        public byte[] Bytes { get { return m_Bytes; } }
 
-        internal void LoadOOBAssets(List<byte> assetMap)
+        [HideInInspector]
+        [SerializeField]
+        private EmbeddedAssetData[] m_EmbeddedAssets;
+
+        /// <summary>
+        /// An array of all the embedded asset data in this Rive asset
+        /// </summary>
+        public IReadOnlyList<EmbeddedAssetData> EmbeddedAssets { get { return m_EmbeddedAssets; } }
+
+        /// <summary>
+        /// The number of embedded asset data in this Rive asset
+        /// </summary>
+        public int EmbeddedAssetCount { get { return m_EmbeddedAssets == null ? 0 : m_EmbeddedAssets.Length; } }
+
+        /// <summary>
+        /// Initializes the asset with the given bytes and embedded asset information.
+        /// </summary>
+        /// <param name="bytes"> The raw bytes of the Rive asset. </param>
+        /// <param name="embeddedAssetsData"> The embedded asset data in the Rive asset. </param>
+        internal void SetData(byte[] bytes, EmbeddedAssetData[] embeddedAssetsData)
         {
-            foreach (var embeddedAsset in assets)
-            {
-                var oobAsset = embeddedAsset.asset;
-                if (oobAsset == null)
-                {
-                    continue;
-                }
-                oobAsset.Load(embeddedAsset, assetMap);
-            }
+            m_Bytes = bytes;
+            m_EmbeddedAssets = embeddedAssetsData;
         }
 
-        internal void UnloadOOBAssets()
+        /// <summary>
+        /// Create a new Rive asset instance from the given bytes and embedded asset data.
+        /// </summary>
+        /// <param name="bytes"> The raw bytes of the Rive asset. </param>
+        /// <param name="embeddedAssetsData"> The embedded asset data in the Rive asset. </param>
+        /// <returns> The created Rive asset instance. </returns>
+        public static Asset Create(byte[] bytes, EmbeddedAssetData[] embeddedAssetsData)
         {
-            foreach (var embeddedAsset in assets)
-            {
-                var oobAsset = embeddedAsset.asset;
-                if (oobAsset == null)
-                {
-                    continue;
-                }
-                oobAsset.Unload();
-            }
+            var asset = ScriptableObject.CreateInstance<Asset>();
+            asset.SetData(bytes, embeddedAssetsData);
+            return asset;
         }
+
     }
+
+
 }

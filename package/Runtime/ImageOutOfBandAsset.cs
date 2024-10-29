@@ -1,4 +1,3 @@
-using UnityEngine;
 using System;
 using System.Runtime.InteropServices;
 
@@ -7,7 +6,7 @@ namespace Rive
     /// <summary>
     /// Represents an out-of-band Rive image asset.
     /// </summary>
-    public class ImageAsset : OutOfBandAsset
+    public class ImageOutOfBandAsset : OutOfBandAsset
     {
         protected override IntPtr LoadNative(byte[] data)
         {

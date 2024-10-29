@@ -201,7 +201,6 @@ public class NestedInputTests
 
         Assert.IsTrue(receivedButtonClickedEvent, "Button Clicked event should be received");
 
-
         riveScreen.OnRiveEvent -= HandleRiveEvent;
 
         yield return null;

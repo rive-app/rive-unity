@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEditor.AssetImporters;
 using UnityEditor;
 using System;
-using System.Runtime.InteropServices;
 
 namespace Rive
 {
@@ -26,137 +25,46 @@ namespace Rive
             EditorApplication.update += callback;
         }
 
-        public static string[] fontExtensions = new string[] { "ttf", "otf" };
-        public static string[] imageExtensions = new string[] { "png" };
-        public static string[] audioExtensions = new string[] { "wav", "mp3", "flac" };
+        public static string[] fontExtensions = FontOobAssetExtensions.FontExtensions;
+        public static string[] imageExtensions = ImageOobAssetExtensions.ImageExtensions;
+        public static string[] audioExtensions = AudioOobAssetExtensions.AudioExtensions;
+
+        private EmbeddedAssetDataLoader embeddedAssetDataLoader = new EmbeddedAssetDataLoader();
+
 
         public override void OnImportAsset(AssetImportContext ctx)
         {
             bool isFirstImport = importSettingsMissing;
-            Asset file = ScriptableObject.CreateInstance<Asset>();
+            //Asset file = ScriptableObject.CreateInstance<Asset>();
             var assetPath = ctx.assetPath;
-            file.bytes = System.IO.File.ReadAllBytes(assetPath);
+            byte[] bytes = System.IO.File.ReadAllBytes(assetPath);
 
-            var listPtr = loadEmbeddedAssetList(file.bytes, (nuint)file.bytes.Length);
-
-            // Load the file and get the assets from it.
-            var assets = new List<EmbeddedAsset>();
             int oobAssetCount = 0;
 
-            var assetCount = getEmbeddedAssetCount(listPtr);
-            for (nuint i = 0; i < assetCount; i++)
-            {
-                var embeddedAsset = new EmbeddedAsset();
-                embeddedAsset.name = Marshal.PtrToStringAnsi(getEmbeddedAssetName(listPtr, i));
-                var type = getEmbeddedAssetType(listPtr, i);
-                embeddedAsset.type = Enum.IsDefined(typeof(EmbeddedAssetType), type)
-                    ? (EmbeddedAssetType)type
-                    : EmbeddedAssetType.unknown;
-                embeddedAsset.id = getEmbeddedAssetId(listPtr, i);
-                embeddedAsset.embeddedBytes = (uint)getEmbeddedAssetSize(listPtr, i);
 
-                assets.Add(embeddedAsset);
+            List<EmbeddedAssetData> assets = new List<EmbeddedAssetData>();
+
+            foreach (var embeddedAsset in embeddedAssetDataLoader.LoadEmbeddedAssetDataFromRiveFileBytes(bytes))
+            {
                 var basePath = System.IO.Path.GetDirectoryName(assetPath);
 
-                switch (embeddedAsset.type)
+                switch (embeddedAsset.AssetType)
                 {
-                    case EmbeddedAssetType.font:
-                        foreach (
-                            var path in AssetPaths(
-                                basePath,
-                                embeddedAsset.name,
-                                embeddedAsset.id,
-                                AssetImporter.fontExtensions
-                            )
-                        )
-                        {
-                            if (System.IO.File.Exists(path))
-                            {
-                                oobAssetCount++;
-                                // We depend on the image asset so any time it
-                                // re-importer/settings change this .riv asset
-                                // re-imports too.
-                                ctx.DependsOnArtifact(path);
-                                if (!String.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path)))
-                                {
-                                    // If the FontAsset doesn't exit, make sure we import it before our Rive asset imports.
-                                    FontAsset referencedAsset =
-                                        AssetDatabase.LoadAssetAtPath<FontAsset>(path);
-                                    if (referencedAsset != null)
-                                    {
-                                        embeddedAsset.asset = referencedAsset;
-                                    }
-                                }
-                                break;
-                            }
-                        }
+                    case EmbeddedAssetType.Font:
+                        HandleAsset(embeddedAsset, basePath, fontExtensions, typeof(FontOutOfBandAsset), ctx, ref oobAssetCount);
                         break;
-                    case EmbeddedAssetType.image:
-                        foreach (
-                            var path in AssetPaths(
-                                basePath,
-                                embeddedAsset.name,
-                                embeddedAsset.id,
-                                AssetImporter.imageExtensions
-                            )
-                        )
-                        {
-                            if (System.IO.File.Exists(path))
-                            {
-                                oobAssetCount++;
-                                // We depend on the image asset so any time it
-                                // re-importer/settings change this .riv asset
-                                // re-imports too.
-                                ctx.DependsOnArtifact(path);
-                                if (!String.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path)))
-                                {
-                                    // If the ImageAsset doesn't exit, make sure we import it before our Rive asset imports.
-                                    ImageAsset referencedAsset =
-                                        AssetDatabase.LoadAssetAtPath<ImageAsset>(path);
-                                    if (referencedAsset != null)
-                                    {
-                                        embeddedAsset.asset = referencedAsset;
-                                    }
-                                }
-                                break;
-                            }
-                        }
+                    case EmbeddedAssetType.Image:
+                        HandleAsset(embeddedAsset, basePath, imageExtensions, typeof(ImageOutOfBandAsset), ctx, ref oobAssetCount);
                         break;
-                    case EmbeddedAssetType.audio:
-                        foreach (
-                            var path in AssetPaths(
-                                basePath,
-                                embeddedAsset.name,
-                                embeddedAsset.id,
-                                AssetImporter.audioExtensions
-                            )
-                        )
-                        {
-                            if (System.IO.File.Exists(path))
-                            {
-                                oobAssetCount++;
-                                // We depend on the image asset so any time it
-                                // re-importer/settings change this .riv asset
-                                // re-imports too.
-                                ctx.DependsOnArtifact(path);
-                                if (!String.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path)))
-                                {
-                                    // If the AudioAsset doesn't exit, make sure we import it before our Rive asset imports.
-                                    AudioAsset referencedAsset =
-                                        AssetDatabase.LoadAssetAtPath<AudioAsset>(path);
-                                    if (referencedAsset != null)
-                                    {
-                                        embeddedAsset.asset = referencedAsset;
-                                    }
-                                }
-                                break;
-                            }
-                        }
+                    case EmbeddedAssetType.Audio:
+                        HandleAsset(embeddedAsset, basePath, audioExtensions, typeof(AudioOutOfBandAsset), ctx, ref oobAssetCount);
                         break;
                 }
+
+                assets.Add(embeddedAsset);
             }
-            file.assets = assets.ToArray();
-            deleteEmbeddedAssetList(listPtr);
+
+            var file = Asset.Create(bytes, assets.ToArray());
 
             ctx.AddObjectToAsset("rive", file);
 
@@ -172,111 +80,70 @@ namespace Rive
                 });
             }
             ctx.SetMainObject(file);
+
         }
 
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr loadEmbeddedAssetList(byte[] bytes, nuint byteCount);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void deleteEmbeddedAssetList(IntPtr list);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern nuint getEmbeddedAssetCount(IntPtr list);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getEmbeddedAssetName(IntPtr riveFile, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern ushort getEmbeddedAssetType(IntPtr riveFile, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern uint getEmbeddedAssetId(IntPtr riveFile, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern nuint getEmbeddedAssetSize(IntPtr riveFile, nuint index);
-        #endregion
+        private void HandleAsset(EmbeddedAssetData embeddedAsset, string basePath, string[] extensions, Type assetType, AssetImportContext ctx, ref int oobAssetCount)
+        {
+            foreach (var path in AssetPaths(basePath, embeddedAsset.Name, embeddedAsset.Id, extensions))
+            {
+                if (System.IO.File.Exists(path))
+                {
+                    oobAssetCount++;
+                    ctx.DependsOnArtifact(path);
+                    if (!String.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path)))
+                    {
+                        var referencedAsset = AssetDatabase.LoadAssetAtPath(path, assetType);
+                        if (referencedAsset != null)
+                        {
+                            embeddedAsset.OutOfBandAsset = referencedAsset as OutOfBandAsset;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
 
 
         // Pre-import any out of band assets.
+
         private void ImportOutOfBandAssets(string assetPath)
         {
             var bytes = System.IO.File.ReadAllBytes(assetPath);
+            var basePath = System.IO.Path.GetDirectoryName(assetPath);
 
-            var listPtr = AssetImporter.loadEmbeddedAssetList(bytes, (nuint)bytes.Length);
-            var assetCount = AssetImporter.getEmbeddedAssetCount(listPtr);
-            for (nuint i = 0; i < assetCount; i++)
+
+            foreach (var embeddedAsset in embeddedAssetDataLoader.LoadEmbeddedAssetDataFromRiveFileBytes(bytes))
             {
-                var name = Marshal.PtrToStringAnsi(AssetImporter.getEmbeddedAssetName(listPtr, i));
-                var type = AssetImporter.getEmbeddedAssetType(listPtr, i);
-                var assetType = Enum.IsDefined(typeof(EmbeddedAssetType), type)
-                    ? (EmbeddedAssetType)type
-                    : EmbeddedAssetType.unknown;
-                var id = AssetImporter.getEmbeddedAssetId(listPtr, i);
-                var basePath = System.IO.Path.GetDirectoryName(assetPath);
-                switch (assetType)
+
+                switch (embeddedAsset.AssetType)
                 {
-                    case EmbeddedAssetType.font:
-                        foreach (
-                            var path in AssetPaths(basePath, name, id, AssetImporter.fontExtensions)
-                        )
-                        {
-                            if (
-                                System.IO.File.Exists(path)
-                                && AssetDatabase.GetImporterOverride(path) == null
-                            )
-                            {
-                                AssetDatabase.SetImporterOverride<FontAssetImporter>(path);
-                                AssetDatabase.ImportAsset(path);
-                                break;
-                            }
-                        }
+                    case EmbeddedAssetType.Font:
+                        ImportAssetGeneric<FontAssetImporter>(embeddedAsset, basePath, fontExtensions);
                         break;
-                    case EmbeddedAssetType.image:
-                        foreach (
-                            var path in AssetPaths(
-                                basePath,
-                                name,
-                                id,
-                                AssetImporter.imageExtensions
-                            )
-                        )
-                        {
-                            if (
-                                System.IO.File.Exists(path)
-                                && AssetDatabase.GetImporterOverride(path) == null
-                            )
-                            {
-                                AssetDatabase.SetImporterOverride<ImageAssetImporter>(path);
-                                AssetDatabase.ImportAsset(path);
-                                break;
-                            }
-                        }
+                    case EmbeddedAssetType.Image:
+                        ImportAssetGeneric<ImageAssetImporter>(embeddedAsset, basePath, imageExtensions);
                         break;
-                    case EmbeddedAssetType.audio:
-                        foreach (
-                            var path in AssetPaths(
-                                basePath,
-                                name,
-                                id,
-                                AssetImporter.audioExtensions
-                            )
-                        )
-                        {
-                            if (
-                                System.IO.File.Exists(path)
-                                && AssetDatabase.GetImporterOverride(path) == null
-                            )
-                            {
-                                AssetDatabase.SetImporterOverride<AudioAssetImporter>(path);
-                                AssetDatabase.ImportAsset(path);
-                                break;
-                            }
-                        }
+                    case EmbeddedAssetType.Audio:
+                        ImportAssetGeneric<AudioAssetImporter>(embeddedAsset, basePath, audioExtensions);
                         break;
                 }
             }
-            AssetImporter.deleteEmbeddedAssetList(listPtr);
+
+
+        }
+
+        private void ImportAssetGeneric<T>(EmbeddedAssetData embeddedAsset, string basePath, string[] extensions) where T : ScriptedImporter
+        {
+            foreach (var path in AssetPaths(basePath, embeddedAsset.Name, embeddedAsset.Id, extensions))
+            {
+                if (System.IO.File.Exists(path) && AssetDatabase.GetImporterOverride(path) == null)
+                {
+                    AssetDatabase.SetImporterOverride<T>(path);
+                    AssetDatabase.ImportAsset(path);
+                    break;
+                }
+            }
         }
 
         string[] AssetPaths(string basePath, string name, uint id, string[] extensions)

@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEditor;
+using UnityEngine.UIElements;
+using UnityEditor.UIElements;
 
 namespace Rive
 {
@@ -11,7 +13,6 @@ namespace Rive
         private Artboard m_artboard;
         private StateMachine m_stateMachine;
         private double m_lastTime = 0.0;
-        private bool m_showAssets = true;
 
         public override bool HasPreviewGUI() => true;
 
@@ -20,73 +21,94 @@ namespace Rive
             return true;
         }
 
-        public override void OnInspectorGUI()
+        private enum AssetReferenceType
         {
+            Embedded = 0,
+            Referenced = 1
+        }
+
+        public override VisualElement CreateInspectorGUI()
+        {
+            var root = new VisualElement();
             var riveAsset = (Asset)target;
 
-            m_showAssets = EditorGUILayout.BeginFoldoutHeaderGroup(m_showAssets, "File Assets");
-            if (m_showAssets)
+            var foldout = new Foldout { text = "File Assets" };
+            root.Add(foldout);
+
+            foreach (var embeddedAsset in riveAsset.EmbeddedAssets)
             {
-                foreach (var embeddedAsset in riveAsset.assets)
+                var assetContainer = new VisualElement();
+                assetContainer.style.paddingBottom = 30;
+
+                foldout.Add(assetContainer);
+
+                // Asset Type
+                var enumField = new EnumField("Type:", embeddedAsset.AssetType);
+                enumField.SetEnabled(false);
+                assetContainer.Add(enumField);
+
+                // Asset Name
+                var nameField = new TextField("Name:") { value = embeddedAsset.Name };
+                nameField.SetEnabled(false);
+                assetContainer.Add(nameField);
+
+                // Asset ID
+                var idField = new TextField("ID:") { value = embeddedAsset.Id.ToString() };
+                idField.SetEnabled(false);
+                assetContainer.Add(idField);
+
+                // Asset Reference Type
+                var referenceType = embeddedAsset.InBandBytesSize > 0 ? AssetReferenceType.Embedded : AssetReferenceType.Referenced;
+                var referenceTypeField = new EnumField("Reference Type:", referenceType);
+                referenceTypeField.SetEnabled(false);
+                assetContainer.Add(referenceTypeField);
+
+                // Asset Data
+                if (referenceType == AssetReferenceType.Embedded)
                 {
-                    EditorGUILayout.EnumPopup("Type:", embeddedAsset.type);
-                    EditorGUILayout.TextField("Name: ", embeddedAsset.name);
-                    EditorGUILayout.TextField("ID: ", embeddedAsset.id.ToString());
-                    if (embeddedAsset.asset == null)
+                    var embeddedField = new TextField("Embedded Size:")
                     {
-                        EditorGUILayout.TextField(
-                            "Embedded: ",
-                            FormatBytes(embeddedAsset.embeddedBytes)
-                        );
-                    }
-                    else
-                    {
-                        EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.PrefixLabel(
-                            new GUIContent("Asset", "The referenced asset.")
-                        );
-                        switch (embeddedAsset.type)
-                        {
-                            case EmbeddedAssetType.font:
-
-                                {
-                                    EditorGUILayout.ObjectField(
-                                        embeddedAsset.asset,
-                                        typeof(FontAsset),
-                                        false
-                                    );
-                                }
-                                break;
-
-                            case EmbeddedAssetType.image:
-
-                                {
-                                    EditorGUILayout.ObjectField(
-                                        embeddedAsset.asset,
-                                        typeof(ImageAsset),
-                                        false
-                                    );
-                                }
-                                break;
-
-                            case EmbeddedAssetType.audio:
-
-                                {
-                                    EditorGUILayout.ObjectField(
-                                        embeddedAsset.asset,
-                                        typeof(AudioAsset),
-                                        false
-                                    );
-                                }
-                                break;
-                        }
-                        EditorGUILayout.EndHorizontal();
-                    }
-
-                    EditorGUILayout.Space();
+                        value = FormatBytes(embeddedAsset.InBandBytesSize),
+                        tooltip = "The size of the asset data embedded in the Rive file."
+                    };
+                    embeddedField.SetEnabled(false);
+                    assetContainer.Add(embeddedField);
                 }
+                else
+                {
+
+                    var assetField = new ObjectField("Referenced Asset")
+                    {
+                        objectType = GetAssetType(embeddedAsset.AssetType),
+                        value = embeddedAsset.OutOfBandAsset,
+
+                    };
+
+                    assetField.SetEnabled(false);
+                    assetContainer.Add(assetField);
+                }
+
+
+            }
+
+            return root;
+        }
+
+        private System.Type GetAssetType(EmbeddedAssetType assetType)
+        {
+            switch (assetType)
+            {
+                case EmbeddedAssetType.Font:
+                    return typeof(FontOutOfBandAsset);
+                case EmbeddedAssetType.Image:
+                    return typeof(ImageOutOfBandAsset);
+                case EmbeddedAssetType.Audio:
+                    return typeof(AudioOutOfBandAsset);
+                default:
+                    return typeof(Object);
             }
         }
+
 
         public override Texture2D RenderStaticPreview(
             string assetPath,
@@ -124,7 +146,6 @@ namespace Rive
             var cmb = new CommandBuffer();
 
             cmb.SetRenderTarget(rt);
-            // cmb.ClearRenderTarget(true, true, UnityEngine.Color.blue, 0.0f);
 
             if (m_file == null)
             {
@@ -201,7 +222,11 @@ namespace Rive
         {
             m_stateMachine = null;
             m_artboard = null;
-            m_file = null;
+            if (m_file != null)
+            {
+                m_file.Dispose();
+                m_file = null;
+            }
         }
 
         public void OnDisable()

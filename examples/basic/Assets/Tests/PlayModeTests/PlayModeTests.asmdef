@@ -5,14 +5,19 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Rive.Runtime",
-        "GameRuntime"
+        "GameRuntime",
+        "Unity.Addressables",
+        "Unity.ResourceManager",
+        "Rive.Tests.Shared",
+        "Rive.Tests.PlayMode"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,
     "precompiledReferences": [
-        "nunit.framework.dll"
+        "nunit.framework.dll",
+        "Moq.dll"
     ],
     "autoReferenced": false,
     "defineConstraints": [

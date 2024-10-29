@@ -268,4 +268,10 @@ public class RiveScreen : MonoBehaviour
             camera.RemoveCommandBuffer(cameraEvent, m_commandBuffer);
         }
     }
+
+    private void OnDestroy()
+    {
+        m_file?.Dispose();
+
+    }
 }

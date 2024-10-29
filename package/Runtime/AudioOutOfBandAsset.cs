@@ -6,7 +6,7 @@ namespace Rive
     /// <summary>
     /// Represents an out-of-band Rive font asset.
     /// </summary>
-    public class AudioAsset : OutOfBandAsset
+    public class AudioOutOfBandAsset : OutOfBandAsset
     {
         protected override IntPtr LoadNative(byte[] data)
         {

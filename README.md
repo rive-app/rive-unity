@@ -71,7 +71,7 @@ You will need a Unity editor that supports OpenGL or D3D11 for Windows, or a Mac
 
 Select either D3D11/OpenGL for Windows, or Metal for Mac/iOS as the Graphics API under Project Settings -> Player in Unity.
 
-You can install the Rive package for Unity by opening the Package Manager (Window -> Package Manager) and adding the [latest tag](https://github.com/rive-app/rive-unity/tags) as a git dependency, for example (replace 0.0.0 with the [latest release](https://github.com/rive-app/rive-unity/releases)):
+You can install the Rive package for Unity by opening the Package Manager (Window -> Package Manager) and adding the [latest release](https://github.com/rive-app/rive-unity/releases) as a git dependency, for example (replace 0.0.0 with the [latest release](https://github.com/rive-app/rive-unity/releases)):
 
 ```
 git@github.com:rive-app/rive-unity.git?path=package#v0.0.0
