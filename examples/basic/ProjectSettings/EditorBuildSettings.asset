@@ -14,5 +14,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Tests/PlayModeTests/TextRuns/NestedTextRunsTest.unity
     guid: 379866c915744418ba57520bdf0911da
+  - enabled: 1
+    path: Assets/layout-test.unity
+    guid: c5c922f8c3016411b872ec1804b2b743
   m_configObjects:
     com.unity.addressableassets: {fileID: 11400000, guid: 7a34d8b9504e54975abbcd99692386f2, type: 2}

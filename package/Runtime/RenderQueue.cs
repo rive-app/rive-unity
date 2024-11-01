@@ -123,7 +123,7 @@ namespace Rive
         /// <summary>
         /// Align the artboard to the given fit and alignment.
         /// </summary>
-        public void Align(Fit fit, Alignment alignment, Artboard artboard)
+        public void Align(Fit fit, Alignment alignment, Artboard artboard, float scaleFactor = 1.0f)
         {
             if (artboard == null)
             {
@@ -135,7 +135,8 @@ namespace Rive
                 (byte)fit,
                 alignment.X,
                 alignment.Y,
-                artboard.NativeArtboard
+                artboard.NativeArtboard,
+                scaleFactor
             );
         }
 
@@ -283,7 +284,8 @@ namespace Rive
             byte fit,
             float alignX,
             float alignY,
-            IntPtr artboard
+            IntPtr artboard,
+            float scaleFactor
         );
 
         [DllImport(NativeLibrary.name)]

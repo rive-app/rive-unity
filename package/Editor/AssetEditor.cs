@@ -163,7 +163,7 @@ namespace Rive
                         : rt
                 );
                 var renderer = rq.Renderer();
-                renderer.Align(Fit.contain, Alignment.Center, m_artboard);
+                renderer.Align(Fit.Contain, Alignment.Center, m_artboard);
                 renderer.Draw(m_artboard);
                 renderer.AddToCommandBuffer(cmb);
                 if (!isStatic)

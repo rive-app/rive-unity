@@ -11,7 +11,7 @@ namespace Rive
         /// If the aspect ratios differ, then the Rive
         /// content will be stretched.
         /// </summary>
-        fill = 0,
+        Fill = 0,
 
         /// <summary>
         /// (Default) Rive content will be contained within the bounds,
@@ -20,7 +20,7 @@ namespace Rive
         /// If the ratios differ, then a portion of the bounds will
         /// be unused.
         /// </summary>
-        contain = 1,
+        Contain = 1,
 
         /// <summary>
         /// Rive will cover the bounds, preserving the aspect ratio.
@@ -28,27 +28,27 @@ namespace Rive
         /// If the Rive content has a different ratio to the bounds,
         /// then the Rive content will be clipped.
         /// </summary>
-        cover = 2,
+        Cover = 2,
 
         /// <summary>
         /// Rive content will fill to the width of the bounds.
         ///
         /// This may result in clipping or unfilled bound space.
         /// </summary>
-        fitWidth = 3,
+        FitWidth = 3,
 
         /// <summary>
         /// Rive content will fill to the height of the bounds.
         ///
         /// This may result in clipping or unfilled bound space.
         /// </summary>
-        fitHeight = 4,
+        FitHeight = 4,
 
         /// <summary>
         /// Rive content will render to the size of its artboard,
         /// which may result in clipping or unfilled bound space.
         /// </summary>
-        none = 5,
+        None = 5,
 
         /// <summary>
         /// Rive content is scaled down to the size of the bounds,
@@ -58,6 +58,12 @@ namespace Rive
         /// than the bounds. If the bounds is larger, then ScaleDown
         /// will not scale up.
         /// </summary>
-        scaleDown = 6
+        ScaleDown = 6,
+
+        /// <summary>
+        /// Rive content will be resized automatically based on layout constraints of the artboard.
+        /// </summary>
+        Layout = 7
+
     }
 }

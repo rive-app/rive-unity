@@ -103,14 +103,22 @@ namespace Rive
         }
 
         /// <summary>
-        /// Returns the width of the artboard instance.
+        /// Gets or sets the width of the artboard instance.
         /// </summary>
-        public float Width => getArtboardWidth(m_nativeArtboard);
+        public float Width
+        {
+            get => getArtboardWidth(m_nativeArtboard);
+            set => setArtboardWidth(m_nativeArtboard, value);
+        }
 
         /// <summary>
-        /// Returns the height of the artboard instance.
+        /// Gets or sets the height of the artboard instance.
         /// </summary>
-        public float Height => getArtboardHeight(m_nativeArtboard);
+        public float Height
+        {
+            get => getArtboardHeight(m_nativeArtboard);
+            set => setArtboardHeight(m_nativeArtboard, value);
+        }
 
         /// Returns the number of StateMachines stored in the artboard.
         public uint StateMachineCount
@@ -326,6 +334,15 @@ namespace Rive
             }
         }
 
+        /// <summary>
+        /// Resets the artboard to its original dimensions.
+        /// </summary>
+        public void ResetArtboardSize()
+        {
+            Width = getArtboardOriginalWidth(m_nativeArtboard);
+            Height = getArtboardOriginalHeight(m_nativeArtboard);
+        }
+
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
@@ -342,6 +359,19 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern float getArtboardHeight(IntPtr artboard);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern float getArtboardOriginalWidth(IntPtr artboard);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern float getArtboardOriginalHeight(IntPtr artboard);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void setArtboardWidth(IntPtr artboard, float width);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void setArtboardHeight(IntPtr artboard, float height);
+
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr instanceStateMachineAtIndex(IntPtr artboard, uint index);

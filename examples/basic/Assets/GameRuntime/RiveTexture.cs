@@ -8,7 +8,7 @@ public class RiveTexture : MonoBehaviour
 {
     public Rive.Asset asset;
     public RenderTexture renderTexture;
-    public Fit fit = Fit.contain;
+    public Fit fit = Fit.Contain;
     public Alignment alignment = Alignment.Center;
 
     private Rive.RenderQueue m_renderQueue;
