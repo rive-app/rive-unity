@@ -81,7 +81,7 @@ public class RiveScreen : MonoBehaviour
         /// <summary>
         /// Maintains consistent physical size (in inches) across different devices by accounting for screen DPI. On higher DPI displays, content will appear larger to maintain consistent physical dimensions.
         /// </summary>
-        DPIAware = 2,
+        ConstantPhysicalSize = 2,
     }
     public Asset asset;
     public CameraEvent cameraEvent = CameraEvent.AfterEverything;
@@ -93,8 +93,8 @@ public class RiveScreen : MonoBehaviour
     [Tooltip("Fallback DPI to use if the screen DPI is not available.")]
     public float fallbackDPI = 96f;
 
-    [Tooltip("Number of Unity units per inch of physical screen size. Used to calculate scale factor in ConstantPhysicalSize mode.")]
-    public float unitsPerInch = 1f;
+    [SerializeField] private float m_referenceDPI = 150f;
+
 
     public delegate void RiveEventDelegate(ReportedEvent reportedEvent);
     public event RiveEventDelegate OnRiveEvent;
@@ -160,40 +160,75 @@ public class RiveScreen : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Calculates the effective scale factor based on the scaling mode and provided parameters.
+    /// </summary>
+    /// <param name="scalingMode">The scaling mode to use.</param>
+    /// <param name="scaleFactor">The scale factor to apply.</param>
+    /// <param name="originalArtboardSize">The original size of the artboard.</param>
+    /// <param name="frameRect">The frame rect where the artboard will be displayed.</param>
+    /// <param name="referenceDPI">The reference DPI to use for scaling.</param>
+    /// <param name="fallbackDPI">The fallback DPI to use if the current screen DPI is not available.</param>
+    /// <param name="screenDPI">The screen DPI to use for scaling. If not provided, Screen.dpi will be used.</param>
+    public static float CalculateEffectiveScaleFactor(
+        RiveScalingMode scalingMode,
+        float scaleFactor,
+        Vector2 originalArtboardSize,
+        Rect frameRect,
+        float referenceDPI,
+        float fallbackDPI = 96f,
+        float screenDPI = -1f
+    )
+    {
+
+        float originalWidth = originalArtboardSize.x;
+        float originalHeight = originalArtboardSize.y;
+        switch (scalingMode)
+        {
+            case RiveScalingMode.ConstantPixelSize:
+                return scaleFactor;
+
+            case RiveScalingMode.ReferenceArtboardSize:
+                {
+                    if (originalWidth <= 0 || originalHeight <= 0)
+                    {
+                        return 1.0f;
+                    }
+
+
+                    float resolutionScale = frameRect.height / originalHeight;
+
+                    return scaleFactor * resolutionScale;
+                }
+
+            case RiveScalingMode.ConstantPhysicalSize:
+                {
+                    float dpi = screenDPI > 0f ? screenDPI : Screen.dpi;
+                    if (dpi <= 0f)
+                    {
+                        dpi = fallbackDPI;
+                    }
+
+                    float devicePixelRatio = dpi / referenceDPI;
+
+                    return scaleFactor * devicePixelRatio;
+                }
+
+            default:
+                return 1.0f;
+        }
+    }
+
     private float GetEffectiveScaleFactor()
     {
-        if (scalingMode == RiveScalingMode.ConstantPixelSize)
-        {
-            return scaleFactor;
-        }
-        else if (scalingMode == RiveScalingMode.ReferenceArtboardSize)
-        {
-            // Calculate how much we need to scale to maintain the same relative size as the original artboard dimensions
-            float widthScale = m_camera.pixelWidth / m_originalArtboardWidth;
-            float heightScale = m_camera.pixelHeight / m_originalArtboardHeight;
-
-            // Use the smaller scaling factor to ensure content fits within screen
-            float resolutionScale = Mathf.Min(widthScale, heightScale);
-
-            return scaleFactor * resolutionScale;
-        }
-        else if (scalingMode == RiveScalingMode.DPIAware)
-        {
-            float dpi = Screen.dpi;
-
-            if (dpi == 0f)
-            {
-                dpi = fallbackDPI;
-            }
-
-            float scale = dpi / (unitsPerInch * 96f); // 96f is the standard DPI for reference
-
-            return scaleFactor * scale;
-        }
-        else
-        {
-            return 1.0f;
-        }
+        return CalculateEffectiveScaleFactor(
+            scalingMode,
+            scaleFactor,
+            new Vector2(m_originalArtboardWidth, m_originalArtboardHeight),
+            new Rect(0, 0, m_camera.pixelWidth, m_camera.pixelHeight),
+            m_referenceDPI,
+            fallbackDPI
+        );
     }
 
 
@@ -225,6 +260,7 @@ public class RiveScreen : MonoBehaviour
         {
             m_artboard.Width = m_camera.pixelWidth / effectiveScale;
             m_artboard.Height = m_camera.pixelHeight / effectiveScale;
+
         }
         else
         {
@@ -232,8 +268,11 @@ public class RiveScreen : MonoBehaviour
             m_artboard.ResetArtboardSize();
         }
 
+        m_stateMachine?.Advance(0f);
+
         m_riveRenderer.Align(fit, alignment, m_artboard, effectiveScale);
         m_riveRenderer.Draw(m_artboard);
+
     }
 
     private void Update()
