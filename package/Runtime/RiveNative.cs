@@ -3,10 +3,12 @@ using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using UnityEngine.Rendering;
 using UnityEngine;
+using Rive.Utils;
 
 [assembly: InternalsVisibleTo("Rive.Editor")]
 [assembly: InternalsVisibleTo("Rive.Tests.PlayMode")]
 [assembly: InternalsVisibleTo("Rive.Tests.Shared")]
+[assembly: InternalsVisibleTo("Rive.Tests.Editor")]
 namespace Rive
 {
         internal class NativeLibrary
@@ -40,7 +42,7 @@ namespace Rive
                 [AOT.MonoPInvokeCallback(typeof(LogDelegate))]
                 static void UnityLog(IntPtr message)
                 {
-                        Debug.Log("RiveNative: " + Marshal.PtrToStringAnsi(message));
+                        DebugLogger.Instance.Log("RiveNative: " + Marshal.PtrToStringAnsi(message));
                 }
         }
 }

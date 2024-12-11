@@ -1,7 +1,7 @@
 {
   "dependencies": {
-    "nuget.moq": "2.0.0",
     "app.rive.rive-unity": "file:../../../package",
+    "app.rive.rive-unity.tests": "file:../../../tests/package",
     "com.unity.addressables": "1.21.21",
     "com.unity.ai.navigation": "1.1.5",
     "com.unity.collab-proxy": "2.1.0",
@@ -10,9 +10,11 @@
     "com.unity.ide.vscode": "1.2.5",
     "com.unity.memoryprofiler": "1.1.0",
     "com.unity.test-framework": "1.1.33",
+    "com.unity.testframework.graphics": "8.9.0-exp.1",
     "com.unity.textmeshpro": "3.0.6",
     "com.unity.timeline": "1.7.5",
     "com.unity.ugui": "1.0.0",
+    "nuget.moq": "2.0.0",
     "com.unity.modules.ai": "1.0.0",
     "com.unity.modules.androidjni": "1.0.0",
     "com.unity.modules.animation": "1.0.0",
@@ -45,6 +47,7 @@
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0"
   },
-  "testables": ["app.rive.rive-unity"]
-
+  "testables": [
+    "app.rive.rive-unity.tests"
+  ]
 }

@@ -4,6 +4,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine.Rendering;
+using Rive.Components;
+using Rive.Utils;
 
 namespace Rive
 {
@@ -25,6 +27,8 @@ namespace Rive
         {
             unrefStateMachine(m_nativeStateMachine);
         }
+
+        public string Name => Marshal.PtrToStringAnsi(stateMachineGetName(m_nativeStateMachine));
 
         public bool Advance(float seconds)
         {
@@ -97,7 +101,7 @@ namespace Rive
             IntPtr ptr = getSMIBoolStateMachine(m_nativeStateMachine, name);
             if (ptr != IntPtr.Zero)
                 return new SMIBool(ptr, this);
-            Debug.Log($"No SMIBool found with name: {name}.");
+            DebugLogger.Instance.Log($"No SMIBool found with name: {name}.");
             return null;
         }
 
@@ -112,7 +116,7 @@ namespace Rive
             IntPtr ptr = getSMITriggerStateMachine(m_nativeStateMachine, name);
             if (ptr != IntPtr.Zero)
                 return new SMITrigger(ptr, this);
-            Debug.Log($"No SMITrigger found with name: {name}.");
+            DebugLogger.Instance.Log($"No SMITrigger found with name: {name}.");
             return null;
         }
 
@@ -127,32 +131,42 @@ namespace Rive
             IntPtr ptr = getSMINumberStateMachine(m_nativeStateMachine, name);
             if (ptr != IntPtr.Zero)
                 return new SMINumber(ptr, this);
-            Debug.Log($"No SMINumber found with name: {name}.");
+            DebugLogger.Instance.Log($"No SMINumber found with name: {name}.");
             return null;
         }
 
         /// <summary>
-        /// Move the pointer to the given position on the state machine
+        /// Move the pointer to the given position
         /// </summary>
-        public void PointerMove(Vector2 position)
+        public HitResult PointerMove(Vector2 position)
         {
-            pointerMoveStateMachine(m_nativeStateMachine, position.x, position.y);
+            return (HitResult)pointerMoveStateMachineWithHit(m_nativeStateMachine, position.x, position.y);
         }
 
         /// <summary>
-        /// Press the pointer at the given position on the state machine
+        /// Press the pointer at the given position
         /// </summary>
-        public void PointerDown(Vector2 position)
+        public HitResult PointerDown(Vector2 position)
         {
-            pointerDownStateMachine(m_nativeStateMachine, position.x, position.y);
+            return (HitResult)pointerDownStateMachineWithHit(m_nativeStateMachine, position.x, position.y);
         }
 
         /// <summary>
-        /// Release the pointer at the given position on the state machine
+        /// Release the pointer at the given position
         /// </summary>
-        public void PointerUp(Vector2 position)
+        public HitResult PointerUp(Vector2 position)
         {
-            pointerUpStateMachine(m_nativeStateMachine, position.x, position.y);
+            return (HitResult)pointerUpStateMachineWithHit(m_nativeStateMachine, position.x, position.y);
+        }
+
+        /// <summary>
+        /// Performs a hit test at the given position
+        /// </summary>
+        /// <param name="position">The position to test in local coordinates</param>
+        /// <returns>True if the position hits a component with a listener, false otherwise</returns>
+        public bool HitTest(Vector2 position)
+        {
+            return hitTestStateMachine(m_nativeStateMachine, position.x, position.y);
         }
 
         /// <summary>
@@ -167,6 +181,18 @@ namespace Rive
                 list.Add(new ReportedEvent(getReportedEventAt(m_nativeStateMachine, i)));
             }
             return list;
+        }
+
+        /// <summary>
+        /// A list of all the reported events.
+        /// </summary>
+        internal IEnumerable<ReportedEvent> GetReportedEvents()
+        {
+            uint count = getReportedEventCount(m_nativeStateMachine);
+            for (uint i = 0; i < count; i++)
+            {
+                yield return new ReportedEvent(getReportedEventAt(m_nativeStateMachine, i));
+            }
         }
 
         #region Native Methods
@@ -194,14 +220,18 @@ namespace Rive
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getSMINumberStateMachine(IntPtr stateMachine, string name);
 
-        [DllImport(NativeLibrary.name)]
-        internal static extern void pointerMoveStateMachine(IntPtr stateMachine, float x, float y);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void pointerDownStateMachine(IntPtr stateMachine, float x, float y);
+        internal static extern byte pointerMoveStateMachineWithHit(IntPtr smi, float x, float y);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void pointerUpStateMachine(IntPtr stateMachine, float x, float y);
+        internal static extern byte pointerDownStateMachineWithHit(IntPtr smi, float x, float y);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern byte pointerUpStateMachineWithHit(IntPtr smi, float x, float y);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern bool hitTestStateMachine(IntPtr stateMachine, float x, float y);
 
         [DllImport(NativeLibrary.name)]
         internal static extern uint getReportedEventCount(IntPtr stateMachine);
@@ -211,6 +241,9 @@ namespace Rive
             IntPtr stateMachine,
             uint index
         );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr stateMachineGetName(IntPtr stateMachine);
         #endregion
     }
 }

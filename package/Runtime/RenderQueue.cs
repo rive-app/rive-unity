@@ -16,7 +16,7 @@ namespace Rive
         }
     }
 
-    public class Renderer
+    public class Renderer : IRenderer
     {
         protected RenderQueue m_renderQueue;
         private IntPtr m_nativeRenderQueue = IntPtr.Zero;
@@ -29,10 +29,20 @@ namespace Rive
             m_index = getNextCommandBufferIndex(m_nativeRenderQueue);
         }
 
+        internal RenderQueue RenderQueue => m_renderQueue;
+
         void Release()
         {
             releaseCommandBuffer(m_nativeRenderQueue, m_index);
         }
+        /// <summary>
+        /// Clear the commands in the render queue.
+        /// </summary>
+        public void Clear()
+        {
+            clearCommandBuffer(m_nativeRenderQueue, m_index);
+        }
+
 
         /// <summary>
         /// Draw the given artboard to the render queue.
@@ -140,6 +150,26 @@ namespace Rive
             );
         }
 
+        /// <summary>
+        /// Align the artboard to the given fit and alignment, with the given frame.
+        /// </summary>
+        public void Align(Fit fit, Alignment alignment, Artboard artboard, AABB frame, float scaleFactor = 1.0f)
+        {
+            renderQueueAlignWithFrame(
+                m_nativeRenderQueue,
+                m_index,
+                (byte)fit,
+                alignment.X,
+                alignment.Y,
+                artboard.NativeArtboard,
+                frame.minX,
+                frame.minY,
+                frame.maxX,
+                frame.maxY,
+                scaleFactor
+            );
+        }
+
         public void Submit()
         {
             var commandBuffer = new RiveCommandBuffer(this);
@@ -179,6 +209,7 @@ namespace Rive
 
         public void AddToCommandBuffer(CommandBuffer commandBuffer, bool release = false)
         {
+
             if (
                 UnityEngine.SystemInfo.graphicsDeviceType
                 == UnityEngine.Rendering.GraphicsDeviceType.Metal
@@ -202,6 +233,37 @@ namespace Rive
             );
             commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
         }
+
+#if UNITY_2023_1_OR_NEWER && RIVE_USING_URP
+
+        public void AddToCommandBuffer(UnsafeCommandBuffer commandBuffer, bool release = false)
+        {
+
+            if (
+                UnityEngine.SystemInfo.graphicsDeviceType
+                == UnityEngine.Rendering.GraphicsDeviceType.Metal
+            )
+            {
+                // Unity seems to have the wrong texture bound when querying the
+                // exposed CurrentRenderPassDescriptor's colorAttachment. This
+                // forces the Metal backend to catch up.
+                commandBuffer.DrawMesh(
+                    GetResetMesh(),
+                    new UnityEngine.Matrix4x4(),
+                    GetResetMaterial()
+                );
+            }
+            commandBuffer.IssuePluginEventAndData(
+                release
+                    ? getRenderAndReleaseCommandBufferCallback()
+                    : getRenderCommandBufferCallback(),
+                (int)m_index,
+                m_nativeRenderQueue
+            );
+            commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
+        }
+
+#endif
 
         private static Material m_resetMaterial;
         private static Mesh m_resetMesh;
@@ -236,6 +298,14 @@ namespace Rive
             IntPtr renderQueue,
             uint commandBufferIndex
         );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void clearCommandBuffer(
+            IntPtr renderQueue,
+            uint commandBufferIndex
+        );
+
+
 
         [DllImport(NativeLibrary.name)]
         internal static extern void renderQueueDrawArtboard(
@@ -287,6 +357,23 @@ namespace Rive
             IntPtr artboard,
             float scaleFactor
         );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void renderQueueAlignWithFrame(
+            IntPtr renderQueue,
+            uint commandBufferIndex,
+            byte fit,
+            float alignX,
+            float alignY,
+            IntPtr artboard,
+            float minX,
+            float minY,
+            float maxX,
+            float maxY,
+            float scaleFactor
+        );
+
+
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getRenderAndReleaseCommandBufferCallback();
@@ -354,12 +441,16 @@ namespace Rive
         public void UpdateTexture(RenderTexture texture)
         {
             ValidateRenderTexture(texture);
+
             renderQueueUpdateRenderTexture(
                 m_nativeRenderQueue,
                 texture.GetNativeTexturePtr(),
                 (uint)texture.width,
                 (uint)texture.height
             );
+
+            Texture = texture;
+
         }
 
         internal IntPtr m_nativeRenderQueue = IntPtr.Zero;

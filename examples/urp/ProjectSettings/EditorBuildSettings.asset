@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 0
+    path: Assets/Scenes/RiveScrollerScene.unity
+    guid: 0c9273d53fd10404e9c339fe793bdf45
+  - enabled: 0
+    path: Assets/Scenes/RiveLeaderboardScene.unity
+    guid: c2e9403a0f07c4c87bab9a4348960d8f
+  - enabled: 0
+    path: Assets/Scenes/RiveTexturePanelScene.unity
+    guid: e6c62d69334aa4c88b777ada7199b8ed
+  - enabled: 0
+    path: Assets/Scenes/RiveUIPanelScene 1.unity
+    guid: 749f4a1bb3ebe4446a90752d4b1ed47f
+  - enabled: 0
+    path: Assets/UITK/UITKTestScene.unity
+    guid: 92eca9db823ed4dfeb041c8eae2a3cd1
+  m_configObjects:
+    com.unity.addressableassets: {fileID: 11400000, guid: 09bbd69e498a446a2915755fecdfcfa2,
+      type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 1991f2a55e73c421494174fdd67de978,
+      type: 2}

@@ -1,3 +1,4 @@
+using Rive.Utils;
 using UnityEditor;
 using UnityEngine;
 
@@ -50,7 +51,7 @@ namespace Rive
             }
             else
             {
-                Debug.LogWarning("Failed to load image preview for ImageOutOfBandAsset");
+                DebugLogger.Instance.LogWarning("Failed to load image preview for ImageOutOfBandAsset");
                 return null;
             }
         }
@@ -94,7 +95,7 @@ namespace Rive
                         );
                     }
                 default:
-                    Debug.LogWarning($"Unsupported preview mode: {previewMode}. Falling back to Contain mode.");
+                    DebugLogger.Instance.LogWarning($"Unsupported preview mode: {previewMode}. Falling back to Contain mode.");
                     goto case PreviewMode.Contain;
             }
         }

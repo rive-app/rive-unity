@@ -1,0 +1,41 @@
+{
+    "name": "Rive.Tests.PlayMode",
+    "rootNamespace": "Rive.Tests",
+    "references": [
+        "GUID:27619889b8ba8c24980f49ee34dbb44a",
+        "GUID:0acc523941302664db1f4e527237feb3",
+        "GUID:30bb3ab01b3274f3aab62db14fdd3206",
+        "GUID:0a82aeb665886483c867b7d137563619",
+        "GUID:15fc0a57446b3144c949da3e2b9737a9",
+        "GUID:c081bc530f560634bb5c21d4b323a7f1"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "12.1.15",
+            "define": "RIVE_USING_URP"
+        },
+        {
+            "name": "com.unity.render-pipelines.high-definition",
+            "expression": "12.1.15",
+            "define": "RIVE_USING_HDRP"
+        },
+        {
+            "name": "com.unity.testframework.graphics",
+            "expression": "8.9.0-exp.1",
+            "define": "RIVE_USING_GRAPHICS_TEST_FRAMEWORK"
+        }
+    ],
+    "noEngineReferences": false
+}

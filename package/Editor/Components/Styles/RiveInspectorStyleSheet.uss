@@ -1,0 +1,32 @@
+.rive-inspector {
+    padding-top: 9px;
+}
+
+.rive-inspector__section {
+    margin-bottom: 9px;
+    margin-top: 3px;
+}
+
+.rive-inspector__foldout {
+}
+
+.rive-inspector__field {
+    margin-bottom: 3px;
+    margin-left: 3px;
+}
+.rive-inspector__field > Label {
+    min-width: 117px;
+}
+
+.rive-inspector__section-label {
+    -unity-font-style: bold;
+    margin-bottom: 4px;
+   margin-left: 5.2px;
+
+}
+
+.unity-foldout__input > Label {
+    -unity-font-style: bold;
+       margin-left: 1px;
+
+}

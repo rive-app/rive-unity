@@ -14,14 +14,14 @@ namespace Rive
     /// </remarks>
     public class File : IDisposable
     {
-        public static class LogCodes
+        internal static class LogCodes
         {
 
-            public const string ERROR_NO_ARTBOARD_FOUND = "ARTBOARD_NOT_FOUND";
+            public const string ERROR_NO_ARTBOARD_FOUND = "1001";
 
-            public const string ERROR_ASSET_REFERENCE_UPDATE_FAILED = "ASSET_REFERENCE_UPDATE_FAILED";
+            public const string ERROR_ASSET_REFERENCE_UPDATE_FAILED = "1002";
 
-            public const string ERROR_INVALID_FILE_ACCESS = "INVALID_FILE_ACCESS";
+            public const string ERROR_INVALID_FILE_ACCESS = "1003";
 
 
         }

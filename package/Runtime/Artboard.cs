@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
 using System.Runtime.InteropServices;
+using Rive.Utils;
 
 namespace Rive
 {
@@ -56,6 +57,11 @@ namespace Rive
                 return null;
             }
             return new Component(ptr);
+        }
+
+        public string Name
+        {
+            get { return Marshal.PtrToStringAnsi(artboardGetName(m_nativeArtboard)); }
         }
 
         /// <summary>
@@ -138,7 +144,7 @@ namespace Rive
             IntPtr ptr = instanceStateMachineAtIndex(m_nativeArtboard, index);
             if (ptr == IntPtr.Zero)
             {
-                Debug.Log($"No StateMachine at index {index}.");
+                DebugLogger.Instance.Log($"No StateMachine at index {index}.");
                 return null;
             }
             return new StateMachine(ptr);
@@ -150,7 +156,7 @@ namespace Rive
             IntPtr ptr = instanceStateMachineWithName(m_nativeArtboard, name);
             if (ptr == IntPtr.Zero)
             {
-                Debug.Log($"No StateMachine named \"{name}\".");
+                DebugLogger.Instance.Log($"No StateMachine named \"{name}\".");
                 return null;
             }
             return new StateMachine(ptr);
@@ -162,7 +168,7 @@ namespace Rive
             IntPtr ptr = instanceStateMachineDefault(m_nativeArtboard);
             if (ptr == IntPtr.Zero)
             {
-                Debug.Log($"No default StateMachine found.");
+                DebugLogger.Instance.Log($"No default StateMachine found.");
                 return null;
             }
             return new StateMachine(ptr);
@@ -178,13 +184,13 @@ namespace Rive
             // Validate the input parameters
             if (string.IsNullOrEmpty(inputName))
             {
-                Debug.LogWarning($"No input name provided for path '{path}' .");
+                DebugLogger.Instance.LogWarning($"No input name provided for path '{path}' .");
                 return IntPtr.Zero;
             }
 
             if (string.IsNullOrEmpty(path))
             {
-                Debug.LogWarning($"No path provided for input '{inputName}'.");
+                DebugLogger.Instance.LogWarning($"No path provided for input '{inputName}'.");
                 return IntPtr.Zero;
             }
 
@@ -196,12 +202,12 @@ namespace Rive
 
         private void LogMissingInputWarning(string inputName, string path)
         {
-            Debug.LogWarning($"No input found at path '{path}' with name '{inputName}'.");
+            DebugLogger.Instance.LogWarning($"No input found at path '{path}' with name '{inputName}'.");
         }
 
         private void LogIncorrectInputTypeWarning(string inputName, string path, string expectedType)
         {
-            Debug.LogWarning($"Input '{inputName}' at path: '{path}' is not a {expectedType} input.");
+            DebugLogger.Instance.LogWarning($"Input '{inputName}' at path: '{path}' is not a {expectedType} input.");
         }
 
         // Add this description to the method: Set the boolean input with the provided name at the given path with value
@@ -344,6 +350,8 @@ namespace Rive
         }
 
 
+
+
         #region Native Methods
         [DllImport(NativeLibrary.name)]
         internal static extern void unrefArtboard(IntPtr artboard);
@@ -359,6 +367,8 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern float getArtboardHeight(IntPtr artboard);
+
+
 
         [DllImport(NativeLibrary.name)]
         internal static extern float getArtboardOriginalWidth(IntPtr artboard);
@@ -420,6 +430,10 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr artboardGetTextRunValueAtPath(IntPtr artboard, string runName, string path);
+
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr artboardGetName(IntPtr artboard);
         #endregion
     }
 }

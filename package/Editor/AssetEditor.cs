@@ -3,6 +3,7 @@ using UnityEngine.Rendering;
 using UnityEditor;
 using UnityEngine.UIElements;
 using UnityEditor.UIElements;
+using System.Linq;
 
 namespace Rive
 {
@@ -32,15 +33,16 @@ namespace Rive
             var root = new VisualElement();
             var riveAsset = (Asset)target;
 
-            var foldout = new Foldout { text = "File Assets" };
-            root.Add(foldout);
+            // File Assets Section
+            var embeddedFoldout = new Foldout { text = "File Assets" };
+            root.Add(embeddedFoldout);
 
             foreach (var embeddedAsset in riveAsset.EmbeddedAssets)
             {
                 var assetContainer = new VisualElement();
                 assetContainer.style.paddingBottom = 30;
 
-                foldout.Add(assetContainer);
+                embeddedFoldout.Add(assetContainer);
 
                 // Asset Type
                 var enumField = new EnumField("Type:", embeddedAsset.AssetType);
@@ -76,23 +78,151 @@ namespace Rive
                 }
                 else
                 {
-
                     var assetField = new ObjectField("Referenced Asset")
                     {
                         objectType = GetAssetType(embeddedAsset.AssetType),
                         value = embeddedAsset.OutOfBandAsset,
-
                     };
-
                     assetField.SetEnabled(false);
                     assetContainer.Add(assetField);
                 }
-
-
             }
+
+
+            // File Metadata Section
+            if (riveAsset.EditorOnlyMetadata != null && riveAsset.EditorOnlyMetadata.Artboards.Count > 0)
+            {
+                var contentsFoldout = new Foldout { text = "Metadata" };
+                root.Add(contentsFoldout);
+
+                for (int i = 0; i < riveAsset.EditorOnlyMetadata.Artboards.Count; i++)
+                {
+                    bool isDefaultArtboard = i == 0;
+                    var artboard = riveAsset.EditorOnlyMetadata.Artboards[i];
+                    var artboardContainer = new VisualElement();
+                    artboardContainer.style.paddingBottom = 20;
+                    artboardContainer.style.paddingLeft = 8;
+                    artboardContainer.style.paddingRight = 8;
+                    artboardContainer.style.paddingTop = isDefaultArtboard ? 5 : 20;
+
+                    // Add a bottom border to all but the last artboard
+                    if (i < riveAsset.EditorOnlyMetadata.Artboards.Count - 1)
+                    {
+                        artboardContainer.style.borderBottomWidth = 1;
+                        artboardContainer.style.borderBottomColor = new UnityEngine.Color(0.3f, 0.3f, 0.3f);
+                    }
+
+                    // Artboard Header
+                    var artboardHeader = new VisualElement();
+                    artboardHeader.style.flexDirection = FlexDirection.Row;
+                    artboardHeader.style.alignItems = Align.Center;
+                    artboardContainer.Add(artboardHeader);
+
+                    var artboardLabel = isDefaultArtboard ? new Label("Artboard (Default):") : new Label("Artboard:");
+                    artboardLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+                    artboardLabel.style.marginRight = 8;
+                    artboardHeader.Add(artboardLabel);
+
+                    var artboardNameField = new TextField();
+                    artboardNameField.value = artboard.Name;
+                    artboardNameField.isReadOnly = true;
+                    artboardNameField.SetEnabled(true);
+                    artboardNameField.style.flexGrow = 1;
+                    artboardHeader.Add(artboardNameField);
+
+                    // Artboard Size
+                    var sizeContainer = new VisualElement();
+                    sizeContainer.style.flexDirection = FlexDirection.Row;
+                    sizeContainer.style.marginLeft = 15;
+                    sizeContainer.style.marginTop = 5;
+                    artboardContainer.Add(sizeContainer);
+
+                    var sizeLabel = new Label("Size:");
+                    sizeLabel.style.marginRight = 8;
+                    sizeContainer.Add(sizeLabel);
+
+                    var sizeValueLabel = new Label($"{artboard.Width} x {artboard.Height}");
+                    sizeContainer.Add(sizeValueLabel);
+
+                    // State Machines Container
+                    var stateMachinesContainer = new VisualElement();
+                    stateMachinesContainer.style.marginLeft = 15;
+                    stateMachinesContainer.style.marginTop = 10;
+                    artboardContainer.Add(stateMachinesContainer);
+
+                    foreach (var stateMachine in artboard.StateMachines)
+                    {
+                        var smContainer = new VisualElement();
+                        smContainer.style.marginBottom = 10;
+
+                        // State Machine Header
+                        var smHeader = new VisualElement();
+                        smHeader.style.flexDirection = FlexDirection.Row;
+                        smHeader.style.alignItems = Align.Center;
+                        smContainer.Add(smHeader);
+
+                        var smLabel = new Label("State Machine:");
+                        smLabel.style.marginRight = 8;
+                        smHeader.Add(smLabel);
+
+                        var smNameField = new TextField();
+                        smNameField.value = stateMachine.Name;
+                        smNameField.isReadOnly = true;
+                        smNameField.SetEnabled(true);
+                        smNameField.style.flexGrow = 1;
+                        smHeader.Add(smNameField);
+
+                        // Inputs
+                        if (stateMachine.Inputs.Count > 0)
+                        {
+                            var inputsContainer = new VisualElement();
+                            inputsContainer.style.marginLeft = 15;
+                            inputsContainer.style.marginTop = 5;
+                            smContainer.Add(inputsContainer);
+
+                            var inputsLabel = new Label("Inputs:");
+                            inputsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+                            inputsLabel.style.marginBottom = 5;
+                            inputsContainer.Add(inputsLabel);
+
+                            foreach (var input in stateMachine.Inputs)
+                            {
+                                var inputContainer = new VisualElement();
+                                inputContainer.style.flexDirection = FlexDirection.Row;
+                                inputContainer.style.alignItems = Align.Center;
+                                inputContainer.style.marginBottom = 2;
+
+                                var typeLabel = new Label(input.Type);
+                                typeLabel.style.marginRight = 8;
+                                typeLabel.style.width = 60;
+
+                                var nameField = new TextField();
+                                nameField.value = input.Name;
+                                nameField.isReadOnly = true;
+                                nameField.SetEnabled(true);
+                                nameField.style.flexGrow = 1;
+
+                                inputContainer.Add(typeLabel);
+                                inputContainer.Add(nameField);
+                                inputsContainer.Add(inputContainer);
+                            }
+                        }
+
+                        stateMachinesContainer.Add(smContainer);
+                    }
+
+                    contentsFoldout.Add(artboardContainer);
+                }
+            }
+
+
+
+
 
             return root;
         }
+
+
 
         private System.Type GetAssetType(EmbeddedAssetType assetType)
         {
