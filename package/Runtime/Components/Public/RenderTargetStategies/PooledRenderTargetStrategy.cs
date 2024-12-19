@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Rive.Components.Utilities;
 using Rive.EditorTools;
 using Rive.Utils;
 using UnityEngine;
@@ -86,6 +87,9 @@ namespace Rive.Components
         private ObjectPool<PanelMetadataInfo> m_panelMetadataPool;
 
         private Dictionary<IRivePanel, PanelMetadataInfo> m_rivePanelData = new Dictionary<IRivePanel, PanelMetadataInfo>();
+
+        private Dictionary<RenderTexture, Renderer> m_renderTextureRendererMap = new Dictionary<RenderTexture, Renderer>();
+
         private List<IRivePanel> m_panelsToRedraw = new List<IRivePanel>();
 
         private bool IsInitialized => m_renderTexturePool != null;
@@ -151,11 +155,11 @@ namespace Rive.Components
         /// Configures the pool settings. Only works before the pool is initialized.
         /// </summary>
         /// <param name="textureSize">The size of pooled render textures</param>
-        /// <param name="initialSize">Initial pool capacity</param>
-        /// <param name="maxSize">Maximum pool size</param>
+        /// <param name="initialPoolSize">Initial pool capacity</param>
+        /// <param name="maxPoolSize">Maximum pool size</param>
         /// <param name="overflowBehavior">How to handle pool overflow</param>
         /// <returns>True if settings were applied, false if pool was already initialized</returns>
-        public bool Configure(Vector2Int textureSize, int initialSize, int maxSize, PoolOverflowBehavior overflowBehavior)
+        public bool Configure(Vector2Int textureSize, int initialPoolSize, int maxPoolSize, PoolOverflowBehavior overflowBehavior)
         {
             if (IsInitialized)
             {
@@ -164,8 +168,8 @@ namespace Rive.Components
             }
 
             m_pooledTextureSize = textureSize;
-            m_initialPoolSize = initialSize;
-            m_maxPoolSize = maxSize;
+            m_initialPoolSize = initialPoolSize;
+            m_maxPoolSize = maxPoolSize;
             m_poolOverflowBehavior = overflowBehavior;
             return true;
         }
@@ -202,7 +206,17 @@ namespace Rive.Components
         }
 
 
+        private Renderer GetOrCreateRendererForRenderTexture(RenderTexture renderTexture)
+        {
+            if (m_renderTextureRendererMap.TryGetValue(renderTexture, out var renderer))
+            {
+                return renderer;
+            }
 
+            renderer = RendererUtils.CreateRenderer(renderTexture);
+            m_renderTextureRendererMap[renderTexture] = renderer;
+            return renderer;
+        }
 
         public override RenderTexture GetRenderTexture(IRivePanel rivePanel)
         {
@@ -359,12 +373,19 @@ namespace Rive.Components
             }
 
             var renderTexture = m_renderTexturePool.Get();
-            renderTexture.Create();
+            if (!renderTexture.IsCreated())
+            {
+                renderTexture.Create();
+            }
             var offsetScale = CalculatePanelOffsetScale(panel, renderTexture);
 
-            var renderer = RendererPool.Get();
+            var renderer = GetOrCreateRendererForRenderTexture(renderTexture);
 
-            renderer.RenderQueue.UpdateTexture(renderTexture);
+            if (!ReferenceEquals(renderer.RenderQueue.Texture, renderTexture))
+            {
+                renderer.RenderQueue.UpdateTexture(renderTexture);
+            }
+
 
 
             PanelMetadataInfo meta = m_panelMetadataPool.Get();
@@ -386,7 +407,6 @@ namespace Rive.Components
 
                 UnregisterRenderer(info.Renderer);
                 m_renderTexturePool.Release(info.RenderTexture);
-                RendererPool.Release(info.Renderer);
                 m_panelMetadataPool.Release(info);
                 m_rivePanelData.Remove(panel);
             }
@@ -450,9 +470,17 @@ namespace Rive.Components
                 }
             }
 
-            m_renderTexturePool?.Clear();
             m_panelsToRedraw?.Clear();
             m_panelMetadataPool?.Clear();
+            m_renderTexturePool?.Clear(); // This will destroy all render textures
+
+            // Cleanup renderers
+            foreach (var kvp in m_renderTextureRendererMap)
+            {
+                RendererUtils.ReleaseRenderer(kvp.Value);
+            }
+
+            m_renderTextureRendererMap.Clear();
         }
 
         protected override void OnDestroy()

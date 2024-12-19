@@ -264,6 +264,9 @@ namespace Rive.Components
         private float m_lastUpdateTime;
 
 
+        private Renderer m_renderer;
+
+
         public RenderTexture PreviewRenderTexture
         {
             get => m_previewRenderTexture;
@@ -313,6 +316,12 @@ namespace Rive.Components
             }
             m_widgetStates.Clear();
             m_disabledWidgets.Clear();
+
+            if (m_renderer != null)
+            {
+                m_renderer.RenderQueue.Dispose();
+                m_renderer = null;
+            }
         }
 
         private bool m_wasEditorPreviewDisabled = true;
@@ -340,17 +349,18 @@ namespace Rive.Components
             if (!Application.isPlaying)
             {
                 float currentTime = Time.realtimeSinceStartup;
-                if (currentTime - m_lastUpdateTime >= 1f / TARGET_EDITOR_FPS){
+                if (currentTime - m_lastUpdateTime >= 1f / TARGET_EDITOR_FPS)
+                {
                     if (HasChanged())
                     {
                         UpdateEditorPreview();
                         m_lastUpdateTime = currentTime;
                         // We use this to force the editor to update the preview when any of the widget settings change.
                         // If we don't, the update might be delayed until the user interacts with the scene view or somewhere else in the editor. This might give the impression that the settings are not working.
-                        EditorApplication.QueuePlayerLoopUpdate(); 
+                        EditorApplication.QueuePlayerLoopUpdate();
                     }
                 }
-               
+
             }
         }
 
@@ -511,11 +521,37 @@ namespace Rive.Components
             RenderTexture.active = rt;
 
 
+            if (m_renderer != null)
+            {
+                // When using OpenGL in the Unity Editor, we get this error if we try to use the same renderer each time: OPENGL NATIVE PLUG-IN ERROR: GL_INVALID_OPERTATION: Operation Invalid in current state.
+                // Current workaround is to dispose the renderer and create a new one when needed.
+                if (TextureHelper.IsOpenGLPlatform())
+                {
+                    m_renderer.RenderQueue.Dispose();
+                    m_renderer = null;
+                }
+                else
+                {
+                    // For other platforms, we clear the existing renderer to avoid rendering leftover data from the previous visual.
+                    m_renderer.Clear();
+
+                }
+            }
 
             //var rq = new RenderQueue(SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal ? null : rt); <-- Doing this causes the Unity Editor to hang when the RivePanel game object is duplicated.
-            var rq = new RenderQueue(rt);
+            if (m_renderer == null)
+            {
+                var rq = new RenderQueue(rt);
 
-            var renderer = rq.Renderer();
+                m_renderer = rq.Renderer();
+            }
+
+            if (!ReferenceEquals(m_renderer.RenderQueue.Texture, rt))
+            {
+                m_renderer.RenderQueue.UpdateTexture(rt);
+            }
+
+
 
 
 
@@ -544,14 +580,14 @@ namespace Rive.Components
                     continue;
                 }
                 RenderContext renderContext = new RenderContext(RenderContext.ClippingModeSetting.CheckClipping);
-                RenderTargetStrategy.DrawRenderObject(renderer, renderObject, m_rivePanel, renderContext);
+                RenderTargetStrategy.DrawRenderObject(m_renderer, renderObject, m_rivePanel, renderContext);
 
             }
 
-            var cmb = renderer.ToCommandBuffer();
+            var cmb = m_renderer.ToCommandBuffer();
 
             cmb.SetRenderTarget(rt);
-            renderer.AddToCommandBuffer(cmb);
+            m_renderer.AddToCommandBuffer(cmb);
 
 
             Graphics.ExecuteCommandBuffer(cmb);

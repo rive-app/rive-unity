@@ -5,21 +5,18 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: Assets/Scenes/RiveScrollerScene.unity
-    guid: 0c9273d53fd10404e9c339fe793bdf45
-  - enabled: 0
-    path: Assets/Scenes/RiveLeaderboardScene.unity
-    guid: c2e9403a0f07c4c87bab9a4348960d8f
-  - enabled: 0
-    path: Assets/Scenes/RiveTexturePanelScene.unity
-    guid: e6c62d69334aa4c88b777ada7199b8ed
-  - enabled: 0
-    path: Assets/Scenes/RiveUIPanelScene 1.unity
-    guid: 749f4a1bb3ebe4446a90752d4b1ed47f
-  - enabled: 0
-    path: Assets/UITK/UITKTestScene.unity
-    guid: 92eca9db823ed4dfeb041c8eae2a3cd1
+  - enabled: 1
+    path: Assets/Scenes/RiveCanvasPanel.unity
+    guid: 4e64171e460ac41fda97c87000359ab1
+  - enabled: 1
+    path: Assets/Scenes/AtlasRenderTargetScene.unity
+    guid: f1850308205574998a85b7e88da612e4
+  - enabled: 1
+    path: Assets/Scenes/PooledRenderTargetScene.unity
+    guid: a80130be14fa34dc3b6ddfd6557c1c74
+  - enabled: 1
+    path: Assets/Scenes/RiveTextureRenderer.unity
+    guid: 0b9ba353e0d4047f3a29e893d88b9050
   m_configObjects:
     com.unity.addressableassets: {fileID: 11400000, guid: 09bbd69e498a446a2915755fecdfcfa2,
       type: 2}

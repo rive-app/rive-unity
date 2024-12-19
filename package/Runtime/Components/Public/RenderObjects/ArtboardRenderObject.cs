@@ -85,15 +85,8 @@ namespace Rive.Components
                 {
                     m_clipPath = new Path();
                 }
-                else
-                {
-                    m_clipPath.Reset();
-                }
-                m_clipPath.MoveTo(0, 0);
-                m_clipPath.LineTo(rect.width, 0);
-                m_clipPath.LineTo(rect.width, rect.height);
-                m_clipPath.LineTo(0, rect.height);
-                m_clipPath.Close();
+                ClippingPathHelper.ConfigureClippingPath(m_clipPath, rect.width, rect.height);
+
                 renderer.Clip(m_clipPath);
             }
         }

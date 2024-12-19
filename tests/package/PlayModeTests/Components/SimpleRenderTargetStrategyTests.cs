@@ -266,6 +266,65 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator Strategy_SupportsMultiplePanels_InScene()
+        {
+
+            var panel2 = RivePanelTestUtils.CreatePanel();
+            SimpleRenderTargetStrategy strategy2 = panel2.RenderTargetStrategy as SimpleRenderTargetStrategy;
+
+            Assert.IsNotNull(strategy2, "Panel 2 should have a SimpleRenderTargetStrategy component");
+
+            // Check that the render target strategies are different
+            Assert.IsTrue(!ReferenceEquals(panel2.RenderTargetStrategy, m_strategy), "Panel 2 should not have the same strategy as Panel 1");
+            yield return null;
+
+
+
+            Assert.IsFalse(ReferenceEquals(m_panel.RenderTexture, panel2.RenderTexture), "Panel 1 should have a different renderer and texture than Panel 2");
+
+            // We deactive the panels to force them to unregister. If everything is working correctly, the renderers should still be using the correct textures when reactivated
+
+
+            //Deactivate panel 2
+            panel2.StopRendering();
+
+            // Deactivate panel 1
+            m_panel.StopRendering();
+
+            yield return null;
+
+            // Reactivate panel 1
+            m_panel.StartRendering();
+
+            yield return null;
+
+            panel2.StartRendering();
+
+            // Now the renderers should still be using the correct textures
+
+            Assert.IsFalse(ReferenceEquals(m_panel.RenderTexture, panel2.RenderTexture), "Panel 1 should have a different texture than Panel 2");
+
+            // Reactivate panel 2
+
+            panel2.gameObject.SetActive(false);
+            yield return null;
+            m_panel.gameObject.SetActive(false);
+
+            yield return null;
+
+            panel2.gameObject.SetActive(true);
+            yield return null;
+            m_panel.gameObject.SetActive(true);
+
+            Assert.IsFalse(ReferenceEquals(m_panel.RenderTexture, panel2.RenderTexture), "Panel 1 should have a different texture than Panel 2");
+
+            DestroyObject(panel2.gameObject);
+
+
+
+        }
+
+        [UnityTest]
         public IEnumerator Cleanup_DisposesResources()
         {
             m_strategy.RegisterPanel(m_panel);

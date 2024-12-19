@@ -352,12 +352,21 @@ namespace Rive.EditorTools
 
             UpdateVisibility();
             // Update visibility whenever the inspector updates
-            element.schedule.Execute(() =>
+            scheduledUpdate = element.schedule.Execute(() =>
             {
+                if (property.serializedObject == null || property.serializedObject.targetObject == null)
+                {
+                    // Stop scheduling future updates
+                    scheduledUpdate?.Pause();
+                    return;
+                }
+
                 property.serializedObject.Update();
                 UpdateVisibility();
             }).Every(100);
         }
+
+        private IVisualElementScheduledItem scheduledUpdate;
 
         private void OnDestroy()
         {

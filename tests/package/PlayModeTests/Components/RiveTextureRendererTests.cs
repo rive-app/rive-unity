@@ -25,7 +25,13 @@ namespace Rive.Tests
         private PhysicsRaycaster m_raycaster;
         private TestInputModule m_inputModule;
 
-        private void Setup(bool spawnEventSystem = true, Type customcolliderType = null)
+        private enum ColliderType
+        {
+            None = 0,
+            MeshCollider = 2,
+        }
+
+        private void Setup(bool spawnEventSystem = true, ColliderType customcolliderType = ColliderType.None)
         {
             m_mockLogger = new MockLogger();
             DebugLogger.Instance = m_mockLogger;
@@ -44,12 +50,17 @@ namespace Rive.Tests
             // Create renderer GameObject with required components
             m_rendererObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
 
-            if (customcolliderType != null)
+            if (customcolliderType != ColliderType.None)
             {
                 // Destroy default collider if custom collider is specified
                 DestroyObj(m_rendererObject.GetComponent<Collider>());
 
-                m_rendererObject.AddComponent(customcolliderType);
+                switch (customcolliderType)
+                {
+                    case ColliderType.MeshCollider:
+                        m_rendererObject.AddComponent<MeshCollider>();
+                        break;
+                }
             }
             m_meshRenderer = m_rendererObject.GetComponent<MeshRenderer>();
             m_panelRenderer = m_rendererObject.AddComponent<RiveTextureRenderer>();
@@ -59,7 +70,7 @@ namespace Rive.Tests
             m_panelRenderer.SetPanel(m_mockPanel);
         }
 
-        private void SetupWithRealPanel(bool spawnEventSystem = true, Type customcolliderType = null)
+        private void SetupWithRealPanel(bool spawnEventSystem = true, ColliderType customcolliderType = ColliderType.None)
         {
             m_mockLogger = new MockLogger();
             DebugLogger.Instance = m_mockLogger;
@@ -78,12 +89,17 @@ namespace Rive.Tests
 
             m_rendererObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
 
-            if (customcolliderType != null)
+            if (customcolliderType != ColliderType.None)
             {
                 // Destroy default collider if custom collider is specified
                 DestroyObj(m_rendererObject.GetComponent<Collider>());
 
-                m_rendererObject.AddComponent(customcolliderType);
+                switch (customcolliderType)
+                {
+                    case ColliderType.MeshCollider:
+                        m_rendererObject.AddComponent<MeshCollider>();
+                        break;
+                }
             }
             m_meshRenderer = m_rendererObject.GetComponent<MeshRenderer>();
             m_panelRenderer = m_rendererObject.AddComponent<RiveTextureRenderer>();
@@ -587,7 +603,7 @@ namespace Rive.Tests
         public IEnumerator EventSystem_PointerEvents_PropagateToPanel()
         {
             DebugLogger.Instance = null;
-            SetupWithRealPanel(customcolliderType: typeof(MeshCollider));
+            SetupWithRealPanel(customcolliderType: ColliderType.MeshCollider);
 
             var mockWidget = RivePanelTestUtils.CreateWidget<MockRiveWidget>();
             m_realPanel.AddToHierarchy(mockWidget);
@@ -630,7 +646,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator EventSystem_PointerEvents_DisabledInput_NoEvents()
         {
-            SetupWithRealPanel(customcolliderType: typeof(MeshCollider));
+            SetupWithRealPanel(customcolliderType: ColliderType.MeshCollider);
 
             var mockWidget = RivePanelTestUtils.CreateWidget<MockRiveWidget>();
             m_realPanel.AddToHierarchy(mockWidget);
@@ -665,7 +681,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator EventSystem_PointerEvents_OutsideCollider_NoEvents()
         {
-            SetupWithRealPanel(customcolliderType: typeof(MeshCollider));
+            SetupWithRealPanel(customcolliderType: ColliderType.MeshCollider);
 
             var mockWidget = RivePanelTestUtils.CreateWidget<MockRiveWidget>();
             m_realPanel.AddToHierarchy(mockWidget);

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Rive.Components.Utilities;
 using Rive.Utils;
 using UnityEngine;
 
@@ -57,15 +58,14 @@ namespace Rive.Components
                 return false;
             }
 
-            if (m_renderer != null)
+            if (IsPanelRegistered(panel))
             {
                 DebugLogger.Instance.LogWarning("Panel is already registered with this strategy.");
                 return false;
             }
 
 
-
-            m_renderer = CreateAndRegisterRendererForPanel();
+            CreateAndRegisterRendererForPanel();
             DrawPanel(panel);
             TriggerPanelRegisteredEvent(panel);
 
@@ -74,11 +74,9 @@ namespace Rive.Components
 
         public override bool UnregisterPanel(IRivePanel panel)
         {
-            if (ReferenceEquals(panel, m_panel) && m_renderer != null)
+            if (IsPanelRegistered(panel))
             {
                 UnregisterRenderer(m_renderer);
-                RendererPool.Release(m_renderer);
-                m_renderer = null;
 
                 TriggerPanelUnregisteredEvent(panel);
                 return true;
@@ -87,16 +85,23 @@ namespace Rive.Components
             return false;
         }
 
-        private Renderer CreateAndRegisterRendererForPanel()
+        private void CreateAndRegisterRendererForPanel()
         {
-            Renderer renderer = RendererPool.Get();
-            RegisterRenderer(renderer);
-            return renderer;
+            if (m_renderer == null)
+            {
+                m_renderer = RendererUtils.CreateRenderer();
+            }
+
+            RegisterRenderer(m_renderer);
         }
 
         public override bool IsPanelRegistered(IRivePanel panel)
         {
-            return ReferenceEquals(panel, m_panel) && m_renderer != null;
+            if (m_renderer == null || m_panel == null || panel == null)
+            {
+                return false;
+            }
+            return ReferenceEquals(panel, m_panel) && RenderPipelineHandler.IsRendererRegistered(m_renderer);
         }
 
         public override RenderTexture GetRenderTexture(IRivePanel panel)
@@ -108,6 +113,7 @@ namespace Rive.Components
 
             return ReferenceEquals(panel, m_panel) ? m_renderTexture : null;
         }
+
 
         public override Vector2 GetPanelOffset(IRivePanel panel)
         {
@@ -151,6 +157,12 @@ namespace Rive.Components
                 }
                 m_renderer.RenderQueue.UpdateTexture(m_renderTexture);
                 return true;
+            }
+
+            // If for some reason the renderer is not using the correct texture, update it
+            if (m_renderer != null && !ReferenceEquals(m_renderer.RenderQueue.Texture, m_renderTexture))
+            {
+                m_renderer.RenderQueue.UpdateTexture(m_renderTexture);
             }
 
             return false;
@@ -228,7 +240,7 @@ namespace Rive.Components
             if (m_renderer != null)
             {
                 UnregisterRenderer(m_renderer);
-                RendererPool.Release(m_renderer);
+                RendererUtils.ReleaseRenderer(m_renderer);
                 m_renderer = null;
             }
 

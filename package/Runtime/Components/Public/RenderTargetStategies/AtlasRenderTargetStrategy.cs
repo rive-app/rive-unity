@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using Rive.Components.Utilities;
 using Rive.EditorTools;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Pool;
+using UnityEngine.Rendering;
 
 namespace Rive.Components
 {
@@ -68,7 +70,7 @@ namespace Rive.Components
         private RenderTexture m_atlasTexture;
         private List<IRivePanel> m_renderObjectKeys = new List<IRivePanel>();
 
-        private ObjectPool<RenderObjectData> m_dataPool;
+        private UnityEngine.Pool.ObjectPool<RenderObjectData> m_dataPool;
 
         private Path m_clipPath;
 
@@ -158,7 +160,7 @@ namespace Rive.Components
                 DebugLogger.Instance.LogWarning("The starting size of the atlas texture is larger than the maximum atlas size. The atlas texture will use the starting size as the maximum size.");
             }
 
-            m_dataPool = new ObjectPool<RenderObjectData>(
+            m_dataPool = new UnityEngine.Pool.ObjectPool<RenderObjectData>(
                createFunc: () => new RenderObjectData(),
                actionOnGet: (data) => data.Reset(),
                collectionCheck: true
@@ -174,7 +176,7 @@ namespace Rive.Components
         {
             if (m_renderer == null)
             {
-                m_renderer = RendererPool.Get();
+                m_renderer = RendererUtils.CreateRenderer();
             }
 
             if (m_atlasTexture != null)
@@ -240,15 +242,6 @@ namespace Rive.Components
                 float xOffset = (float)data.Position.x / m_atlasTexture.width;
                 float yOffset = (float)data.Position.y / m_atlasTexture.height;
 
-                bool shouldFlipY = ShouldFlipOffsetY();
-
-                // Flip the Y offset for OpenGL
-                if (shouldFlipY)
-                {
-                    yOffset = 1.0f - yOffset - ((float)data.Position.height / m_atlasTexture.height);
-                }
-
-
                 return new Vector2(xOffset, yOffset);
             }
             return Vector2.zero;
@@ -278,6 +271,7 @@ namespace Rive.Components
             return Vector2.one;
         }
 
+
         private void HandlePanelRendering(IRivePanel panel)
         {
             if (m_rivePanelData.TryGetValue(panel, out var data))
@@ -286,9 +280,7 @@ namespace Rive.Components
                 // Save the current render queue state
                 m_renderer.Save();
 
-                // Translate to the correct position in the atlas texture
-                var translateMatrix = System.Numerics.Matrix3x2.CreateTranslation(rect.x, rect.y);
-                m_renderer.Transform(translateMatrix);
+
 
                 // Calculate the scale to simulate full render texture size
                 Vector2Int fullSize = new Vector2Int((int)panel.WidgetContainer.rect.size.x, (int)panel.WidgetContainer.rect.size.y);
@@ -297,9 +289,36 @@ namespace Rive.Components
                 float scale = Mathf.Min(scaleX, scaleY);
 
 
+
                 // Only apply clipping if needed
                 // If there's only one panel in the atlas, we don't need to clip as the visuals overflowing won't affect other panels
                 bool needsClipping = m_rivePanelData.Count > 1 && DoesPanelNeedClipping(panel);
+
+
+                // Translate to the correct starting position to match the reference rect's position in the atlas
+                if (TextureHelper.ShouldFlipTexture())
+                {
+                    var translateMatrix = System.Numerics.Matrix3x2.CreateTranslation(rect.x, rect.y);
+                    m_renderer.Transform(translateMatrix);
+
+                }
+                else
+                {
+                    // We need to do this for OpenGL as it uses a different coordinate system, but it isn't needed for Direct3D or Metal platforms
+                    // If we don't do this, the graphic shows up at the wrong position on the y-axis
+                    m_renderer.Transform(System.Numerics.Matrix3x2.CreateTranslation(rect.x, m_atlasTexture.height - rect.y - rect.height));
+                }
+
+                // Do the clipping after the translation so the clipping path is in the correct position
+                if (needsClipping)
+                {
+                    if (m_clipPath == null)
+                    {
+                        m_clipPath = new Path();
+                    }
+                    ClippingPathHelper.ConfigureClippingPath(m_clipPath, rect.width, rect.height);
+                    m_renderer.Clip(m_clipPath);
+                }
 
 
                 // Apply the scale to simulate the full render texture size
@@ -312,24 +331,6 @@ namespace Rive.Components
                             new Vector2Int(rect.width, rect.height)
                         );
 
-                if (needsClipping)
-                {
-                    if (m_clipPath == null)
-                    {
-                        m_clipPath = new Path();
-                    }
-                    else
-                    {
-                        m_clipPath.Reset();
-                    }
-                    m_clipPath.MoveTo(0, 0);
-                    m_clipPath.LineTo(panel.WidgetContainer.rect.width, 0);
-                    m_clipPath.LineTo(panel.WidgetContainer.rect.width, panel.WidgetContainer.rect.height);
-                    m_clipPath.LineTo(0, panel.WidgetContainer.rect.height);
-                    m_clipPath.Close();
-
-                    m_renderer.Clip(m_clipPath);
-                }
 
 
                 DrawPanelWithRenderer(m_renderer, panel, targetInfo, TargetSpaceOccupancy);
@@ -738,6 +739,12 @@ namespace Rive.Components
             }
 
             DestroyAndReleaseTexture();
+
+            if (m_renderer != null)
+            {
+                RendererUtils.ReleaseRenderer(m_renderer);
+                m_renderer = null;
+            }
         }
 
         protected override void OnDestroy()
@@ -754,32 +761,6 @@ namespace Rive.Components
             }
         }
 
-        internal static Vector3[] s_panelCorners = new Vector3[4];
-
-        internal static bool DoesPanelNeedClipping(IRivePanel panel)
-        {
-            if (panel == null || panel.WidgetContainer == null) return false;
-
-            Vector3[] corners = s_panelCorners;
-            Rect panelRect = new Rect(0, 0, panel.WidgetContainer.rect.width, panel.WidgetContainer.rect.height);
-
-            foreach (var widget in panel.Widgets)
-            {
-                if (widget == null || widget.RectTransform == null) continue;
-
-                widget.RectTransform.GetWorldCorners(corners);
-
-                for (int i = 0; i < 4; i++)
-                {
-                    corners[i] = panel.WidgetContainer.InverseTransformPoint(corners[i]);
-                    if (!panelRect.Contains(new Vector2(corners[i].x, corners[i].y)))
-                    {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
 
     }
 

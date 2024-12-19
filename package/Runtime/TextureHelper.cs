@@ -63,6 +63,11 @@ namespace Rive
             return isOpenGL;
         }
 
+        public static bool IsDirect3DPlatform()
+        {
+            return SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11 || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D12;
+        }
+
         /// <summary>
         /// Determines if the input should be flipped based on the graphics API.
         /// </summary>

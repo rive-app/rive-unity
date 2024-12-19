@@ -14,10 +14,11 @@ namespace Rive.Tests
 {
     public class TestPrefabReferences
     {
-        public const string RivePanelWithSingleWidget = "Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidget.prefab";
-        public const string RivePanelWithMultipleWidgets = "Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithMultipleWidgets.prefab";
-        public const string RivePanelWithSingleWidgetAndLayout = "Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidgetAndLayout.prefab";
-        public const string RivePanelWithProceduralWidget = "Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithProceduralWidget.prefab";
+
+        public const string RivePanelWithSingleWidget = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidget.prefab";
+        public const string RivePanelWithMultipleWidgets = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithMultipleWidgets.prefab";
+        public const string RivePanelWithSingleWidgetAndLayout = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidgetAndLayout.prefab";
+        public const string RivePanelWithProceduralWidget = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithProceduralWidget.prefab";
     }
 
     public class RivePanelGoldenTests
@@ -133,6 +134,90 @@ namespace Rive.Tests
                     widget.Fit = Fit.ScaleDown;
                 }
             ),
+
+            // Alignment
+            new PanelScenario(
+                goldenId: "RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_TopLeft",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithSingleWidget,
+                configurePanel: (panel) => {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.Fit = Fit.ScaleDown;
+                    widget.Alignment = Alignment.TopLeft;
+                }
+            ),
+            new PanelScenario(
+                goldenId: "RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_TopCenter",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithSingleWidget,
+                configurePanel: (panel) => {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.Fit = Fit.ScaleDown;
+                    widget.Alignment = Alignment.TopCenter;
+                }
+            ),
+            new PanelScenario(
+                goldenId: "RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_TopRight",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithSingleWidget,
+                configurePanel: (panel) => {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.Fit = Fit.ScaleDown;
+                    widget.Alignment = Alignment.TopRight;
+                }
+            ),
+            new PanelScenario(
+                goldenId: "RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_CenterLeft",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithSingleWidget,
+                configurePanel: (panel) => {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.Fit = Fit.ScaleDown;
+                    widget.Alignment = Alignment.CenterLeft;
+                }
+            ),
+            new PanelScenario(
+                goldenId: "RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_CenterCenter",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithSingleWidget,
+                configurePanel: (panel) => {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.Fit = Fit.ScaleDown;
+                    widget.Alignment = Alignment.Center;
+                }
+            ),
+            new PanelScenario(
+                goldenId: "RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_CenterRight",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithSingleWidget,
+                configurePanel: (panel) => {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.Fit = Fit.ScaleDown;
+                    widget.Alignment = Alignment.CenterRight;
+                }
+            ),
+            new PanelScenario(
+                goldenId: "RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_BottomLeft",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithSingleWidget,
+                configurePanel: (panel) => {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.Fit = Fit.ScaleDown;
+                    widget.Alignment = Alignment.BottomLeft;
+                }
+            ),
+            new PanelScenario(
+                goldenId: "RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_BottomCenter",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithSingleWidget,
+                configurePanel: (panel) => {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.Fit = Fit.ScaleDown;
+                    widget.Alignment = Alignment.BottomCenter;
+                }
+            ),
+            new PanelScenario(
+                goldenId: "RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_BottomRight",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithSingleWidget,
+                configurePanel: (panel) => {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.Fit = Fit.ScaleDown;
+                    widget.Alignment = Alignment.BottomRight;
+                }
+            ),
+
 
             // Procedural widget
             new PanelScenario(
@@ -262,7 +347,8 @@ namespace Rive.Tests
             // Important: Make sure the resolution is set to a number with a power of 2 (e.g. 512, 1024, 2048, etc.) otherwise, unity will resize the saved image
             // - Make sure the images are saved as and set to RGBA32 in the Unity editor
             // - Make sure the images have Read/Write enabled in the Unity editor
-            m_goldenHelper = new GoldenTestHelper(assetLoadingManager: m_testAssetLoadingManager, referenceImagesPath: "Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages", captureGolden: false, maxResolution: 512, savedImageFormat: GoldenTestHelper.SavedImageFormatType.PNG);
+            // - Set captureGolden to true to generate golden images.
+            m_goldenHelper = new GoldenTestHelper(assetLoadingManager: m_testAssetLoadingManager, referenceImagesPath: "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages", captureGolden: false, maxResolution: 512, savedImageFormat: GoldenTestHelper.SavedImageFormatType.PNG);
 
         }
 
@@ -448,6 +534,91 @@ namespace Rive.Tests
                 DestroyObj(panel.gameObject);
             }
             DestroyObj(atlasStrategy.gameObject);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator PooledStrategy_HandlesMultipleAspectRatios()
+        {
+            int maxPoolSize = 3;
+            var pooledStrategy = new GameObject("PooledStrategy").AddComponent<PooledRenderTargetStrategy>();
+            pooledStrategy.Configure(
+                textureSize: new Vector2Int(512, 512),
+                initialPoolSize: maxPoolSize,
+                maxPoolSize: maxPoolSize,
+                PooledRenderTargetStrategy.PoolOverflowBehavior.Fixed
+            );
+
+            var panels = new List<RivePanel>();
+
+            // Test cases with different aspect ratios
+            var aspectRatioTests = new (string prefabPath, Vector2 dimensions, string goldenId)[]
+            {
+                (TestPrefabReferences.RivePanelWithSingleWidget, new Vector2(1920, 1080), $"PooledStrategy_HandlesMultipleAspectRatios_{nameof(TestPrefabReferences.RivePanelWithSingleWidget)}_1920x1080"),
+                (TestPrefabReferences.RivePanelWithSingleWidget, new Vector2(1080, 1920), $"PooledStrategy_HandlesMultipleAspectRatios_{nameof(TestPrefabReferences.RivePanelWithSingleWidget)}_1080x1920"),
+                (TestPrefabReferences.RivePanelWithMultipleWidgets, new Vector2(1000, 1000), $"PooledStrategy_HandlesMultipleAspectRatios_{nameof(TestPrefabReferences.RivePanelWithMultipleWidgets)}_1000x1000"),
+            };
+
+            // We create panels with different aspect ratios
+            foreach (var test in aspectRatioTests)
+            {
+                var setupResult = SetupTestPanel(new PanelScenario(
+                    goldenId: test.goldenId,
+                    panelPrefabPath: test.prefabPath,
+                    configurePanel: (panel) =>
+                    {
+                        panel.SetDimensions(test.dimensions);
+                        panel.RenderTargetStrategy = pooledStrategy;
+
+                        if (test.prefabPath == TestPrefabReferences.RivePanelWithSingleWidget)
+                        {
+                            // Get the widget and set the fit mode to fill so we can see the effect of the different aspect ratios
+                            var widget = panel.GetComponentInChildren<RiveWidget>();
+                            widget.Fit = Fit.Fill;
+                        }
+
+
+                    }
+                ));
+
+                yield return setupResult;
+                var panel = (RivePanel)setupResult.Current;
+                panels.Add(panel);
+
+                panel.StartRendering();
+                Assert.IsTrue(panel.IsRendering, "Panel should be rendering");
+            }
+
+            yield return new WaitForEndOfFrame();
+
+            // Verify all render textures are 512x512 (maxResolutionPerPanel)
+            for (int i = 0; i < panels.Count; i++)
+            {
+                var panel = panels[i];
+                Assert.IsNotNull(panel.RenderTexture, "Panel should have a render texture");
+                Assert.AreEqual(512, panel.RenderTexture.width, "Render texture width should be 512");
+                Assert.AreEqual(512, panel.RenderTexture.height, "Render texture height should be 512");
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    aspectRatioTests[i].goldenId,
+                    panel.RenderTexture
+                );
+
+            }
+
+            // Verify we're reusing textures from the pool (should have 3 or fewer unique textures)
+            var uniqueTextures = panels
+                .Select(p => p.RenderTexture)
+                .Distinct()
+                .Count();
+            Assert.LessOrEqual(uniqueTextures, maxPoolSize, "Should not create more textures than pool size");
+
+            // Cleanup
+            foreach (var panel in panels)
+            {
+                DestroyObj(panel.gameObject);
+            }
+            DestroyObj(pooledStrategy.gameObject);
             yield return null;
         }
 

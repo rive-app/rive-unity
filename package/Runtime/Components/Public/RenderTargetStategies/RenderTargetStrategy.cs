@@ -158,15 +158,12 @@ namespace Rive.Components
                 IRiveWidget widget = panel.Widgets[i];
                 if (widget == null || widget.RenderObject == null) continue;
 
-                // Track if the widget is auto-clipped by the render target bounds
                 bool isAutoClippedByRenderTarget = false;
-                if (widget.RectTransform != null && panel.WidgetContainer != null && renderTargetSpaceOccupancy == RenderTargetSpaceOccupancy.Shared)
+                if (widget.RectTransform != null && panel.WidgetContainer != null)
                 {
-                    isAutoClippedByRenderTarget = ShouldSkipClipping(
-                        widget.RectTransform.rect.size,
-                        panel.WidgetContainer.rect.size,
-                        targetInfo.PanelAllocation,
-                        targetInfo.TargetSize
+                    isAutoClippedByRenderTarget = ShouldSkipClippingForWidget(
+                        widget.RectTransform,
+                        panel.WidgetContainer
                     );
                 }
 
@@ -178,6 +175,82 @@ namespace Rive.Components
                 DrawRenderObject(renderer, widget.RenderObject, panel, context);
             }
         }
+
+        internal static bool ShouldSkipClippingForWidget(RectTransform widgetTransform, RectTransform containerTransform)
+        {
+
+            containerTransform.GetWorldCorners(s_rectTransformCorners);
+
+            // Check if all container corners are inside the widget's local rect
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 localPoint = widgetTransform.InverseTransformPoint(s_rectTransformCorners[i]);
+                if (!RectContainsInclusive(widgetTransform.rect, (Vector2)localPoint))
+                {
+                    // At least one corner is not covered, so we can't skip clipping
+                    return false;
+                }
+            }
+
+            // All corners are inside the widget, so it fully covers the container. We don't need to clip it because it will be clipped by the render target bounds or by whatever the render target strategy decides to do for panels that share space.
+            return true;
+        }
+
+        internal static Vector3[] s_rectTransformCorners = new Vector3[4];
+
+
+
+        internal static bool DoesPanelNeedClipping(IRivePanel panel)
+        {
+            if (panel == null || panel.WidgetContainer == null) return false;
+
+            for (int i = 0; i < panel.Widgets.Count; i++)
+            {
+                IRiveWidget widget = panel.Widgets[i];
+                if (widget == null || widget.RectTransform == null) continue;
+
+                if (DoesWidgetHavePointOutsidePanel(panel.WidgetContainer, widget.RectTransform))
+                {
+                    // Early out if any widget has a point outside the panel
+                    return true;
+                }
+
+            }
+            return false;
+        }
+
+
+        internal static bool DoesWidgetHavePointOutsidePanel(RectTransform containerTransform, RectTransform widgetTransform)
+        {
+            if (containerTransform == null || widgetTransform == null) return false;
+
+            Vector3[] corners = s_rectTransformCorners;
+            Rect containerRect = containerTransform.rect;
+
+            widgetTransform.GetWorldCorners(corners);
+
+            for (int i = 0; i < 4; i++)
+            {
+                corners[i] = containerTransform.InverseTransformPoint(corners[i]);
+                Vector2 localPoint = new Vector2(corners[i].x, corners[i].y);
+
+                // Using Rect.Contains would cause unnecessary clipping in this case because the widget's corners would be on the panel's edges and that method would consider that as outside the panel.
+                if (!RectContainsInclusive(containerRect, localPoint))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool RectContainsInclusive(Rect rect, Vector2 point)
+        {
+            return point.x >= rect.xMin && point.x <= rect.xMax &&
+                   point.y >= rect.yMin && point.y <= rect.yMax;
+        }
+
+
 
         /// <summary>
         /// Determines if clipping should be skipped based on the widget size, container size, panel allocation and target size.
@@ -200,6 +273,7 @@ namespace Rive.Components
 
             return widgetFillsPanel && panelFillsTarget;
         }
+
 
 
         internal static void DrawRenderObject(Renderer renderer, IRenderObject renderObject, IRivePanel panel, RenderContext renderContext)
@@ -286,6 +360,20 @@ namespace Rive.Components
             return localTransform;
         }
 
+        /// <summary>
+        /// On Windows, OpenGL and D3D seem to have procedural drawings (and paths) rotated by 90 degrees, so we correct for that here
+        /// This could be because of something we're doing in RenderTargetStrategy.CalculateRenderObjectTransformMatrix, so this is a workaround for now
+        /// This issue doesn't happen in Android and WebGL builds with OpenGL. It also doesn't happen with Artboards, so it looks like it is specific to the procedural API.
+        /// </summary>
+        /// <returns> True if procedural drawing requires rotation correction, false otherwise. </returns>
+        internal static bool ProceduralDrawingRequiresRotationCorrection()
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        return TextureHelper.IsOpenGLPlatform() || TextureHelper.IsDirect3DPlatform();
+#else
+            return false;
+#endif
+        }
 
 
         /// <summary>
@@ -382,6 +470,43 @@ namespace Rive.Components
         public abstract bool UnregisterPanel(IRivePanel panel);
 
 
+    }
+
+    internal static class ClippingPathHelper
+    {
+        /// <summary>
+        /// Configures a clipping path based on the platform and given dimensions. This ensures that it looks correct on all platforms.
+        /// </summary>
+        /// <param name="path">The path to configure</param>
+        /// <param name="width">Width of the clipping rectangle</param>
+        /// <param name="height">Height of the clipping rectangle</param>
+        public static void ConfigureClippingPath(Path path, float width, float height)
+        {
+            path.Reset();
+
+
+            bool shouldFlipYClipPath = RenderTargetStrategy.ProceduralDrawingRequiresRotationCorrection();
+
+
+            if (shouldFlipYClipPath)
+            {
+                // Swap width and height for OpenGL/D3D11 platforms, otherwise the rect will have the wrong orientation, e.g vertical instead of horizontal
+                path.MoveTo(0, 0);
+                path.LineTo(0, width);
+                path.LineTo(height, width);
+                path.LineTo(height, 0);
+            }
+            else
+            {
+                // Use normal coordinates for Metal
+                path.MoveTo(0, 0);
+                path.LineTo(width, 0);
+                path.LineTo(width, height);
+                path.LineTo(0, height);
+            }
+
+            path.Close();
+        }
     }
 }
 

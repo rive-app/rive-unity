@@ -383,8 +383,10 @@ namespace Rive
         #endregion
     }
 
-    public class RenderQueue
+    public class RenderQueue : IDisposable
     {
+        private bool m_disposed = false;
+
         public RenderTexture Texture { get; private set; }
 
         public RenderQueue(RenderTexture texture = null, bool clear = true)
@@ -410,7 +412,28 @@ namespace Rive
 
         ~RenderQueue()
         {
-            unrefRenderQueue(m_nativeRenderQueue);
+            Dispose(false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!m_disposed)
+            {
+                if (m_nativeRenderQueue != IntPtr.Zero)
+                {
+                    unrefRenderQueue(m_nativeRenderQueue);
+                    m_nativeRenderQueue = IntPtr.Zero;
+                }
+
+                Texture = null;
+                m_disposed = true;
+            }
         }
 
         static void ValidateRenderTexture(RenderTexture texture, bool allowNull = false)

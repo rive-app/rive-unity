@@ -450,6 +450,20 @@ namespace Rive.Tests
         }
 
         [Test]
+        public void DoesPanelNeedClipping_WidgetFillsPanel_ReturnsFalse()
+        {
+            var panel = RivePanelTestUtils.CreatePanel();
+            panel.SetDimensions(new Vector2(100, 100));
+
+            var widget = RivePanelTestUtils.CreateWidget<MockRiveWidget>();
+            panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+
+            Assert.IsFalse(AtlasRenderTargetStrategy.DoesPanelNeedClipping(panel));
+            DestroyObject(panel.gameObject);
+        }
+
+        [Test]
         public void DoesPanelNeedClipping_NullPanel_ReturnsFalse()
         {
             Assert.IsFalse(AtlasRenderTargetStrategy.DoesPanelNeedClipping(null));

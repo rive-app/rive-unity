@@ -52,118 +52,23 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: af7b7f50b7afa448692e2daefc75be25
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidgetAndLayout.prefab
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: ffcf7d13ed3784353bd9b73034a14fd1
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidget.prefab
+  - m_GUID: 3df32649160c141dc9a59d9068d6ac0b
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithMultipleWidgets.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a0082d83b7a974f63903c1e9e54fd858
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithProceduralWidget.prefab
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithProceduralWidget.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 3df32649160c141dc9a59d9068d6ac0b
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithMultipleWidgets.prefab
+  - m_GUID: ffcf7d13ed3784353bd9b73034a14fd1
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidget.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 645c0ad76b87a40f280a7e08550483f3
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ReferenceArtboardSize_Portrait_1080x1920.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: c0f0cfea57d174f3bb6218c513fb847a
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ReferenceArtboardSize_Landscape_1920x1080_ScaleFactor_2.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: a677fb8be61c04f679e8ac730d10252f
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ReferenceArtboardSize_Landscape_1920x1080.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 83561ec7f6e8742898afb8f0de60a00f
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ReferenceArtboardSize_Landscape_1280x720.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 3c7cc224d37294bb9bbf9756deec6e5d
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPixelSize_Portrait_1080x1920.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 703d733007e264779acab6201bdbef46
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPixelSize_Landscape_1920x1080.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 9e520c7633e614a4da55611a70e4bf1c
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPixelSize_Landscape_1280x720.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 99b903ab1fa85473991bcd0bbf2deeda
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPhysicalSize_Landscape_1920x1080_HighDPI.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 1fa1dafadbf6245a0a0e0cb61de4cc68
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPhysicalSize_Landscape__1920x1080_LowDPI.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 599f0c23d06bf4bbe921fec62dca56f3
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_ScaleDown.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: adfbfb46e59554cae921bd03b1338c13
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_None.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: dff5b51cdc1624122abf56393ed6be36
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_FitWidth.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: f94419a0adf04452d8b6d4b73405aa2d
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_FitHeight.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 2564226c855f549b6bbb399baccdc0ff
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Fill.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 07a75307c7ac84040bcf37a48cd4f8da
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Cover.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: c2fd37e5d68b044f38671ec8878161e8
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 4236bc17107904bd6ad31494e964db35
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithProceduralWidget.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: a14c188d7a9bb4c90bcd2521419e3eb0
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithMultipleWidgets.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 454cd36ce458a4d44820b89622ecb9d9
-    m_Address: Packages/app.rive.rive-unity/Tests/PlayModeTests/Components/Goldens/ReferenceImages/AtlasStrategy_Renders_MultiplePanels.png
+  - m_GUID: af7b7f50b7afa448692e2daefc75be25
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidgetAndLayout.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -189,6 +94,161 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 681a8296b126448b398baacc031a33f3
     m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/simple_input_test.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 454cd36ce458a4d44820b89622ecb9d9
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/AtlasStrategy_Renders_MultiplePanels.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a14c188d7a9bb4c90bcd2521419e3eb0
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithMultipleWidgets.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4236bc17107904bd6ad31494e964db35
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithProceduralWidget.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c2fd37e5d68b044f38671ec8878161e8
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 07a75307c7ac84040bcf37a48cd4f8da
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Cover.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2564226c855f549b6bbb399baccdc0ff
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Fill.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f94419a0adf04452d8b6d4b73405aa2d
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_FitHeight.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dff5b51cdc1624122abf56393ed6be36
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_FitWidth.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: adfbfb46e59554cae921bd03b1338c13
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_None.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 599f0c23d06bf4bbe921fec62dca56f3
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_ScaleDown.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 99b903ab1fa85473991bcd0bbf2deeda
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPhysicalSize_Landscape_1920x1080_HighDPI.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1fa1dafadbf6245a0a0e0cb61de4cc68
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPhysicalSize_Landscape__1920x1080_LowDPI.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9e520c7633e614a4da55611a70e4bf1c
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPixelSize_Landscape_1280x720.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 703d733007e264779acab6201bdbef46
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPixelSize_Landscape_1920x1080.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3c7cc224d37294bb9bbf9756deec6e5d
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ConstantPixelSize_Portrait_1080x1920.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 83561ec7f6e8742898afb8f0de60a00f
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ReferenceArtboardSize_Landscape_1280x720.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a677fb8be61c04f679e8ac730d10252f
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ReferenceArtboardSize_Landscape_1920x1080.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c0f0cfea57d174f3bb6218c513fb847a
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ReferenceArtboardSize_Landscape_1920x1080_ScaleFactor_2.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 645c0ad76b87a40f280a7e08550483f3
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidgetAndLayout_FitMode_Layout_ReferenceArtboardSize_Portrait_1080x1920.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8e22d996af7194ae3a08c4d2b5b8f781
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_BottomLeft.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d77f35799fa3b4549adc8f8c870fbdbb
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_TopRight.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e658d4d04b9184bb887e4d8bc11bde16
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_CenterLeft.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f80a05527099b44aaaca37bab0f56a89
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_CenterCenter.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 68e7252b868904ea7bd22723b224c390
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_TopCenter.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 58120ccefe1d747419bdc0a57c03c792
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_CenterRight.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fb07821abd780430693c01fc07c65caf
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_BottomRight.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: efa9d4b88269a47a5a48f54ed231c8e7
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_TopLeft.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: aca1f73180d0d4cd3a21e50d46a5c970
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_BottomCenter.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ef493609f698c4128b15a9e9462f46fd
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/PooledStrategy_HandlesMultipleAspectRatios_RivePanelWithSingleWidget_1080x1920.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 55b2b5e7485dc452ca741c431de0dcc3
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/PooledStrategy_HandlesMultipleAspectRatios_RivePanelWithSingleWidget_1920x1080.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fb012887c0bc14819ae67d485480a3d8
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/PooledStrategy_HandlesMultipleAspectRatios_RivePanelWithMultipleWidgets_1000x1000.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

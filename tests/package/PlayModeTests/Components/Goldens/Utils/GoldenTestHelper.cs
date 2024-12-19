@@ -58,7 +58,9 @@ namespace Rive.Tests.Utils
         private string GetGoldenImagePath(string testId)
         {
             string m_savedImageExtension = GetExtension();
-            return System.IO.Path.Combine(m_goldenImagesPath, $"{testId}.{m_savedImageExtension}");
+            // Replace any backslashes with forward slashes to maintain Unity path format on Windows and Mac
+            return System.IO.Path.Combine(m_goldenImagesPath, $"{testId}.{m_savedImageExtension}")
+                .Replace('\\', '/');
         }
 
         private IEnumerator LoadGoldenImageIfNeeded(string testId)
