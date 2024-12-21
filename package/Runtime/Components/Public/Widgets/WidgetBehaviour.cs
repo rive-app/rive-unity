@@ -12,14 +12,12 @@ namespace Rive.Components
     /// </summary>
     [DisallowMultipleComponent]
     [InspectorSection(InspectorSections.Advanced, "Advanced", order: 1, style: SectionStyle.Foldout)]
-    [InspectorSection(InspectorSections.Events, "Events", order: 2, style: SectionStyle.Foldout)]
     [RequireComponent(typeof(RectTransform))]
     public abstract class WidgetBehaviour : MonoBehaviour, IRiveWidget
     {
         protected static class InspectorSections
         {
 
-            public const string Events = "events";
             public const string Advanced = "advanced";
         }
 
@@ -100,8 +98,7 @@ namespace Rive.Components
 
 
 
-        [InspectorField(InspectorSections.Events)]
-        public UnityEvent OnWidgetStatusChanged = new UnityEvent();
+        public event Action OnWidgetStatusChanged;
 
 
 

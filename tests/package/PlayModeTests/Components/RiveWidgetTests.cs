@@ -691,9 +691,8 @@ namespace Rive.Tests
                     reportedEvents[eventData.EventName] = false;
                 }
 
-                Assert.IsNotNull(m_widget.OnRiveEventReported, "OnRiveEventReported should not be null");
 
-                m_widget.OnRiveEventReported.AddListener((evt) =>
+                m_widget.OnRiveEventReported += ((evt) =>
                 {
                     if (reportedEvents.ContainsKey(evt.Name))
                     {
@@ -720,6 +719,98 @@ namespace Rive.Tests
                         $"Expected event {eventData.EventName} was not reported after triggering");
                 }
             }
+        }
+
+        [UnityTest]
+        public IEnumerator Events_WithPoolingEnabled_ReuseInstances()
+        {
+            string assetPath = TestAssetReferences.riv_events_test;
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                assetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {assetPath}")
+            );
+
+            m_widget.ReportedEventPoolingMode = RiveWidget.EventPoolingMode.Enabled;
+            m_widget.Load(riveAsset);
+            yield return null;
+
+            ReportedEvent firstEvent = null;
+            ReportedEvent secondEvent = null;
+
+            m_widget.OnRiveEventReported += (evt =>
+            {
+                if (firstEvent == null)
+                {
+                    firstEvent = evt;
+                }
+                else if (secondEvent == null)
+                {
+                    secondEvent = evt;
+                }
+            });
+
+            // Trigger the same event twice
+            var trigger = m_widget.StateMachine.GetTrigger(ReportedEventTests.TRIGGER_SIMPLE);
+
+            trigger.Fire();
+            yield return null;
+            yield return null;
+
+            trigger.Fire();
+            yield return null;
+            yield return null;
+
+            Assert.That(firstEvent, Is.Not.Null, "First event should have been received");
+            Assert.That(secondEvent, Is.Not.Null, "Second event should have been received");
+            Assert.That(firstEvent, Is.SameAs(secondEvent), "Events should be the same instance when pooling is enabled");
+        }
+
+        [UnityTest]
+        public IEnumerator Events_WithPoolingDisabled_CreateNewInstances()
+        {
+            string assetPath = TestAssetReferences.riv_events_test;
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                assetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {assetPath}")
+            );
+
+            m_widget.ReportedEventPoolingMode = RiveWidget.EventPoolingMode.Disabled;
+            m_widget.Load(riveAsset);
+            yield return null;
+
+            ReportedEvent firstEvent = null;
+            ReportedEvent secondEvent = null;
+
+            m_widget.OnRiveEventReported += (evt =>
+            {
+                if (firstEvent == null)
+                {
+                    firstEvent = evt;
+                }
+                else if (secondEvent == null)
+                {
+                    secondEvent = evt;
+                }
+            });
+
+            // Trigger the same event twice
+            var trigger = m_widget.StateMachine.GetTrigger(ReportedEventTests.TRIGGER_SIMPLE);
+
+            trigger.Fire();
+            yield return null;
+            yield return null;
+
+            trigger.Fire();
+            yield return null;
+            yield return null;
+
+            Assert.That(firstEvent, Is.Not.Null, "First event should have been received");
+            Assert.That(secondEvent, Is.Not.Null, "Second event should have been received");
+            Assert.That(firstEvent, Is.Not.SameAs(secondEvent), "Events should be different instances when pooling is disabled");
         }
 
         [UnityTest]

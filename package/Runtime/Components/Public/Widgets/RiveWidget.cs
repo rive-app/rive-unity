@@ -19,6 +19,21 @@ namespace Rive.Components
     [AddComponentMenu("Rive/Rive Widget")]
     public sealed class RiveWidget : WidgetBehaviour
     {
+        /// <summary>
+        /// Determines whether ReportedEvents are pooled or not.
+        /// </summary>
+        public enum EventPoolingMode
+        {
+            /// <summary>
+            /// Events are pooled and reused.
+            /// </summary>
+            Enabled = 0,
+            /// <summary>
+            /// Events are not pooled. A new event is created each time an event is reported.
+            /// </summary>
+            Disabled = 1
+        }
+
         private static class WidgetInspectorSections
         {
 
@@ -26,6 +41,8 @@ namespace Rive.Components
 
             public const string Display = "display";
             public const string Input = "input";
+
+            public const string Advanced = "advanced";
 
         }
 
@@ -122,6 +139,11 @@ namespace Rive.Components
         [SerializeField] private HitTestBehavior m_hitTestBehavior = HitTestBehavior.Opaque;
 
 
+        [Tooltip("Determines whether ReportedEvents are pooled or not. If disabled, a new event is created each time an event is reported.")]
+        [InspectorField(WidgetInspectorSections.Advanced)]
+        [SerializeField] private EventPoolingMode m_eventPoolingMode = EventPoolingMode.Enabled;
+
+
         private ArtboardLoadHelper m_controller;
 
 
@@ -129,6 +151,8 @@ namespace Rive.Components
         [OnValueChanged(nameof(OnScaleFactorChangedInEditor))]
 #endif
         private bool m_useFallbackDPI = true;
+
+
 
         /// <summary>
         /// If true, the widget will use the fallback DPI value when calculating the effective scale factor instead of the screen DPI.
@@ -314,12 +338,16 @@ namespace Rive.Components
 
         public override HitTestBehavior HitTestBehavior { get => m_hitTestBehavior; set => m_hitTestBehavior = value; }
 
+        /// <summary>
+        /// Determines whether ReportedEvents are pooled or not.
+        /// </summary>
+        public EventPoolingMode ReportedEventPoolingMode { get => m_eventPoolingMode; set => m_eventPoolingMode = value; }
+
 
         /// <summary>
         /// Event that is triggered when a Rive event is reported.
         /// </summary>
-        [InspectorField(InspectorSections.Events)]
-        public UnityEvent<ReportedEvent> OnRiveEventReported = new UnityEvent<ReportedEvent>();
+        public event Action<ReportedEvent> OnRiveEventReported;
 
 
 
@@ -346,7 +374,7 @@ namespace Rive.Components
             {
                 return needsRedraw;
             }
-            Controller.Tick(deltaTime);
+            Controller.Tick(deltaTime, ReportedEventPoolingMode);
 
             return needsRedraw;
 

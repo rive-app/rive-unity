@@ -1,10 +1,7 @@
 using UnityEngine;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using UnityEngine.Rendering;
-using Rive.Components;
 using Rive.Utils;
 
 namespace Rive
@@ -170,7 +167,7 @@ namespace Rive
         }
 
         /// <summary>
-        /// A list of all the reported events.
+        /// A list of all the reported events received in the past frame.
         /// </summary>
         public List<ReportedEvent> ReportedEvents()
         {
@@ -178,20 +175,36 @@ namespace Rive
             var list = new List<ReportedEvent>();
             for (uint i = 0; i < count; i++)
             {
-                list.Add(new ReportedEvent(getReportedEventAt(m_nativeStateMachine, i)));
+                list.Add(ReportedEvent.GetPooled(getReportedEventAt(m_nativeStateMachine, i)));
             }
             return list;
         }
 
+
+
         /// <summary>
-        /// A list of all the reported events.
+        /// Fetches the reported events received by the StateMachine in the past frame and populates the given list.
         /// </summary>
-        internal IEnumerable<ReportedEvent> GetReportedEvents()
+        /// <param name="reportedEvents"> The list to populate with reported events. </param>
+        public void ReportedEvents(List<ReportedEvent> reportedEvents)
         {
             uint count = getReportedEventCount(m_nativeStateMachine);
             for (uint i = 0; i < count; i++)
             {
-                yield return new ReportedEvent(getReportedEventAt(m_nativeStateMachine, i));
+                reportedEvents.Add(ReportedEvent.GetPooled(getReportedEventAt(m_nativeStateMachine, i)));
+            }
+        }
+
+        /// <summary>
+        /// Enumerates through all reported events received by the StateMachine in the past frame.
+        /// </summary>
+        /// <returns>An IEnumerable of ReportedEvents</returns>
+        public IEnumerable<ReportedEvent> EnumerateReportedEvents()
+        {
+            uint count = getReportedEventCount(m_nativeStateMachine);
+            for (uint i = 0; i < count; i++)
+            {
+                yield return ReportedEvent.GetPooled(getReportedEventAt(m_nativeStateMachine, i));
             }
         }
 

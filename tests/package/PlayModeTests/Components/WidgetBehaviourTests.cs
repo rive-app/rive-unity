@@ -226,7 +226,7 @@ namespace Rive.Tests
             m_panel.AddToHierarchy(widget);
 
             int statusChangeCount = 0;
-            widget.OnWidgetStatusChanged.AddListener(() => statusChangeCount++);
+            widget.OnWidgetStatusChanged += (() => statusChangeCount++);
 
             widget.SetStatus(WidgetStatus.Loading);
             yield return null;

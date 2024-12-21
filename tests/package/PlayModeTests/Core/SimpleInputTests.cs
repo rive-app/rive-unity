@@ -119,7 +119,7 @@ namespace Rive.Tests
 
             void CheckForEvents(StateMachine stateMachine)
             {
-                foreach (var reportedEvent in stateMachine.GetReportedEvents())
+                foreach (var reportedEvent in stateMachine.ReportedEvents())
                 {
                     HandleRiveEvent(reportedEvent);
                 }
@@ -167,7 +167,7 @@ namespace Rive.Tests
 
             void CheckForEvents(StateMachine stateMachine)
             {
-                foreach (var reportedEvent in stateMachine.GetReportedEvents())
+                foreach (var reportedEvent in stateMachine.ReportedEvents())
                 {
                     HandleRiveEvent(reportedEvent);
                 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Rive.Utils;
 using UnityEngine;
 
@@ -43,6 +44,8 @@ namespace Rive.Components.Utilities
 
 
         private bool m_isLoaded = false;
+
+        private List<ReportedEvent> m_reportedEvents = new List<ReportedEvent>();
 
 
 
@@ -114,16 +117,29 @@ namespace Rive.Components.Utilities
 
 
 
-        public void Tick(float deltaTime)
+        public void Tick(float deltaTime, RiveWidget.EventPoolingMode poolingMode)
         {
             if (m_stateMachine == null)
             {
                 return;
             }
 
-            foreach (var report in m_stateMachine.GetReportedEvents())
+            m_reportedEvents.Clear();
+
+
+            m_stateMachine.ReportedEvents(m_reportedEvents);
+
+
+            for (int i = 0; i < m_reportedEvents.Count; i++)
             {
-                OnRiveEventReported?.Invoke(report);
+                var evt = m_reportedEvents[i];
+                OnRiveEventReported?.Invoke(evt);
+
+                // If pooling is enabled, auto-dispose the event
+                if (poolingMode == RiveWidget.EventPoolingMode.Enabled)
+                {
+                    evt.Dispose();
+                }
             }
 
             m_stateMachine.Advance(deltaTime);
