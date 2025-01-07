@@ -48,8 +48,8 @@ namespace Rive.Tests
             m_rectanglePaint = new Paint
             {
                 Color = new Rive.Color(0xFF0000FF), // Blue
-                Style = PaintingStyle.fill,
-                Join = StrokeJoin.round,
+                Style = PaintingStyle.Fill,
+                Join = StrokeJoin.Round,
                 Thickness = 2.0f
             };
 
@@ -63,8 +63,8 @@ namespace Rive.Tests
             m_trianglePaint = new Paint
             {
                 Color = new Rive.Color(0xFFFF0000), // Red
-                Style = PaintingStyle.fill,
-                Join = StrokeJoin.round,
+                Style = PaintingStyle.Fill,
+                Join = StrokeJoin.Round,
                 Thickness = 2.0f
             };
 

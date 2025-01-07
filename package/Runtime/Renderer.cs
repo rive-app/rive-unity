@@ -78,11 +78,11 @@ namespace Rive
 
     enum PathVerb : byte
     {
-        move = 0,
-        line = 1,
-        quad = 2,
-        cubic = 4,
-        close = 5
+        Move = 0,
+        Line = 1,
+        Quad = 2,
+        Cubic = 4,
+        Close = 5
     }
 
     /// <summary>
@@ -118,14 +118,14 @@ namespace Rive
         {
             switch (verb)
             {
-                case PathVerb.close:
+                case PathVerb.Close:
                     return 0;
-                case PathVerb.line:
-                case PathVerb.move:
+                case PathVerb.Line:
+                case PathVerb.Move:
                     return 1;
-                case PathVerb.quad:
+                case PathVerb.Quad:
                     return 2;
-                case PathVerb.cubic:
+                case PathVerb.Cubic:
                     return 3;
                 default:
                     return 0;
@@ -149,7 +149,7 @@ namespace Rive
         /// </summary>
         public void Close()
         {
-            m_verbs.Add((byte)PathVerb.close);
+            m_verbs.Add((byte)PathVerb.Close);
         }
 
         /// <summary>
@@ -166,7 +166,7 @@ namespace Rive
             m_points.Add(iy);
             m_points.Add(x);
             m_points.Add(y);
-            m_verbs.Add((byte)PathVerb.cubic);
+            m_verbs.Add((byte)PathVerb.Cubic);
         }
 
         /// <summary>
@@ -231,7 +231,7 @@ namespace Rive
             m_points.Add(cy);
             m_points.Add(x);
             m_points.Add(y);
-            m_verbs.Add((byte)PathVerb.quad);
+            m_verbs.Add((byte)PathVerb.Quad);
         }
 
         /// <summary>
@@ -241,7 +241,7 @@ namespace Rive
         {
             m_points.Add(x);
             m_points.Add(y);
-            m_verbs.Add((byte)PathVerb.line);
+            m_verbs.Add((byte)PathVerb.Line);
         }
 
         /// <summary>
@@ -251,7 +251,7 @@ namespace Rive
         {
             m_points.Add(x);
             m_points.Add(y);
-            m_verbs.Add((byte)PathVerb.move);
+            m_verbs.Add((byte)PathVerb.Move);
         }
 
         /// <summary>
@@ -363,22 +363,22 @@ namespace Rive
     /// </summary>
     public enum BlendMode : byte
     {
-        srcOver = 3,
-        screen = 14,
-        overlay = 15,
-        darken = 16,
-        lighten = 17,
-        colorDodge = 18,
-        colorBurn = 19,
-        hardLight = 20,
-        softLight = 21,
-        difference = 22,
-        exclusion = 23,
-        multiply = 24,
-        hue = 25,
-        saturation = 26,
-        color = 27,
-        luminosity = 28
+        SrcOver = 3,
+        Screen = 14,
+        Overlay = 15,
+        Darken = 16,
+        Lighten = 17,
+        ColorDodge = 18,
+        ColorBurn = 19,
+        HardLight = 20,
+        SoftLight = 21,
+        Difference = 22,
+        Exclusion = 23,
+        Multiply = 24,
+        Hue = 25,
+        Saturation = 26,
+        Color = 27,
+        Luminosity = 28
     }
 
     /// <summary>
@@ -392,12 +392,12 @@ namespace Rive
         /// <summary>
         /// Fill the shape.
         /// </summary>
-        fill = 0,
+        Fill = 0,
 
         /// <summary>
         /// Stroke the shape.
         /// </summary>
-        stroke = 1
+        Stroke = 1
     }
 
     /// <summary>
@@ -411,17 +411,17 @@ namespace Rive
         /// <summary>
         /// The end of the path is squared off.
         /// </summary>
-        butt = 0,
+        Butt = 0,
 
         /// <summary>
         /// The end of the path is rounded.
         /// </summary>
-        round = 1,
+        Round = 1,
 
         /// <summary>
         /// The end of the path is squared off and extends past the end of the path.
         /// </summary>
-        square = 2
+        Square = 2
     }
 
     /// <summary>
@@ -434,35 +434,35 @@ namespace Rive
         /// <summary>
         /// Joins between segments are sharp.
         /// </summary>
-        miter = 0,
+        Miter = 0,
 
         /// <summary>
         /// Joins between segments are rounded.
         /// </summary>
-        round = 1,
+        Round = 1,
 
         /// <summary>
         /// Joins between segments are beveled.
         /// </summary>
-        bevel = 2
+        Bevel = 2
     }
 
     [Flags]
     internal enum PaintDirt : ushort
     {
-        none = 0,
-        style = 1 << 0,
-        color = 1 << 1,
-        thickness = 1 << 2,
-        join = 1 << 3,
-        cap = 1 << 4,
-        blendMode = 1 << 5,
-        radial = 1 << 6, // 0 == linear, 1 == radial only valid if stops != 0
-        done = 1 << 7, // 1 when no more gradien stops will follow,
+        None = 0,
+        Style = 1 << 0,
+        Color = 1 << 1,
+        Thickness = 1 << 2,
+        Join = 1 << 3,
+        Cap = 1 << 4,
+        BlendMode = 1 << 5,
+        Radial = 1 << 6, // 0 == linear, 1 == radial only valid if stops != 0
+        Done = 1 << 7, // 1 when no more gradien stops will follow,
 
         // Anything higher than 8 bits will not be written to native, but can be used
         // as flags.
-        gradient = 1 << 8,
+        Gradient = 1 << 8,
     }
 
     /// <summary>
@@ -474,12 +474,12 @@ namespace Rive
     {
         readonly IntPtr m_nativePaint;
         BlendMode m_blendMode;
-        PaintDirt m_dirty = PaintDirt.none;
+        PaintDirt m_dirty = PaintDirt.None;
         Color m_color = new(0x000000FF);
-        PaintingStyle m_style = PaintingStyle.fill;
+        PaintingStyle m_style = PaintingStyle.Fill;
         float m_thickness = 1.0f;
-        StrokeCap m_cap = StrokeCap.butt;
-        StrokeJoin m_join = StrokeJoin.bevel;
+        StrokeCap m_cap = StrokeCap.Butt;
+        StrokeJoin m_join = StrokeJoin.Bevel;
         Gradient m_gradient;
 
         public Paint()
@@ -517,7 +517,7 @@ namespace Rive
                     return;
                 }
                 m_blendMode = value;
-                m_dirty |= PaintDirt.blendMode;
+                m_dirty |= PaintDirt.BlendMode;
             }
         }
 
@@ -537,7 +537,7 @@ namespace Rive
                     return;
                 }
                 m_color = value;
-                m_dirty |= PaintDirt.color;
+                m_dirty |= PaintDirt.Color;
             }
         }
 
@@ -557,7 +557,7 @@ namespace Rive
                     return;
                 }
                 m_style = value;
-                m_dirty |= PaintDirt.style;
+                m_dirty |= PaintDirt.Style;
             }
         }
 
@@ -574,7 +574,7 @@ namespace Rive
                     return;
                 }
                 m_thickness = value;
-                m_dirty |= PaintDirt.thickness;
+                m_dirty |= PaintDirt.Thickness;
             }
         }
 
@@ -593,7 +593,7 @@ namespace Rive
                     return;
                 }
                 m_join = value;
-                m_dirty |= PaintDirt.join;
+                m_dirty |= PaintDirt.Join;
             }
         }
 
@@ -613,7 +613,7 @@ namespace Rive
                     return;
                 }
                 m_cap = value;
-                m_dirty |= PaintDirt.cap;
+                m_dirty |= PaintDirt.Cap;
             }
         }
 
@@ -633,7 +633,7 @@ namespace Rive
                     return;
                 }
                 m_gradient = value;
-                m_dirty |= PaintDirt.gradient;
+                m_dirty |= PaintDirt.Gradient;
             }
         }
 
@@ -642,7 +642,7 @@ namespace Rive
         /// </summary>
         public void Flush()
         {
-            if (m_dirty == PaintDirt.none)
+            if (m_dirty == PaintDirt.None)
             {
                 return;
             }
@@ -650,11 +650,11 @@ namespace Rive
             int offset = 0;
             var buffer = Path.scratchBuffer;
 
-            if ((m_dirty & PaintDirt.style) != 0)
+            if ((m_dirty & PaintDirt.Style) != 0)
             {
-                buffer[offset++] = (byte)(m_style == PaintingStyle.stroke ? 0 : 1);
+                buffer[offset++] = (byte)(m_style == PaintingStyle.Stroke ? 0 : 1);
             }
-            if ((m_dirty & PaintDirt.color) != 0)
+            if ((m_dirty & PaintDirt.Color) != 0)
             {
                 var bytes = BitConverter.GetBytes(m_color.value);
                 for (int j = 0; j < 4; j++)
@@ -662,7 +662,7 @@ namespace Rive
                     buffer[offset++] = bytes[j];
                 }
             }
-            if ((m_dirty & PaintDirt.thickness) != 0)
+            if ((m_dirty & PaintDirt.Thickness) != 0)
             {
                 var bytes = BitConverter.GetBytes(m_thickness);
                 for (int j = 0; j < 4; j++)
@@ -670,15 +670,15 @@ namespace Rive
                     buffer[offset++] = bytes[j];
                 }
             }
-            if ((m_dirty & PaintDirt.join) != 0)
+            if ((m_dirty & PaintDirt.Join) != 0)
             {
                 buffer[offset++] = (byte)m_join;
             }
-            if ((m_dirty & PaintDirt.cap) != 0)
+            if ((m_dirty & PaintDirt.Cap) != 0)
             {
                 buffer[offset++] = (byte)m_cap;
             }
-            if ((m_dirty & PaintDirt.blendMode) != 0)
+            if ((m_dirty & PaintDirt.BlendMode) != 0)
             {
                 buffer[offset++] = (byte)m_blendMode;
             }
@@ -692,7 +692,7 @@ namespace Rive
                 {
                     if (isRadial)
                     {
-                        m_dirty |= PaintDirt.radial;
+                        m_dirty |= PaintDirt.Radial;
                     }
                     var remaining = Path.scratchSize - offset - 16;
                     int stopsAvailable = remaining / 8;
@@ -757,7 +757,7 @@ namespace Rive
                         }
 
                         // Stop looping, we've built the gradient.
-                        m_dirty |= PaintDirt.done;
+                        m_dirty |= PaintDirt.Done;
                         break;
                     }
                     else
@@ -765,13 +765,13 @@ namespace Rive
                         // Gotta flush, we're out of space.
                         updatePaint(m_nativePaint, (ushort)m_dirty, buffer, wroteStops);
                         wroteStops = 0;
-                        m_dirty = PaintDirt.none;
+                        m_dirty = PaintDirt.None;
                         offset = 0;
                     }
                 }
             }
             updatePaint(m_nativePaint, (ushort)m_dirty, buffer, wroteStops);
-            m_dirty = PaintDirt.none;
+            m_dirty = PaintDirt.None;
         }
 
         #region Native Methods
