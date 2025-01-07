@@ -1,0 +1,38 @@
+{
+    "name": "Rive.Runtime.Components",
+    "rootNamespace": "Rive.Components",
+    "references": [
+        "GUID:15fc0a57446b3144c949da3e2b9737a9",
+        "GUID:df380645f10b7bc4b97d4f5eb6303d95",
+        "GUID:75469ad4d38634e559750d17036d5f7c",
+        "GUID:457756d89b35d2941b3e7b37b4ece6f1",
+        "GUID:0a82aeb665886483c867b7d137563619"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "RIVE_USING_UGUI"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "12.1.15",
+            "define": "RIVE_USING_URP"
+        },
+        {
+            "name": "com.unity.render-pipelines.high-definition",
+            "expression": "12.1.15",
+            "define": "RIVE_USING_HDRP"
+        },
+        {
+            "name": "com.unity.ugui",
+            "expression": "1.0.0",
+            "define": "RIVE_USING_UGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

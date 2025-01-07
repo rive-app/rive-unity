@@ -91,7 +91,9 @@ namespace Rive.Tests
         /// <summary>
         /// The name of the trigger that fires an event with properties
         /// </summary>
-        public const string TRIGGER_WITH_PROPS = "props_trigger";
+        public const string TRIGGER_WITH_PROPS_TRUE = "props_trigger_true";
+
+        public const string TRIGGER_WITH_PROPS_FALSE = "props_trigger_false";
 
         /// <summary>
         /// The name of the trigger that fires multiple events in the same frame
@@ -199,7 +201,8 @@ namespace Rive.Tests
         public IEnumerator EventPooling_ReuseInstance_WhenDisposed()
         {
             var triggerSimple = m_stateMachine.GetTrigger(TRIGGER_SIMPLE);
-            var triggerWithProps = m_stateMachine.GetTrigger(TRIGGER_WITH_PROPS);
+            var triggerWithPropsTrue = m_stateMachine.GetTrigger(TRIGGER_WITH_PROPS_TRUE);
+            var triggerWithPropsFalse = m_stateMachine.GetTrigger(TRIGGER_WITH_PROPS_FALSE);
             ReportedEvent firstEvent = null;
             ReportedEvent secondEvent = null;
 
@@ -229,7 +232,7 @@ namespace Rive.Tests
             yield return null;
 
             // Fire again to get second event
-            triggerWithProps.Fire();
+            triggerWithPropsTrue.Fire();
 
             yield return EventTestUtils.WaitForEvent(
                 m_stateMachine,
@@ -249,17 +252,20 @@ namespace Rive.Tests
             Assert.That(secondEvent.Properties, Is.Not.Null);
             Assert.That(secondEvent.PropertyCount, Is.EqualTo(3));
 
+            // Try to get the bool property. It should be true since we used the trigger that sets it to true
+            Assert.That(secondEvent[PROP_EVENT_BOOL_FIELD], Is.EqualTo(true), "Bool property should be true after using the trigger that sets it to true");
+
             yield return null;
 
-            // Try the simple event again to ensure it's still working
+            // Try the trigger that sets the bool property to false to make sure that the dictionary is updated with the new values
 
-            triggerSimple.Fire();
+            triggerWithPropsFalse.Fire();
 
             yield return EventTestUtils.WaitForEvent(
                 m_stateMachine,
                 evt =>
                 {
-                    if (evt.Name == EVENT_SIMPLE)
+                    if (evt.Name == EVENT_WITH_PROPS)
                     {
                         firstEvent = evt;
                     }
@@ -267,9 +273,13 @@ namespace Rive.Tests
             );
 
             Assert.That(firstEvent, Is.Not.Null);
-            Assert.That(firstEvent.Name, Is.EqualTo(EVENT_SIMPLE));
-            Assert.That(firstEvent.PropertyCount, Is.Zero);
+            Assert.That(firstEvent.Name, Is.EqualTo(EVENT_WITH_PROPS));
+            Assert.That(secondEvent.Properties, Is.Not.Null);
+            Assert.That(secondEvent.PropertyCount, Is.EqualTo(3));
             Assert.That(firstEvent, Is.SameAs(secondEvent), "Event instance should be reused after disposal");
+
+            // Try to get the bool property. It should be false since we used the trigger that sets it to false
+            Assert.That(firstEvent[PROP_EVENT_BOOL_FIELD], Is.EqualTo(false), "Bool property should be false after using the trigger that sets it to false");
 
 
 
@@ -279,7 +289,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator EventProperties_CanBeAccessed_BothWays()
         {
-            var trigger = m_stateMachine.GetTrigger(TRIGGER_WITH_PROPS);
+            var trigger = m_stateMachine.GetTrigger(TRIGGER_WITH_PROPS_TRUE);
             ReportedEvent eventWithProps = null;
 
             m_stateMachine.Advance(0);
@@ -309,7 +319,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator EventProperties_CanBeIterated_AndTyped()
         {
-            var trigger = m_stateMachine.GetTrigger(TRIGGER_WITH_PROPS);
+            var trigger = m_stateMachine.GetTrigger(TRIGGER_WITH_PROPS_TRUE);
             ReportedEvent eventWithProps = null;
 
             m_stateMachine.Advance(0);

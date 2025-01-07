@@ -375,6 +375,11 @@ namespace Rive.Components
 
         public override bool RegisterPanel(IRivePanel panel)
         {
+            if (IsDestroyed)
+            {
+                return false;
+            }
+
             InitializeIfNeeded();
 
             if (!IsPanelRegistered(panel))
@@ -747,10 +752,12 @@ namespace Rive.Components
             }
         }
 
+
         protected override void OnDestroy()
         {
             Cleanup();
             base.OnDestroy();
+
         }
 
         protected override IEnumerable<Renderer> GetRenderers()

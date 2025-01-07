@@ -92,6 +92,7 @@ namespace Rive.Components
 
         private List<IRivePanel> m_panelsToRedraw = new List<IRivePanel>();
 
+
         private bool IsInitialized => m_renderTexturePool != null;
 
 
@@ -359,7 +360,7 @@ namespace Rive.Components
 
         public override bool RegisterPanel(IRivePanel panel)
         {
-            if (panel == null || IsPanelRegistered(panel))
+            if (panel == null || IsPanelRegistered(panel) || IsDestroyed)
             {
                 return false;
             }
@@ -487,7 +488,6 @@ namespace Rive.Components
         {
             Cleanup();
             base.OnDestroy();
-
         }
 
 

@@ -1,8 +1,7 @@
-using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using UnityEngine.Rendering;
+using UnityEngine.Pool;
 
 namespace Rive
 {
@@ -27,7 +26,7 @@ namespace Rive
     /// </summary>
     public class ReportedEvent : IDisposable
     {
-        private static readonly ObjectPool<ReportedEvent> s_Pool = new ObjectPool<ReportedEvent>(actionOnGet: (ReportedEvent e) => { }, actionOnRelease: (ReportedEvent e) => { });
+        private static readonly ObjectPool<ReportedEvent> s_Pool = new ObjectPool<ReportedEvent>(actionOnGet: (ReportedEvent e) => { }, actionOnRelease: (ReportedEvent e) => { }, createFunc: () => new ReportedEvent());
 
         /// <summary>
         /// Factory method to retrieve a pooled instance.
@@ -48,7 +47,9 @@ namespace Rive
         private ushort m_type;
         private IntPtr m_nativeEvent;
 
-        private bool m_nameLoaded;
+        private bool m_nameLoaded = false;
+
+        private bool m_propertiesLoaded = false;
 
 
 
@@ -101,6 +102,10 @@ namespace Rive
                 if (m_properties == null)
                 {
                     m_properties = new Dictionary<string, object>();
+                }
+
+                if (!m_propertiesLoaded)
+                {
                     for (uint i = 0; i < PropertyCount; i++)
                     {
                         var property = NativeEventInterface.getEventCustomProperty(m_nativeEvent, i);
@@ -122,7 +127,12 @@ namespace Rive
                                 break;
                         }
                     }
+
+                    m_propertiesLoaded = true;
                 }
+
+
+
                 return m_properties;
             }
         }
@@ -164,7 +174,7 @@ namespace Rive
         }
 
         // constructor for pooling
-        public ReportedEvent() { }
+        internal ReportedEvent() { }
 
         internal void Initialize(ReportedEventData data)
         {
@@ -179,6 +189,10 @@ namespace Rive
             m_propertyCount = 0;
             m_name = null;
             m_properties?.Clear();
+
+            // We use this flag because we want to lazy load the properties in the Properties getter.
+            // If we were to update the dictionary here, we would be allocating memory for no reason if the consumer never accesses the Properties property and instead uses the TryGet methods for accessing properties.
+            m_propertiesLoaded = false;
 
             m_nameLoaded = false;
 

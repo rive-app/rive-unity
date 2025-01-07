@@ -8,27 +8,6 @@ namespace Rive.EditorTools
 {
     internal class CustomInspectorUtils
     {
-        /*
-                public static void HideNonInteractiveComponents(MonoBehaviour targetMono, List<System.Type> componentTypesToHide, Editor editor, HideFlags hideFlags = HideFlags.HideInInspector)
-                {
-
-                    if (targetMono == null) return;
-
-                    var componentsToHide = targetMono.GetComponents<MonoBehaviour>()
-                        .Where(c => componentTypesToHide.Contains(c.GetType()))
-                        .ToList();
-
-                    foreach (var component in componentsToHide)
-                    {
-                        component.hideFlags = hideFlags;
-                    }
-
-                    // Repaint immediately and schedule another repaint for the next frame
-                    editor.Repaint();
-                    EditorApplication.delayCall += () => editor.Repaint();
-
-                }
-                */
 
         public static void HideNonInteractiveComponents(MonoBehaviour target, List<Type> componentTypes, Editor editor, HideFlags hideFlags = HideFlags.HideInInspector | HideFlags.HideAndDontSave)
         {

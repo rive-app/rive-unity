@@ -5,7 +5,9 @@ using UnityEngine.Rendering;
 using UnityEngine;
 using Rive.Utils;
 
+[assembly: InternalsVisibleTo("Rive.Runtime.Components")]
 [assembly: InternalsVisibleTo("Rive.Editor")]
+[assembly: InternalsVisibleTo("Rive.Editor.Components")]
 [assembly: InternalsVisibleTo("Rive.Tests.PlayMode")]
 [assembly: InternalsVisibleTo("Rive.Tests.Shared")]
 [assembly: InternalsVisibleTo("Rive.Tests.Editor")]

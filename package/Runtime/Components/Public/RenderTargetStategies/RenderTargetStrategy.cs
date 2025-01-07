@@ -79,6 +79,8 @@ namespace Rive.Components
 
         private IRenderPipelineHandler m_renderPipelineHandler;
 
+        protected bool IsDestroyed => m_isDestroyed;
+
         /// <summary>
         /// The render pipeline handler to use for rendering panels.
         /// </summary>
@@ -86,7 +88,7 @@ namespace Rive.Components
         {
             get
             {
-                if (m_renderPipelineHandler == null && !m_isDestroyed)
+                if (m_renderPipelineHandler == null && !IsDestroyed)
                 {
                     m_renderPipelineHandler = RenderPipelineHelper.GetOrCreateHandler();
                 }
@@ -137,7 +139,6 @@ namespace Rive.Components
         public abstract DrawTimingOption DrawTiming { get; set; }
 
 
-        //protected abstract RenderTargetSpaceOccupancy TargetSpaceOccupancy { get; }
 
 
         public event Action<IRivePanel> OnRenderTargetUpdated;

@@ -25,6 +25,7 @@ namespace Rive.Components
         private bool m_redrawRequested = false;
 
 
+
         private void OnEnable()
         {
             if (m_panel == null && !TryGetComponent(out m_panel))
@@ -61,6 +62,11 @@ namespace Rive.Components
             if (IsPanelRegistered(panel))
             {
                 DebugLogger.Instance.LogWarning("Panel is already registered with this strategy.");
+                return false;
+            }
+
+            if (IsDestroyed)
+            {
                 return false;
             }
 
@@ -257,6 +263,7 @@ namespace Rive.Components
 
             Cleanup();
             base.OnDestroy();
+
         }
     }
 }
