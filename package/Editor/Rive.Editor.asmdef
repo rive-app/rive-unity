@@ -2,7 +2,8 @@
     "name": "Rive.Editor",
     "rootNamespace": "Rive",
     "references": [
-        "GUID:0a82aeb665886483c867b7d137563619"
+        "GUID:0a82aeb665886483c867b7d137563619",
+        "GUID:df380645f10b7bc4b97d4f5eb6303d95"
     ],
     "includePlatforms": [
         "Editor"
