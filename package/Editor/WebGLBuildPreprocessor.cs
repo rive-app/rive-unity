@@ -6,6 +6,7 @@ using UnityEditor.Build.Reporting;
 using System.Collections.Generic;
 using System.Linq;
 
+
 namespace Rive.EditorTools
 {
 
@@ -33,6 +34,24 @@ namespace Rive.EditorTools
 
         public int callbackOrder => 0;
 
+        private static BuildReport currentBuildReport;
+
+
+        // We use this to cleanup the plugin files in case of build failure
+        // This is necessary because the IPostprocessBuildWithReport callback is not called when the build fails, only when it succeeds
+        private static void OnEditorUpdate()
+        {
+            if (currentBuildReport != null && (currentBuildReport.summary.result == BuildResult.Failed || currentBuildReport.summary.result == BuildResult.Cancelled))
+            {
+                // Unsubscribe first to prevent any potential multiple calls
+                EditorApplication.update -= OnEditorUpdate;
+
+                CleanupPluginFiles();
+
+                currentBuildReport = null;
+            }
+        }
+
         private void TrackCreatedFolder(string path)
         {
             var createdFolders = new HashSet<string>(
@@ -43,7 +62,7 @@ namespace Rive.EditorTools
             SessionState.SetString(CREATED_FOLDERS_PREF, string.Join("|", createdFolders));
         }
 
-        private bool WasCreatedByUs(string path)
+        private static bool WasCreatedByUs(string path)
         {
             var createdFolders = SessionState.GetString(CREATED_FOLDERS_PREF, "").Split(
                 new[] { '|' }, System.StringSplitOptions.RemoveEmptyEntries
@@ -51,7 +70,7 @@ namespace Rive.EditorTools
             return System.Array.IndexOf(createdFolders, path) != -1;
         }
 
-        private void ClearFolderTracking(string path)
+        private static void ClearFolderTracking(string path)
         {
             var createdFolders = new HashSet<string>(
                 SessionState.GetString(CREATED_FOLDERS_PREF, "").Split(
@@ -61,7 +80,7 @@ namespace Rive.EditorTools
             SessionState.SetString(CREATED_FOLDERS_PREF, string.Join("|", createdFolders));
         }
 
-        private void CleanupBuildPrefs()
+        private static void CleanupBuildPrefs()
         {
             SessionState.EraseString(CREATED_FOLDERS_PREF);
         }
@@ -69,6 +88,11 @@ namespace Rive.EditorTools
         {
             if (report.summary.platform != BuildTarget.WebGL)
                 return;
+
+
+            // Store the build report so we can cleanup the plugin files in case of build failure
+            currentBuildReport = report;
+            EditorApplication.update += OnEditorUpdate;
 
             // Clear any leftover prefs from previous builds that might have failed
             CleanupBuildPrefs();
@@ -115,12 +139,12 @@ namespace Rive.EditorTools
             AssetDatabase.Refresh();
         }
 
-        private bool IsDirectoryEmpty(string path)
+        private static bool IsDirectoryEmpty(string path)
         {
             return !AssetDatabase.FindAssets(string.Empty, new[] { path }).Any();
         }
 
-        private void DeleteAssetPath(string path)
+        private static void DeleteAssetPath(string path)
         {
             if (AssetDatabase.DeleteAsset(path))
             {
@@ -133,6 +157,20 @@ namespace Rive.EditorTools
             if (report.summary.platform != BuildTarget.WebGL)
                 return;
 
+            try
+            {
+                CleanupPluginFiles();
+            }
+            finally
+            {
+                // Unsubscribe from editor update since we're handling the cleanup here
+                EditorApplication.update -= OnEditorUpdate;
+                currentBuildReport = null;
+            }
+        }
+
+        private static void CleanupPluginFiles()
+        {
             try
             {
                 if (AssetDatabase.IsValidFolder(TEMP_PLUGINS_PATH))
@@ -166,5 +204,6 @@ namespace Rive.EditorTools
             }
         }
     }
+
 }
 #endif
