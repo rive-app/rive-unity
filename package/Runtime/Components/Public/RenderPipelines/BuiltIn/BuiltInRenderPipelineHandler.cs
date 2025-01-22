@@ -28,6 +28,8 @@ namespace Rive.Components.BuiltIn
 
         private List<IRenderer> m_rendererCleanupList = new List<IRenderer>();
 
+        private bool m_isDestroyed = false;
+
 
 
         /// <summary>
@@ -48,10 +50,6 @@ namespace Rive.Components.BuiltIn
         {
             get
             {
-                if (m_renderCamera == null)
-                {
-                    m_renderCamera = GetRenderCameraInScene();
-                }
                 return m_renderCamera;
             }
             set => SetRenderCamera(value);
@@ -72,10 +70,10 @@ namespace Rive.Components.BuiltIn
         private void ChangedActiveScene(Scene arg0, Scene arg1)
         {
             // If the scene changes, it's likely the main camera was destroyed, we need to wait until there's one
+            // This is also called on initial scene load when entering play mode
             if (m_setNewRenderCameraCoroutine == null)
             {
                 m_setNewRenderCameraCoroutine = StartCoroutine(SetNewRenderCamera());
-
             }
 
 
@@ -83,14 +81,16 @@ namespace Rive.Components.BuiltIn
 
         private IEnumerator SetNewRenderCamera()
         {
+
             // Wait until the scene is loaded
             while (!SceneManager.GetActiveScene().isLoaded)
             {
                 yield return null;
             }
+
             if (m_renderCamera == null)
             {
-                // Wait until there's a main camera
+                // Wait until there's a main camera in the scene
                 Camera camera = null;
                 while (camera == null)
                 {
@@ -110,7 +110,6 @@ namespace Rive.Components.BuiltIn
 
             m_setNewRenderCameraCoroutine = null;
 
-
         }
 
         public virtual RenderTexture AllocateRenderTexture(int width, int height)
@@ -126,22 +125,17 @@ namespace Rive.Components.BuiltIn
         /// <returns></returns>
         private Camera GetRenderCameraInScene()
         {
-
-            Camera mainCamera = Camera.main;
-
-            if (mainCamera != null)
-            {
-                return mainCamera;
-            }
-
-            return null;
+            return Camera.main;
         }
 
 
         private void SetRenderCamera(Camera camera)
         {
             if (ReferenceEquals(m_renderCamera, camera))
+            {
                 return;
+
+            }
 
             // If we have a previous camera, remove the command buffers from it
             if (m_renderCamera != null)
@@ -178,6 +172,10 @@ namespace Rive.Components.BuiltIn
 
         public virtual void Register(IRenderer renderer)
         {
+            if (m_isDestroyed)
+            {
+                return;
+            }
 
             InitCommandBufferPoolIfNeeded();
 
@@ -199,13 +197,34 @@ namespace Rive.Components.BuiltIn
 
             renderer.AddToCommandBuffer(commandBuffer);
 
-
-            if (RenderCamera != null)
-            {
-                AddCommandBufferToCamera(RenderCamera, commandBuffer);
-            }
-
             m_activeRenderCommandBuffers.Add(renderer, commandBuffer);
+
+            Camera cameraToUse = RenderCamera;
+
+            if (cameraToUse == null)
+            {
+                cameraToUse = GetRenderCameraInScene();
+
+                if (cameraToUse != null)
+                {
+                    // If we found a camera in the scene, set it as the render camera
+                    // We do this immediately, instead of waiting for the coroutine to finish because we want the visuals to show up on the initial frame
+                    RenderCamera = cameraToUse;
+                }
+                else
+                {
+                    // Schedule the camera to be set when available in the scene
+                    if (m_setNewRenderCameraCoroutine == null)
+                    {
+                        m_setNewRenderCameraCoroutine = StartCoroutine(SetNewRenderCamera());
+                    }
+                }
+            }
+            else
+            {
+                // If we already have a camera, add the new command buffer to it
+                AddCommandBufferToCamera(cameraToUse, commandBuffer);
+            }
 
         }
 
@@ -245,6 +264,7 @@ namespace Rive.Components.BuiltIn
 
         private void Cleanup()
         {
+            m_isDestroyed = true;
             if (m_setNewRenderCameraCoroutine != null)
             {
                 StopCoroutine(m_setNewRenderCameraCoroutine);
@@ -286,12 +306,12 @@ namespace Rive.Components.BuiltIn
                 DebugLogger.Instance.LogError("Cannot resize a null render texture.");
                 return null;
             }
-            
+
             renderTexture.Release();
             renderTexture.width = width;
             renderTexture.height = height;
             renderTexture.Create();
-            
+
 
             return renderTexture;
         }
