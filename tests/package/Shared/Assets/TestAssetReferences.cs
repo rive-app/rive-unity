@@ -28,6 +28,8 @@ namespace Rive.Tests.Utils
 
         public const string riv_events_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/events_test.riv";
 
+        public const string riv_initial_frame_tests = "Packages/app.rive.rive-unity.tests/Shared/Assets/initial_frame_tests.riv";
+
         public const string textasset_roboDude = "Packages/app.rive.rive-unity.tests/Shared/Assets/robo_dude.bytes";
 
 

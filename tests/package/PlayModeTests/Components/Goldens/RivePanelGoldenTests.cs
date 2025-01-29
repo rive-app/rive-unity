@@ -19,6 +19,8 @@ namespace Rive.Tests
         public const string RivePanelWithMultipleWidgets = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithMultipleWidgets.prefab";
         public const string RivePanelWithSingleWidgetAndLayout = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidgetAndLayout.prefab";
         public const string RivePanelWithProceduralWidget = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithProceduralWidget.prefab";
+
+        public const string RivePanelWithInitialFrameInputs = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithInitialFrameInputs.prefab";
     }
 
     public class RivePanelGoldenTests
@@ -619,6 +621,46 @@ namespace Rive.Tests
                 DestroyObj(panel.gameObject);
             }
             DestroyObj(pooledStrategy.gameObject);
+            yield return null;
+        }
+
+        /// <summary>
+        /// Tests that setting inputs on the initial frame (in the OnLoad callback) affects the visuals
+        /// </summary>
+        /// <returns></returns>
+        [UnityTest]
+        public IEnumerator PanelWithInitialFrameInputs_AffectsVisuals()
+        {
+            // This example fires the "Ready" trigger, which displays the 'Ready' text on the artboard
+            // It should be visible in the golden image
+
+            var setupResult = SetupTestPanel(new PanelScenario(
+                goldenId: "RivePanel_WithInitialFrameInputs_FireTrigger_AffectsVisuals",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithInitialFrameInputs,
+                configurePanel: (panel) =>
+                {
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    widget.OnWidgetStatusChanged += () =>
+                    {
+                        if (widget.Status == WidgetStatus.Loaded)
+                        {
+                            widget.StateMachine.GetTrigger("Ready")?.Fire();
+                        }
+                    };
+                }
+            ));
+            yield return setupResult;
+            var panel = (RivePanel)setupResult.Current;
+
+            yield return new WaitForEndOfFrame();
+
+            // Verify that the initial frame inputs have affected the visuals
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanel_WithInitialFrameInputs_FireTrigger_AffectsVisuals",
+                panel.RenderTexture
+            );
+
+            DestroyObj(panel.gameObject);
             yield return null;
         }
 

@@ -257,6 +257,21 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ff0cd9bf2a4514af0b14b04208fcc32c
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/initial_frame_tests.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c2350e81bb3164b00afc64be1650d967
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithInitialFrameInputs.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 549c011152ed547668ba10f1101fbe63
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_WithInitialFrameInputs_FireTrigger_AffectsVisuals.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: b7ab8ec4605cd415985bb2f170839da3, type: 2}
   m_SchemaSet:

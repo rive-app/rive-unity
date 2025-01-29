@@ -435,6 +435,71 @@ namespace Rive.Tests
             }
         }
 
+        /// <summary>
+        /// Test that loading a valid Rive file without an artboard name specified loads the default artboard and state machine if the widget has been previously loaded with a different artboard name
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Load_ValidRiveFileWithUnspecifiedArtboardName_LoadsNewArtboardAndStateMachine()
+        {
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+               TestAssetReferences.riv_sophiaHud,
+                   (asset) => riveAsset = asset,
+                   () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_sophiaHud}")
+               );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+
+            m_widget.Load(riveFile, artboardName: "DASHBOARD", stateMachineName: "State Machine 1");
+
+            yield return null;
+
+            Assert.AreEqual("DASHBOARD", m_widget.Artboard.Name);
+            Assert.AreEqual("State Machine 1", m_widget.StateMachine.Name);
+
+            // Load the file without specifying the artboard name
+            m_widget.Load(riveFile);
+
+            yield return null;
+
+            Assert.AreEqual("SOPHIA III HUD", m_widget.Artboard.Name);
+
+            Assert.AreEqual("SOPHIA_III_DASHBOARD_SEQ", m_widget.StateMachine.Name);
+
+
+        }
+
+        [UnityTest]
+        public IEnumerator Load_ValidAssetWithUnspecifiedArtboardName_LoadsNewArtboardAndStateMachine()
+        {
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+               TestAssetReferences.riv_sophiaHud,
+                   (asset) => riveAsset = asset,
+                   () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_sophiaHud}")
+               );
+
+            m_widget.Load(riveAsset, artboardName: "DASHBOARD", stateMachineName: "State Machine 1");
+
+            yield return null;
+
+            Assert.AreEqual("DASHBOARD", m_widget.Artboard.Name);
+            Assert.AreEqual("State Machine 1", m_widget.StateMachine.Name);
+
+            // Load the asset without specifying the artboard name
+            m_widget.Load(riveAsset);
+
+
+            yield return null;
+            m_loadedFiles.Add(m_widget.File);
+
+            Assert.AreEqual("SOPHIA III HUD", m_widget.Artboard.Name);
+
+            Assert.AreEqual("SOPHIA_III_DASHBOARD_SEQ", m_widget.StateMachine.Name);
+        }
+
         [UnityTest]
         public IEnumerator RenderObjectProperties_UpdateWhenWidgetPropertiesChange()
         {
@@ -811,6 +876,57 @@ namespace Rive.Tests
             Assert.That(firstEvent, Is.Not.Null, "First event should have been received");
             Assert.That(secondEvent, Is.Not.Null, "Second event should have been received");
             Assert.That(firstEvent, Is.Not.SameAs(secondEvent), "Events should be different instances when pooling is disabled");
+        }
+
+        [UnityTest]
+        public IEnumerator FiringTrigger_OnInitialFrame_Works()
+        {
+            string assetPath = TestAssetReferences.riv_initial_frame_tests;
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                assetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {assetPath}")
+            );
+
+            bool triggerRegistered = false;
+
+            m_widget.OnRiveEventReported += (evt =>
+          {
+              if (evt.Name == "ON_READY")
+              {
+                  triggerRegistered = true;
+
+              }
+          });
+
+
+            m_widget.OnWidgetStatusChanged += () =>
+            {
+                if (m_widget.Status == Components.WidgetStatus.Loaded)
+                {
+                    var trigger = m_widget.StateMachine.GetTrigger("Ready");
+
+                    trigger?.Fire();
+
+
+                }
+            };
+
+            m_widget.Load(riveAsset);
+            yield return null;
+
+
+            // Wait for the triggerRegistered to be true up to 0.3 seconds
+            float timeElapsed = 0;
+            while (!triggerRegistered && timeElapsed < 0.3f)
+            {
+                yield return null;
+                timeElapsed += Time.deltaTime;
+            }
+
+            Assert.IsTrue(triggerRegistered, "Trigger was registered on initial frame");
+
         }
 
         [UnityTest]

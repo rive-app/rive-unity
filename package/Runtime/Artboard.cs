@@ -11,6 +11,7 @@ namespace Rive
     public class Artboard
     {
         private readonly IntPtr m_nativeArtboard;
+        private string m_artboardName;
 
         internal IntPtr NativeArtboard
         {
@@ -59,9 +60,18 @@ namespace Rive
             return new Component(ptr);
         }
 
+
         public string Name
         {
-            get { return Marshal.PtrToStringAnsi(artboardGetName(m_nativeArtboard)); }
+            get
+            {
+                if (m_artboardName == null)
+                {
+                    m_artboardName = Marshal.PtrToStringAnsi(artboardGetName(m_nativeArtboard));
+                }
+
+                return m_artboardName;
+            }
         }
 
         /// <summary>

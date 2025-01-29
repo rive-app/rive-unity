@@ -368,6 +368,12 @@ namespace Rive.Components
 
         public override bool Tick(float deltaTime)
         {
+            if (m_canTriggerLoadCompleteEvent && Status != WidgetStatus.Loaded)
+            {
+                m_canTriggerLoadCompleteEvent = false;
+                base.HandleLoadComplete();
+            }
+
             bool needsRedraw = base.Tick(deltaTime);
 
             if (Controller == null || Status != WidgetStatus.Loaded)
@@ -609,6 +615,8 @@ namespace Rive.Components
         /// <param name="file"> The Rive file to load.</param>
         public void Load(File file)
         {
+            ResetToDefaultArtboardAndStateMachineName();
+
             ReleaseFileIfResponsibleForLoading();
 
             LoadInternal(file, null);
@@ -637,7 +645,14 @@ namespace Rive.Components
         public void Load(Asset asset)
         {
             m_asset = asset;
+            ResetToDefaultArtboardAndStateMachineName();
             LoadFromAssetIfNeeded();
+        }
+
+        private void ResetToDefaultArtboardAndStateMachineName()
+        {
+            m_artboardName = null;
+            m_stateMachineName = null;
         }
 
 
@@ -792,9 +807,21 @@ namespace Rive.Components
 
         protected override void HandleLoadComplete()
         {
+
             ResizeArtboardForLayoutIfNeeded();
-            base.HandleLoadComplete();
+
+            // Instead of calling the base method here, we set a flag to trigger the load complete event in the initial Tick call so that SMIs input changes are reflected in the first frame
+            // If we don't do this, the widget's status might be set to `Loaded` incorrectly during the first frame so if you try to set an input with the widget in Start(), for instance, it might not work as expected because that might be called after we've processed the widget's settings for that frame
+            // Either way, things would work if you subscribe to the OnWidgetStatusChanged event, check for the Loaded status there and then set the inputs.
+            // However, this change basically means we can no longer assume that a widget will be ready in Start(), and we should always use the callback to know when it's ready, like we do with the OnRiveReady event in Unreal. 
+            // TL;DR: we're slightly delaying the `Loaded` state to ensure that the Rive widget/statemachine is actually ready before we tell other components that it's ready. It still happens in the same frame, just at a slightly different time. The OnWidgetStatusChanged event remains the best/safest/fastest way to know when the widget is ready.
+
+            //base.HandleLoadComplete();
+
+            m_canTriggerLoadCompleteEvent = true;
         }
+
+        bool m_canTriggerLoadCompleteEvent = false;
 
 
         protected override void OnRectTransformDimensionsChange()
@@ -872,6 +899,11 @@ namespace Rive.Components
 
         private void OnAssetChangedInEditor()
         {
+            // If in play mode, make sure we haven't already loaded the asset or this might cause a double load
+            if (Application.isPlaying && Status == WidgetStatus.Loaded)
+            {
+                return;
+            }
 
             var names = GetDisplayArtboardNames();
             // If the artboard name is not in the list of artboards, set it to the first artboard in the list.
@@ -901,7 +933,7 @@ namespace Rive.Components
         private void OnStateMachineChangedInEditor()
         {
             // If we're in play mode, reload the asset
-            if (Application.isPlaying)
+            if (Application.isPlaying && Status != WidgetStatus.Loaded && m_asset != null)
             {
                 LoadFromAssetIfNeeded();
                 return;

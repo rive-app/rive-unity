@@ -13,6 +13,8 @@ namespace Rive
     {
         private readonly IntPtr m_nativeStateMachine;
 
+        private string m_stateMachineName;
+
         internal IntPtr NativeStateMachine => m_nativeStateMachine;
 
         internal StateMachine(IntPtr nativeStateMachine)
@@ -25,7 +27,17 @@ namespace Rive
             unrefStateMachine(m_nativeStateMachine);
         }
 
-        public string Name => Marshal.PtrToStringAnsi(stateMachineGetName(m_nativeStateMachine));
+        public string Name
+        {
+            get
+            {
+                if (m_stateMachineName == null)
+                {
+                    m_stateMachineName = Marshal.PtrToStringAnsi(stateMachineGetName(m_nativeStateMachine));
+                }
+                return m_stateMachineName;
+            }
+        }
 
         public bool Advance(float seconds)
         {

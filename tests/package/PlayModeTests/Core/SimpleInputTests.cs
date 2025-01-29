@@ -149,7 +149,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator TriggerInput_Fails_IfFired_OnInitialFrame_WithoutAdvance0()
+        public IEnumerator TriggerInput_Works_IfFired_OnInitialFrame_WithoutAdvance0()
         {
             var input = m_stateMachine.GetTrigger(TRIGGER_INPUT_NAME);
 
@@ -191,7 +191,7 @@ namespace Rive.Tests
                 yield return null;
             }
 
-            Assert.IsFalse(receivedEvent, "Trigger event not received");
+            Assert.IsTrue(receivedEvent, "Trigger event not received");
 
         }
 
