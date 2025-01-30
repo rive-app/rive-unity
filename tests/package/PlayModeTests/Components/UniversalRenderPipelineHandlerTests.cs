@@ -7,6 +7,7 @@ using Rive.Components.URP;
 using Rive.Tests.Utils;
 using UnityEngine.Rendering.Universal;
 using Rive.Utils;
+using UnityEngine.SceneManagement;
 
 namespace Rive.Tests
 {
@@ -142,6 +143,74 @@ namespace Rive.Tests
             Assert.AreEqual(TextureHelper.Format, texture.graphicsFormat);
 
             DestroyObj(texture);
+        }
+
+        /// <summary>
+        /// Tests that the handler uses any camera in the new scene if no camera is found, NOT just the main camera.
+        /// </summary>
+        /// <returns></returns>
+        [UnityTest]
+        public IEnumerator SceneChange_WaitsForAnyCamera_InNewScene()
+        {
+            yield return null;
+            // Make handler persist across scene loads
+            UnityEngine.Object.DontDestroyOnLoad(m_handlerObject);
+
+            // Setup test scene tracking
+            Scene originalScene = SceneManager.GetActiveScene();
+            Scene newScene = default;
+
+            newScene = SceneManager.CreateScene("TestScene_AnyCamera_URP");
+
+            // Register renderer in original scene
+            m_handler.Register(m_renderer);
+
+            int commandBufferCount = 0;
+            m_renderer.OnAddToCommandBuffer += (buffer, release) => commandBufferCount++;
+
+            UnityEngine.Object.Destroy(m_camera.gameObject);
+            yield return null;
+
+            // Switch to new scene
+            yield return SceneManager.SetActiveScene(newScene);
+
+            yield return null;
+
+            Assert.IsTrue(m_camera == null);
+
+            // Create new camera in new scene
+            var newCameraObject = new GameObject("NewCamera");
+            var newCamera = newCameraObject.AddComponent<Camera>();
+
+            Assert.AreNotEqual(newCamera, Camera.main);
+
+            Assert.AreEqual(newCamera.commandBufferCount, 0);
+
+            SceneManager.MoveGameObjectToScene(newCameraObject, newScene);
+
+            // Wait for up to 0.3 seconds for camera detection
+            float timeoutDuration = 0.3f;
+            float elapsedTime = 0f;
+            while (elapsedTime < timeoutDuration)
+            {
+                if (m_handler.RenderCamera != null)
+                {
+                    break;
+                }
+                elapsedTime += Time.deltaTime;
+                yield return null;
+            }
+
+            // Verify new camera was found
+            Assert.AreEqual(newCamera, m_handler.RenderCamera);
+
+            // Cleanup
+            DestroyObj(newCameraObject);
+            yield return SceneManager.SetActiveScene(originalScene);
+            if (newScene.IsValid())
+            {
+                yield return SceneManager.UnloadSceneAsync(newScene);
+            }
         }
 
 

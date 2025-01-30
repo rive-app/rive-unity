@@ -1,11 +1,14 @@
+using System.Collections;
 using UnityEngine;
-using UnityEngine.Pool;
 
 namespace Rive.Components.Utilities
 {
 
     internal class RendererUtils
     {
+        static WaitForEndOfFrame s_waitForEndOfFrame = new WaitForEndOfFrame();
+
+
         /// <summary>
         /// Creates a renderer without a backing render texture.
         /// </summary>
@@ -35,7 +38,38 @@ namespace Rive.Components.Utilities
         /// <param name="renderer"> The renderer to release. </param>
         public static void ReleaseRenderer(Renderer renderer)
         {
-            renderer.RenderQueue.Dispose();
+
+            if (renderer?.RenderQueue == null) return;
+
+            // We need a monobehaviour to start a coroutine , so we use the current handler
+            // We could also create a new GameObject to start the coroutine, but for now, we know that there's a handler already for each render pipeline so we use that
+            // In the future, we should consider making a dedicated GameObject for this.
+            MonoBehaviour coroutineHelper = RenderPipelineHelper.CurrentHandler as MonoBehaviour;
+
+            if (Application.isPlaying && coroutineHelper != null)
+            {
+                coroutineHelper.StartCoroutine(DeferredRelease(renderer));
+            }
+            else
+            {
+                // In edit mode, we can't use coroutines, so we release the renderer immediately.
+                renderer.RenderQueue.Dispose();
+            }
+
+        }
+
+
+        private static IEnumerator DeferredRelease(Renderer renderer)
+        {
+            // Wait for render thread to complete current frame to release the renderer
+            // This helps us avoid issues/crashes when disposing the native pointer before the camera is done rendering.
+
+            yield return s_waitForEndOfFrame;
+
+            if (renderer?.RenderQueue != null)
+            {
+                renderer.RenderQueue.Dispose();
+            }
         }
     }
 }

@@ -12,6 +12,8 @@ namespace Rive.Components
 
         private static IRenderPipelineHandler s_currentHandler;
 
+        public static IRenderPipelineHandler CurrentHandler => s_currentHandler;
+
         /// <summary>
         /// Gets or creates a render pipeline handler for the current render pipeline.
         /// </summary>
@@ -25,7 +27,7 @@ namespace Rive.Components
 #elif RIVE_USING_HDRP
                     s_currentHandler = SpawnHandlerObject<HDRP.HighDefinitionRenderPipelineHandler>("[Rive] HDRP Handler");
 #else
-                    s_currentHandler = SpawnHandlerObject<BuiltIn.BuiltInRenderPipelineHandler>("[Rive] BuiltInRP Handler");
+                s_currentHandler = SpawnHandlerObject<BuiltIn.BuiltInRenderPipelineHandler>("[Rive] BuiltInRP Handler");
 
 #endif
 

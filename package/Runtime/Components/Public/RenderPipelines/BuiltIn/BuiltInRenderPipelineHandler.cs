@@ -30,6 +30,7 @@ namespace Rive.Components.BuiltIn
 
         private bool m_isDestroyed = false;
 
+        private Camera[] m_camerasInScene;
 
 
         /// <summary>
@@ -53,6 +54,17 @@ namespace Rive.Components.BuiltIn
                 return m_renderCamera;
             }
             set => SetRenderCamera(value);
+        }
+
+        /// <summary>
+        /// The current instance of the BuiltInRenderPipelineHandler in the scene.
+        /// </summary>
+        public static BuiltInRenderPipelineHandler Instance
+        {
+            get
+            {
+                return RenderPipelineHelper.CurrentHandler as BuiltInRenderPipelineHandler;
+            }
         }
 
 
@@ -107,7 +119,6 @@ namespace Rive.Components.BuiltIn
             }
 
 
-
             m_setNewRenderCameraCoroutine = null;
 
         }
@@ -119,13 +130,15 @@ namespace Rive.Components.BuiltIn
             return renderTexture;
         }
 
+
+
         /// <summary>
         /// Looks for the main camera in the scene to render the Rive content.
         /// </summary>
         /// <returns></returns>
         private Camera GetRenderCameraInScene()
         {
-            return Camera.main;
+            return CameraHelper.GetRenderCameraInScene();
         }
 
 

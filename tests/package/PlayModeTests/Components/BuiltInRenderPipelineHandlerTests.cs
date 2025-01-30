@@ -137,11 +137,9 @@ namespace Rive.Tests
             // Make handler persist across scene loads
             UnityEngine.Object.DontDestroyOnLoad(m_handlerObject);
 
-            // Setup test scene tracking
             Scene originalScene = SceneManager.GetActiveScene();
             Scene newScene = default;
 
-            // Create a new scene
             newScene = SceneManager.CreateScene("TestScene");
 
             // Register renderer in original scene
@@ -150,7 +148,7 @@ namespace Rive.Tests
             int commandBufferCount = 0;
             m_renderer.OnAddToCommandBuffer += (buffer, release) => commandBufferCount++;
 
-            UnityEngine.Object.DestroyImmediate(m_camera.gameObject);
+            UnityEngine.Object.Destroy(m_camera.gameObject);
             yield return null;
 
             // Switch to new scene
@@ -166,12 +164,70 @@ namespace Rive.Tests
             Assert.IsNull(Camera.main);
 
             // Create new camera in new scene
-            var newCameraObject = new GameObject("NewCamera");
+            var newCameraObject = new GameObject("NewCamera_Main");
             var newCamera = newCameraObject.AddComponent<Camera>();
 
             Assert.AreEqual(newCamera.commandBufferCount, 0);
 
             newCamera.tag = "MainCamera";
+            SceneManager.MoveGameObjectToScene(newCameraObject, newScene);
+
+            // Wait for camera detection
+            yield return null;
+
+            // Verify new camera was found and command buffers were added to it
+            Assert.AreEqual(newCamera, m_handler.RenderCamera);
+            Assert.AreEqual(newCamera.commandBufferCount, 1);
+
+            // Cleanup
+            yield return SceneManager.SetActiveScene(originalScene);
+            if (newScene.IsValid())
+            {
+                yield return SceneManager.UnloadSceneAsync(newScene);
+            }
+        }
+
+        /// <summary>
+        /// Tests that the handler uses any camera in the new scene if no camera is found, NOT just the main camera.
+        /// </summary>
+        /// <returns></returns>
+        [UnityTest]
+        public IEnumerator SceneChange_WaitsForAnyCamera_InNewScene()
+        {
+            // Make handler persist across scene loads
+            UnityEngine.Object.DontDestroyOnLoad(m_handlerObject);
+
+            // Setup test scene tracking
+            Scene originalScene = SceneManager.GetActiveScene();
+            Scene newScene = default;
+
+            newScene = SceneManager.CreateScene("TestScene_AnyCamera");
+
+            // Register renderer in original scene
+            m_handler.Register(m_renderer);
+
+            int commandBufferCount = 0;
+            m_renderer.OnAddToCommandBuffer += (buffer, release) => commandBufferCount++;
+
+            UnityEngine.Object.Destroy(m_camera.gameObject);
+            yield return null;
+
+            // Switch to new scene
+            yield return SceneManager.SetActiveScene(newScene);
+
+            yield return null;
+
+            // Verify no camera yet
+            Assert.IsNull(UnityEngine.Object.FindObjectOfType<Camera>());
+
+            // Create new camera in new scene
+            var newCameraObject = new GameObject("NewCamera");
+            var newCamera = newCameraObject.AddComponent<Camera>();
+
+            Assert.AreNotEqual(newCamera, Camera.main);
+
+            Assert.AreEqual(newCamera.commandBufferCount, 0);
+
             SceneManager.MoveGameObjectToScene(newCameraObject, newScene);
 
             // Wait for camera detection

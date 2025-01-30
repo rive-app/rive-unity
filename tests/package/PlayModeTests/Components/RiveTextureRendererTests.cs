@@ -124,6 +124,11 @@ namespace Rive.Tests
             {
                 DestroyObj(m_realPanel.gameObject);
             }
+
+            if (m_camera != null)
+            {
+                DestroyObj(m_camera.gameObject);
+            }
         }
 
 
@@ -463,7 +468,7 @@ namespace Rive.Tests
             var camera = Camera.main;
             if (camera == null)
             {
-                var cameraObject = new GameObject("TestCamera");
+                var cameraObject = new GameObject("TestCamera_RiveTextureRendererTests");
                 camera = cameraObject.AddComponent<Camera>();
                 m_raycaster = cameraObject.AddComponent<PhysicsRaycaster>();
             }
@@ -616,9 +621,9 @@ namespace Rive.Tests
 
 
             // We need to position the camera and object correctly for raycasting
-            var camera = GetOrCreateCamera();
-            camera.transform.position = new Vector3(0, 0, -10);
-            camera.transform.LookAt(m_rendererObject.transform);
+            m_camera = GetOrCreateCamera();
+            m_camera.transform.position = new Vector3(0, 0, -10);
+            m_camera.transform.LookAt(m_rendererObject.transform);
             m_rendererObject.transform.position = Vector3.zero;
 
             Vector2 pointerPosition = new Vector2(Screen.width / 2, Screen.height / 2); // Center of screen
@@ -661,9 +666,9 @@ namespace Rive.Tests
 
 
             // Position camera and object for raycasting
-            var camera = GetOrCreateCamera();
-            camera.transform.position = new Vector3(0, 0, -10);
-            camera.transform.LookAt(m_rendererObject.transform);
+            m_camera = GetOrCreateCamera();
+            m_camera.transform.position = new Vector3(0, 0, -10);
+            m_camera.transform.LookAt(m_rendererObject.transform);
             m_rendererObject.transform.position = Vector3.zero;
 
             // Simulate all pointer events
@@ -695,9 +700,9 @@ namespace Rive.Tests
 
 
             // Position camera and object for raycasting
-            var camera = GetOrCreateCamera();
-            camera.transform.position = new Vector3(0, 0, -10);
-            camera.transform.LookAt(m_rendererObject.transform);
+            m_camera = GetOrCreateCamera();
+            m_camera.transform.position = new Vector3(0, 0, -10);
+            m_camera.transform.LookAt(m_rendererObject.transform);
             m_rendererObject.transform.position = Vector3.zero;
 
             // Simulate all pointer events

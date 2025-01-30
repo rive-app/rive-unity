@@ -63,6 +63,17 @@ namespace Rive.Components.URP
             set => SetRenderCamera(value);
         }
 
+        /// <summary>
+        /// The current instance of the UniversalRenderPipelineHandler in the scene.
+        /// </summary>
+        public static UniversalRenderPipelineHandler Instance
+        {
+            get
+            {
+                return RenderPipelineHelper.CurrentHandler as UniversalRenderPipelineHandler;
+            }
+        }
+
         private RTHandleSystem m_RTHandleSystem;
 
         private RTHandleSystem RTHandleSystem
@@ -117,7 +128,7 @@ namespace Rive.Components.URP
         {
             if (RenderCamera == null)
             {
-                RenderCamera = Camera.main;
+                RenderCamera = CameraHelper.GetRenderCameraInScene();
             }
 
             bool isValidCamera = ReferenceEquals(camera, RenderCamera);
