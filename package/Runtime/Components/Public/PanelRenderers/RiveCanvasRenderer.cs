@@ -19,6 +19,9 @@ namespace Rive.Components
         [Tooltip("The RivePanel to display")]
         [SerializeField] private RivePanel m_initialRivePanel;
 
+        [Tooltip("A custom UI material to use when rendering the Rive graphic.")]
+        [SerializeField] private Material m_customMaterial;
+
 
         private IRivePanel m_rivePanel;
 
@@ -32,6 +35,19 @@ namespace Rive.Components
         public RectTransform RectTransform => DisplayImage == null ? null : DisplayImage.rectTransform;
 
         public override IRivePanel RivePanel { get => m_rivePanel; internal set => m_rivePanel = value; }
+
+        /// <summary>
+        /// The custom material to use when rendering the Rive graphic.
+        /// </summary>
+        public Material CustomMaterial
+        {
+            get => m_customMaterial;
+            set
+            {
+                m_customMaterial = value;
+                UpdateCustomMaterial();
+            }
+        }
 
 
 
@@ -128,8 +144,16 @@ namespace Rive.Components
         {
             LogInputErrorWarningsIfNeeded();
 
+            UpdateCustomMaterial();
 
+        }
 
+        private void UpdateCustomMaterial()
+        {
+            if (DisplayImage != null)
+            {
+                DisplayImage.material = m_customMaterial;
+            }
         }
 
 

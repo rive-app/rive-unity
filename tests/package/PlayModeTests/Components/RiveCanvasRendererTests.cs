@@ -375,6 +375,21 @@ namespace Rive.Tests
             Assert.AreEqual(0, mockWidget.PointerUpCalledCount, "PointerUp should not be called for events outside bounds");
 
         }
+
+        [Test]
+        public void CustomMaterial_SetAndGet_UpdatesDisplayImage()
+        {
+            Setup();
+
+            var customMaterial = new Material(Shader.Find("UI/Default"));
+            m_renderer.CustomMaterial = customMaterial;
+
+            Assert.AreEqual(customMaterial, m_renderer.CustomMaterial, "CustomMaterial getter should return set material");
+            Assert.AreEqual(customMaterial, m_renderer.DisplayImage.material, "DisplayImage material should be updated");
+
+            DestroyObj(customMaterial);
+        }
+
     }
 
     public class MockRivePanelComponent : MonoBehaviour, IRivePanel
