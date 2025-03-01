@@ -8,6 +8,21 @@ namespace Rive.Components
     /// </summary>
     internal class CanvasRendererRawImage : RawImage
     {
+        private static Material s_RiveMaterial;
+
+        public override Material defaultMaterial
+        {
+            get
+            {
+                if (s_RiveMaterial == null)
+                {
+                    s_RiveMaterial = new(Shader.Find("UI/Rive"));
+                }
+
+                return s_RiveMaterial;
+            }
+        }
+
 #if UNITY_EDITOR
         private Texture m_editorPreviewTexture;
         private bool m_isPopulatingMesh = false;
