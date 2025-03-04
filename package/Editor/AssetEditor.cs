@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEngine.UIElements;
 using UnityEditor.UIElements;
 using System.Linq;
+using Rive.EditorTools;
 
 namespace Rive
 {
@@ -14,7 +15,6 @@ namespace Rive
         private Artboard m_artboard;
         private StateMachine m_stateMachine;
         private double m_lastTime = 0.0;
-
         public override bool HasPreviewGUI() => true;
 
         public override bool RequiresConstantRepaint()
@@ -27,6 +27,8 @@ namespace Rive
             Embedded = 0,
             Referenced = 1
         }
+
+
 
         public override VisualElement CreateInspectorGUI()
         {
@@ -51,12 +53,15 @@ namespace Rive
 
                 // Asset Name
                 var nameField = new TextField("Name:") { value = embeddedAsset.Name };
-                nameField.SetEnabled(false);
+                // For text fields, make them readonly instead of using SetEnabled(false) to allow for copying the text
+                StyleAsReadonly(nameField);
+                nameField.isReadOnly = true;
                 assetContainer.Add(nameField);
 
                 // Asset ID
                 var idField = new TextField("ID:") { value = embeddedAsset.Id.ToString() };
-                idField.SetEnabled(false);
+                StyleAsReadonly(idField);
+                idField.isReadOnly = true;
                 assetContainer.Add(idField);
 
                 // Asset Reference Type
@@ -73,7 +78,8 @@ namespace Rive
                         value = FormatBytes(embeddedAsset.InBandBytesSize),
                         tooltip = "The size of the asset data embedded in the Rive file."
                     };
-                    embeddedField.SetEnabled(false);
+                    StyleAsReadonly(embeddedField);
+                    embeddedField.isReadOnly = true;
                     assetContainer.Add(embeddedField);
                 }
                 else
@@ -83,7 +89,25 @@ namespace Rive
                         objectType = GetAssetType(embeddedAsset.AssetType),
                         value = embeddedAsset.OutOfBandAsset,
                     };
-                    assetField.SetEnabled(false);
+
+                    // Allow referenced assets to be updated in the editor
+                    assetField.RegisterValueChangedCallback(evt =>
+                    {
+
+                        var newValue = evt.newValue as OutOfBandAsset;
+
+                        Asset asset = target as Asset;
+
+                        if (asset == null)
+                        {
+                            return;
+                        }
+
+                        Undo.RecordObject(this, "Updated Referenced Asset");
+
+                        AssetImporter.SetOobAssetReference((Asset)target, embeddedAsset.Id, newValue);
+
+                    });
                     assetContainer.Add(assetField);
                 }
             }
@@ -222,7 +246,10 @@ namespace Rive
             return root;
         }
 
-
+        private void StyleAsReadonly(VisualElement element)
+        {
+            element.style.opacity = 0.5f;
+        }
 
         private System.Type GetAssetType(EmbeddedAssetType assetType)
         {

@@ -269,6 +269,38 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 549c011152ed547668ba10f1101fbe63
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_WithInitialFrameInputs_FireTrigger_AffectsVisuals.png
+  - m_GUID: cec2d66820f3948629e6d8e2662e8e9a
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/asset_swapping_test.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 522fce6b70bc14b9881dbcb85586c16e
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/cat-3221565.jpeg
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7a149b463acc14ae1bf85ce7adacfb6d
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/dog-1-asset-swapping.jpg
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e3431bd09610c40c78f0d2f8481a0967
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithEmptySingleWidget.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 21ddad6c5cc8344edb4bbf9450a67032
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_WithCallback_UpdatesImages_ForEmbeddedAndReferencedAssets.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e2902854f53ee4fa2943310093c78b16
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_WithCallback_UnsetsImages_ForEmbeddedAndReferencedAssets.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 56bb6b84ddc0a4f79a6f03be97cf78c9
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_WithoutCallback_LoadsDefaultEmbeddedAndReferencedAssets.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

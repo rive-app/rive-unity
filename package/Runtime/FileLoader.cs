@@ -80,7 +80,9 @@ namespace Rive
         /// <returns></returns>
         internal File LoadFileWithCallback(
             byte[] riveFileByteContents,
-            File.CustomAssetLoaderCallback customAssetLoaderCallback)
+            File.CustomAssetLoaderCallback customAssetLoaderCallback,
+            IEnumerable<EmbeddedAssetData> fallbackAssets = null)
+
         {
 
             if (!ValidateInput(riveFileByteContents))
@@ -89,7 +91,7 @@ namespace Rive
             }
 
 
-            var fallbackAssetLoader = new FallbackFileAssetLoader();
+            var fallbackAssetLoader = new FallbackFileAssetLoader(fallbackAssets);
             if (customAssetLoaderCallback != null)
             {
                 fallbackAssetLoader.AddLoader(new CustomFileAssetLoader(customAssetLoaderCallback));
@@ -167,6 +169,8 @@ namespace Rive
             // Then we load the out-of-band assets after. We can't do this during the actual asset loader callback because of potential deadlocks when calling native rive code within the callback (which already has a lock).
             // This will call the asset loader callback for each asset and allow the user to load the asset in their own way. It's safe to load the assets here because we're not in the callback anymore.
             fallbackAssetLoader.LoadOutOfBandAssets(file);
+
+
 
             return file;
         }

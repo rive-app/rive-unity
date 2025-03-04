@@ -2,6 +2,7 @@ using UnityEngine;
 using System;
 using System.Runtime.InteropServices;
 using Rive.Utils;
+using System.Collections.Generic;
 
 namespace Rive
 {
@@ -211,13 +212,29 @@ namespace Rive
             return s_fileLoader.LoadFileWithCallback(asset.Bytes, customAssetLoaderCallback);
         }
 
+        /// <summary>
+        /// Load a .riv File from a Unity Rive.Asset.
+        /// </summary>
+        /// <param name="asset"> The Rive.Asset (.riv) to load. </param>
+        /// <param name="customAssetLoaderCallback"> This callback will be called for every asset the runtime detects from the .riv file on load, and will be responsible for either handling the load of an asset at runtime or passing on the responsibility and giving the runtime a chance to load it otherwise. </param>
+        /// <param name="fallbackToAssignedAssets"> If true, the runtime will attempt to load the assets assigned to the Rive.Asset in the Unity inspector if an asset is not handled by the custom loader. </param>
+        /// <returns> A File instance representing the loaded Rive file. </returns>
+        /// <remarks>
+        /// Always creates and returns a new File instance, even if the same asset had been loaded before. Use this when you need custom asset loading behavior, but be aware that you'll need to manage caching/reusing the instance yourself if required.
+        /// </remarks>
+        static public File Load(Asset asset, CustomAssetLoaderCallback customAssetLoaderCallback, bool fallbackToAssignedAssets)
+        {
+            IEnumerable<EmbeddedAssetData> fallbackAssetData = fallbackToAssignedAssets ? asset.EmbeddedAssets : null;
+            return s_fileLoader.LoadFileWithCallback(asset.Bytes, customAssetLoaderCallback, fallbackAssetData);
+        }
+
 
         /// <summary>
         /// Update the embedded asset reference data in the Rive file. The out-of-band asset must be loaded before calling this method.
         /// </summary>
         /// <param name="assetIndex"></param>
         /// <param name="asset"></param>
-        internal void UpdateEmbeddedAssetReference(uint assetIndex, OutOfBandAsset asset)
+        internal void UpdateEmbeddedAssetReference(nuint assetIndex, OutOfBandAsset asset)
         {
             if (asset == null)
             {
@@ -240,6 +257,7 @@ namespace Rive
 
 
         }
+
 
 
         internal File(IntPtr nativeFile, int? assetKey, IFallbackFileAssetLoader fallbackFileAssetLoader)
@@ -349,7 +367,10 @@ namespace Rive
         internal static extern IntPtr instanceArtboardWithName(IntPtr riveFile, string name);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern bool updateEmbeddedAssetReferenceInFile(IntPtr riveFile, uint assetIndex, IntPtr decodedAsset);
+        internal static extern bool updateEmbeddedAssetReferenceInFile(IntPtr riveFile, nuint assetIndex, IntPtr decodedAsset);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void clearAssignedAssetReferenceValue(IntPtr riveFile, nuint assetIndex);
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr loadRiveFileWithUnityCallback(byte[] riveFileBytes, uint byteCount, NativeUnityAssetLoaderCallback callback);

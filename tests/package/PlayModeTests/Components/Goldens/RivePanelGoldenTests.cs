@@ -20,6 +20,8 @@ namespace Rive.Tests
         public const string RivePanelWithSingleWidgetAndLayout = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithSingleWidgetAndLayout.prefab";
         public const string RivePanelWithProceduralWidget = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithProceduralWidget.prefab";
 
+        public const string RivePanelWithEmptySingleWidget = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithEmptySingleWidget.prefab";
+
         public const string RivePanelWithInitialFrameInputs = "Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/TestPanels/RivePanelWithInitialFrameInputs.prefab";
     }
 
@@ -662,6 +664,159 @@ namespace Rive.Tests
 
             DestroyObj(panel.gameObject);
             yield return null;
+        }
+
+
+        [UnityTest]
+        public IEnumerator RivePanel_Supports_AssetSwapping()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+
+            // Spawn the panel
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(1920, 1080));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+
+            // Load the test rive file
+            Asset riveAsset = null;
+
+            string riveAssetPath = TestAssetReferences.riv_asset_swapping_test;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(riveAssetPath,
+             (asset) => riveAsset = asset,
+             () => Assert.Fail($"Failed to load asset at {riveAssetPath}"));
+
+
+
+
+            // Load the dog image asset we'll be swapping in
+            string dogImagePath = TestAssetReferences.imageasset_dog1_asset_swapping;
+            ImageOutOfBandAsset dogImageAsset = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<ImageOutOfBandAsset>(dogImagePath,
+             (asset) => dogImageAsset = asset,
+             () => Assert.Fail($"Failed to load asset at {dogImagePath}"));
+
+
+            // <-- Panel setup -->
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+
+            widget.Fit = Fit.Layout;
+
+
+
+            // <-- Case 1 -->
+
+            // First test without using the callback
+            File file1 = File.Load(riveAsset);
+
+            widget.Load(file1);
+
+            yield return new WaitForEndOfFrame();
+
+            // Test that it shows up on the first frame
+
+            Assert.IsNotNull(panel.RenderTexture, "RenderTexture should be created on first frame with the images");
+
+            string expectedDefaultImageGoldenId = "RivePanel_WithoutCallback_LoadsDefaultEmbeddedAndReferencedAssets";
+
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                expectedDefaultImageGoldenId,
+                panel.RenderTexture
+            );
+
+            dogImageAsset.Load();
+
+            bool HandleReferencedAssetLoading(EmbeddedAssetReference assetReference)
+            {
+                // Set both images in the Rive file to the dog image
+                if (assetReference is ImageEmbeddedAssetReference imageAssetReference)
+                {
+                    imageAssetReference.SetImage(dogImageAsset);
+                    return true;
+                }
+
+                return false;
+            }
+
+
+            // <-- Case 2 -->
+
+            File file2 = File.Load(riveAsset, HandleReferencedAssetLoading);
+            widget.Load(file2);
+
+            yield return null;
+
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanel_WithCallback_UpdatesImages_ForEmbeddedAndReferencedAssets",
+                panel.RenderTexture
+            );
+
+
+
+            // <-- Case 3 -->
+
+            // Test that handling the assets in the callback but not setting them works
+            // We expect the images to be unset in the visual. We're making sure sure that embedded images are not shown if the user chooses not to set them in the callback.
+
+
+            bool HandleReferencedAssetLoadingWithoutSetting(EmbeddedAssetReference assetReference)
+            {
+                return true;
+            }
+
+            File file3 = File.Load(riveAsset, HandleReferencedAssetLoadingWithoutSetting);
+            widget.Load(file3);
+
+            yield return null;
+
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanel_WithCallback_UnsetsImages_ForEmbeddedAndReferencedAssets",
+                panel.RenderTexture
+            );
+
+
+
+
+            // <-- Case 4 -->
+            // Finally, test that if the user loads the file with a callback but uses fallback assets, the fallback assets assigned in the unity editor are used if the user doesn't handle the assets in the callback.
+
+            bool HandleReferencedAssetLoadingWithFallback(EmbeddedAssetReference assetReference)
+            {
+                return false;
+            }
+
+            File file4 = File.Load(riveAsset, HandleReferencedAssetLoadingWithFallback, fallbackToAssignedAssets: true);
+            widget.Load(file4);
+
+            yield return null;
+
+            // It should return the same as the default image
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                expectedDefaultImageGoldenId,
+                panel.RenderTexture
+            );
+
+
+
+
+            // <-- Cleanup -->
+
+            DestroyObj(panel.gameObject);
+            file1?.Dispose();
+            file2?.Dispose();
+            file3?.Dispose();
+            file4?.Dispose();
+
         }
 
         private void DestroyObj(UnityEngine.Object obj)

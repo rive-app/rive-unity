@@ -43,6 +43,13 @@ namespace Rive
         Dictionary<uint, OutOfBandAsset> m_loadedOobAssets = new();
 
 
+        /// <summary>
+        /// A map of referenced out of band assets to load if the the user doesn't handle the loading themselves with the callback approach. We mostly need to use this for situations where the user is loading from a Rive Asset which has referenced images assigned in the Unity inspector.
+        /// In this case, some users might want the assigned values to be used if they don't handle the loading themselves, so this lets us handle that.
+        /// </summary>
+        Dictionary<uint, OutOfBandAsset> m_fallbackReferenceAssetMap;
+
+
         public void AddLoader(IFileAssetLoader loader)
         {
             if (loader == null)
@@ -62,6 +69,26 @@ namespace Rive
 
         public FallbackFileAssetLoader()
         {
+        }
+
+
+        public FallbackFileAssetLoader(IEnumerable<EmbeddedAssetData> fallbackReferenceAssetData)
+        {
+
+            if (fallbackReferenceAssetData == null)
+            {
+                return;
+            }
+
+            m_fallbackReferenceAssetMap = new Dictionary<uint, OutOfBandAsset>();
+
+            foreach (var assetData in fallbackReferenceAssetData)
+            {
+                if (assetData.OutOfBandAsset != null)
+                {
+                    m_fallbackReferenceAssetMap[assetData.Id] = assetData.OutOfBandAsset;
+                }
+            }
         }
 
 
@@ -104,14 +131,23 @@ namespace Rive
 
             EmbeddedAssetType type = (EmbeddedAssetType)assetType;
 
+            EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(
+                assetType: type,
+                id: assetId,
+                name: assetName,
+                inBandBytesSize: inBandByteSize,
+                indexInRiveFile: indexInRiveFile,
+                outOfBandAsset: outOfBandAsset
+            );
+
             switch (type)
             {
                 case EmbeddedAssetType.Font:
-                    return new FontEmbeddedAssetReference(type, assetId, assetName, inBandByteSize, indexInRiveFile, outOfBandAsset);
+                    return new FontEmbeddedAssetReference(initializationData);
                 case EmbeddedAssetType.Image:
-                    return new ImageEmbeddedAssetReference(type, assetId, assetName, inBandByteSize, indexInRiveFile, outOfBandAsset);
+                    return new ImageEmbeddedAssetReference(initializationData);
                 case EmbeddedAssetType.Audio:
-                    return new AudioEmbeddedAssetReference(type, assetId, assetName, inBandByteSize, indexInRiveFile, outOfBandAsset);
+                    return new AudioEmbeddedAssetReference(initializationData);
                 default:
                     DebugLogger.Instance.LogError($"{LogCodes.ERROR_UNSUPPORTED_ASSET_TYPE}: Can't generate asset reference due to unsupported asset type: {type}");
                     return null;
@@ -164,12 +200,14 @@ namespace Rive
 
 
             // If the asset was preloaded, then return the native asset to the runtime.
-            return assetReference.OutOfBandAssetToLoad == null ? System.IntPtr.Zero : assetReference.OutOfBandAssetToLoad.NativeAsset;
+            return assetReference.OutOfBandAsset == null ? System.IntPtr.Zero : assetReference.OutOfBandAsset.NativeAsset;
 
 
 
 
         }
+
+
 
 
         /// <summary>
@@ -182,6 +220,12 @@ namespace Rive
             // Try to load using other loaders first
             if (TryLoadWithOtherLoaders(assetReference))
             {
+                // If the user chose to handle it, but no oob asset was loaded/assigned, then we clear the asset reference in the rive file
+                // If we don't do this, for example, the embedded image will be visible in the rive file, but it shouldn't be because the user technically chose to handle it
+                if (assetReference.OutOfBandAsset == null && assetReference.EmbeddededBytesSize > 0)
+                {
+                    assetReference.ClearEmbeddedAssetReference();
+                }
                 return true;
             }
 
@@ -191,14 +235,17 @@ namespace Rive
                 return false; // Asset already loaded, so we don't bother loading it again
             }
 
+
+
             // Load the out of band asset if available
             return LoadOutOfBandAsset(assetReference);
         }
 
         private bool TryLoadWithOtherLoaders(EmbeddedAssetReference assetReference)
         {
-            foreach (var loader in loaders)
+            for (int i = 0; i < loaders.Count; i++)
             {
+                var loader = loaders[i];
                 if (loader is IFileAssetLoader fileLoader && fileLoader.LoadContents(assetReference))
                 {
                     return true;
@@ -214,21 +261,32 @@ namespace Rive
         /// <returns> Returns true if the asset was loaded successfully. Otherwise, returns false. </returns>
         public bool LoadOutOfBandAsset(EmbeddedAssetReference assetReference)
         {
-            if (assetReference.OutOfBandAssetToLoad == null)
+
+            OutOfBandAsset outOfBandAssetToLoad = assetReference.OutOfBandAsset;
+
+            // If the user didn't handle the loading, and a default asset is available, then we assign it to the asset reference
+            if (outOfBandAssetToLoad == null && m_fallbackReferenceAssetMap != null && m_fallbackReferenceAssetMap.TryGetValue(assetReference.Id, out OutOfBandAsset fallbackAsset))
+            {
+                outOfBandAssetToLoad = fallbackAsset;
+            }
+
+
+
+            if (outOfBandAssetToLoad == null)
             {
                 return false;
             }
 
             bool success = false;
 
-            assetReference.OutOfBandAssetToLoad.Load();
+            outOfBandAssetToLoad.Load();
 
             try
             {
 
-                if (SetAssetReferenceData(assetReference))
+                if (SetAssetReferenceData(assetReference, outOfBandAssetToLoad))
                 {
-                    AddToOobAssetCache(assetReference.Id, assetReference.OutOfBandAssetToLoad);
+                    AddToOobAssetCache(assetReference.Id, outOfBandAssetToLoad);
                     success = true;
                 }
                 else
@@ -246,7 +304,7 @@ namespace Rive
                 if (!success)
                 {
                     // Unload the asset if anything went wrong
-                    assetReference.OutOfBandAssetToLoad.Unload();
+                    outOfBandAssetToLoad.Unload();
 
                 }
             }
@@ -254,26 +312,26 @@ namespace Rive
             return success;
         }
 
-        private bool SetAssetReferenceData(EmbeddedAssetReference assetReference)
+        private bool SetAssetReferenceData(EmbeddedAssetReference assetReference, OutOfBandAsset outOfBandAsset)
         {
             switch (assetReference.AssetType)
             {
                 case EmbeddedAssetType.Font:
-                    if (assetReference is FontEmbeddedAssetReference fontRef && assetReference.OutOfBandAssetToLoad is FontOutOfBandAsset fontAsset)
+                    if (assetReference is FontEmbeddedAssetReference fontRef && outOfBandAsset is FontOutOfBandAsset fontAsset)
                     {
                         fontRef.SetFont(fontAsset);
                         return true;
                     }
                     break;
                 case EmbeddedAssetType.Image:
-                    if (assetReference is ImageEmbeddedAssetReference imageRef && assetReference.OutOfBandAssetToLoad is ImageOutOfBandAsset imageAsset)
+                    if (assetReference is ImageEmbeddedAssetReference imageRef && outOfBandAsset is ImageOutOfBandAsset imageAsset)
                     {
                         imageRef.SetImage(imageAsset);
                         return true;
                     }
                     break;
                 case EmbeddedAssetType.Audio:
-                    if (assetReference is AudioEmbeddedAssetReference audioRef && assetReference.OutOfBandAssetToLoad is AudioOutOfBandAsset audioAsset)
+                    if (assetReference is AudioEmbeddedAssetReference audioRef && outOfBandAsset is AudioOutOfBandAsset audioAsset)
                     {
                         audioRef.SetAudio(audioAsset);
                         return true;
@@ -287,6 +345,8 @@ namespace Rive
             DebugLogger.Instance.LogError($"{LogCodes.ERROR_ASSET_TYPE_MISMATCH}: Failed to set asset reference for type {assetReference.AssetType}. Asset reference or out-of-band asset is of incorrect type.");
             return false;
         }
+
+
 
         /// <summary>
         /// Get the loaded out of band asset by it's owning asset ID.
@@ -308,10 +368,12 @@ namespace Rive
         /// <param name="riveFile"></param>
         public void LoadOutOfBandAssets(File riveFile)
         {
-            foreach (var assetReference in assetReferenceMap.Values)
+            foreach (var assetReferencePair in assetReferenceMap)
             {
+                var assetReference = assetReferencePair.Value;
                 assetReference.SetRiveFileReference(riveFile);
                 this.LoadContents(assetReference);
+
             }
         }
 
@@ -320,8 +382,9 @@ namespace Rive
         /// </summary>
         public void UnloadInternallyLoadedAssets()
         {
-            foreach (var asset in m_loadedOobAssets.Values)
+            foreach (var assetValuePair in m_loadedOobAssets)
             {
+                OutOfBandAsset asset = assetValuePair.Value;
                 asset.Unload();
             }
             m_loadedOobAssets.Clear();
