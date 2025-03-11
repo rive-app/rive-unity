@@ -117,7 +117,7 @@ namespace Rive.Components.Utilities
 
 
 
-        public void Tick(float deltaTime, RiveWidget.EventPoolingMode poolingMode)
+        public void Tick(float deltaTime, RiveWidget.EventPoolingMode poolingMode, float speed)
         {
             if (m_stateMachine == null)
             {
@@ -142,7 +142,7 @@ namespace Rive.Components.Utilities
                 }
             }
 
-            m_stateMachine.Advance(deltaTime);
+            m_stateMachine.Advance(deltaTime * speed);
         }
 
 

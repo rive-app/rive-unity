@@ -143,6 +143,10 @@ namespace Rive.Components
         [InspectorField(WidgetInspectorSections.Advanced)]
         [SerializeField] private EventPoolingMode m_eventPoolingMode = EventPoolingMode.Enabled;
 
+        [Tooltip("Controls the playback speed of the graphic. A value of 1 is normal speed, 2 is double speed, 0.5 is half speed")]
+        [InspectorField(WidgetInspectorSections.Advanced)]
+        [SerializeField] private float m_speed = 1.0f;
+
 
         private ArtboardLoadHelper m_controller;
 
@@ -343,6 +347,18 @@ namespace Rive.Components
         /// </summary>
         public EventPoolingMode ReportedEventPoolingMode { get => m_eventPoolingMode; set => m_eventPoolingMode = value; }
 
+        /// <summary>
+        /// Controls the playback speed of the graphic. A value of 1 is normal speed, 2 is double speed, 0.5 is half speed.
+        /// </summary>
+        public float Speed
+        {
+            get => m_speed;
+            set
+            {
+                m_speed = value;
+            }
+        }
+
 
         /// <summary>
         /// Event that is triggered when a Rive event is reported.
@@ -380,7 +396,7 @@ namespace Rive.Components
             {
                 return needsRedraw;
             }
-            Controller.Tick(deltaTime, ReportedEventPoolingMode);
+            Controller.Tick(deltaTime, ReportedEventPoolingMode, Speed);
 
             return needsRedraw;
 

@@ -929,6 +929,18 @@ namespace Rive.Tests
 
         }
 
+        [Test]
+        public void SpeedProperty_GetSet_WorksCorrectly()
+        {
+            Assert.AreEqual(1.0f, m_widget.Speed, "Default speed should be 1.0");
+
+            m_widget.Speed = 2.0f;
+            Assert.AreEqual(2.0f, m_widget.Speed, "Speed should update to 2.0");
+
+            m_widget.Speed = -1.0f;
+            Assert.AreEqual(-1.0f, m_widget.Speed, "Speed should update to -1.0");
+        }
+
         [UnityTest]
         public IEnumerator Cleanup_DisposingWidget_ReleasesResources_IfWidgetLoadedFromAsset()
         {
