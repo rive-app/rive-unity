@@ -5,6 +5,7 @@ using UnityEngine.UIElements;
 using UnityEditor.UIElements;
 using System.Linq;
 using Rive.EditorTools;
+using System;
 
 namespace Rive
 {
@@ -36,7 +37,7 @@ namespace Rive
             var riveAsset = (Asset)target;
 
             // File Assets Section
-            var embeddedFoldout = new Foldout { text = "File Assets" };
+            var embeddedFoldout = new Foldout { text = "File Assets", value = false };
             root.Add(embeddedFoldout);
 
             foreach (var embeddedAsset in riveAsset.EmbeddedAssets)
@@ -113,46 +114,30 @@ namespace Rive
             }
 
 
-            // File Metadata Section
+            // Artboard Metadata
             if (riveAsset.EditorOnlyMetadata != null && riveAsset.EditorOnlyMetadata.Artboards.Count > 0)
             {
-                var contentsFoldout = new Foldout { text = "Metadata" };
+                var contentsFoldout = new Foldout { text = "Artboard Metadata", value = false };
                 root.Add(contentsFoldout);
 
                 for (int i = 0; i < riveAsset.EditorOnlyMetadata.Artboards.Count; i++)
                 {
                     bool isDefaultArtboard = i == 0;
                     var artboard = riveAsset.EditorOnlyMetadata.Artboards[i];
+
+                    // Create a foldout for each artboard
+                    string artboardLabel = artboard.Name + (isDefaultArtboard ? " (Default)" : "");
+                    var artboardFoldout = new Foldout { text = artboardLabel, value = false };
+                    artboardFoldout.style.paddingLeft = 8;
+                    artboardFoldout.style.paddingRight = 8;
+                    contentsFoldout.Add(artboardFoldout);
+
                     var artboardContainer = new VisualElement();
-                    artboardContainer.style.paddingBottom = 20;
-                    artboardContainer.style.paddingLeft = 8;
-                    artboardContainer.style.paddingRight = 8;
-                    artboardContainer.style.paddingTop = isDefaultArtboard ? 5 : 20;
+                    artboardFoldout.Add(artboardContainer);
 
-                    // Add a bottom border to all but the last artboard
-                    if (i < riveAsset.EditorOnlyMetadata.Artboards.Count - 1)
-                    {
-                        artboardContainer.style.borderBottomWidth = 1;
-                        artboardContainer.style.borderBottomColor = new UnityEngine.Color(0.3f, 0.3f, 0.3f);
-                    }
 
-                    // Artboard Header
-                    var artboardHeader = new VisualElement();
-                    artboardHeader.style.flexDirection = FlexDirection.Row;
-                    artboardHeader.style.alignItems = Align.Center;
-                    artboardContainer.Add(artboardHeader);
+                    AddCopyToClipboardMenu(artboardFoldout, artboard.Name, "Copy Artboard Name");
 
-                    var artboardLabel = isDefaultArtboard ? new Label("Artboard (Default):") : new Label("Artboard:");
-                    artboardLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-                    artboardLabel.style.marginRight = 8;
-                    artboardHeader.Add(artboardLabel);
-
-                    var artboardNameField = new TextField();
-                    artboardNameField.value = artboard.Name;
-                    artboardNameField.isReadOnly = true;
-                    artboardNameField.SetEnabled(true);
-                    artboardNameField.style.flexGrow = 1;
-                    artboardHeader.Add(artboardNameField);
 
                     // Artboard Size
                     var sizeContainer = new VisualElement();
@@ -167,6 +152,8 @@ namespace Rive
 
                     var sizeValueLabel = new Label($"{artboard.Width} x {artboard.Height}");
                     sizeContainer.Add(sizeValueLabel);
+
+
 
                     // State Machines Container
                     var stateMachinesContainer = new VisualElement();
@@ -191,6 +178,7 @@ namespace Rive
 
                         var smNameField = new TextField();
                         smNameField.value = stateMachine.Name;
+                        StyleAsReadonly(smNameField);
                         smNameField.isReadOnly = true;
                         smNameField.SetEnabled(true);
                         smNameField.style.flexGrow = 1;
@@ -222,6 +210,7 @@ namespace Rive
 
                                 var nameField = new TextField();
                                 nameField.value = input.Name;
+                                StyleAsReadonly(nameField);
                                 nameField.isReadOnly = true;
                                 nameField.SetEnabled(true);
                                 nameField.style.flexGrow = 1;
@@ -235,15 +224,192 @@ namespace Rive
                         stateMachinesContainer.Add(smContainer);
                     }
 
-                    contentsFoldout.Add(artboardContainer);
+                    if (artboard.DefaultViewModel != null && !String.IsNullOrEmpty(artboard.DefaultViewModel.Name))
+                    {
+                        var defaultVMContainer = new VisualElement();
+                        defaultVMContainer.style.flexDirection = FlexDirection.Row;
+                        defaultVMContainer.style.alignItems = Align.Center;
+
+                        defaultVMContainer.style.marginLeft = 15;
+                        defaultVMContainer.style.marginBottom = 5;
+                        artboardContainer.Add(defaultVMContainer);
+
+                        var defaultVMLabel = new Label("Default View Model:");
+                        defaultVMLabel.style.marginRight = 8;
+                        defaultVMContainer.Add(defaultVMLabel);
+
+                        var defaultVMNameField = new TextField();
+                        defaultVMNameField.value = artboard.DefaultViewModel.Name;
+                        StyleAsReadonly(defaultVMNameField);
+                        defaultVMNameField.isReadOnly = true;
+                        defaultVMNameField.SetEnabled(true);
+                        defaultVMNameField.style.flexGrow = 1;
+                        defaultVMContainer.Add(defaultVMNameField);
+                    }
+                }
+            }
+
+            // View Models Section
+
+            if (riveAsset.EditorOnlyMetadata != null && riveAsset.EditorOnlyMetadata.ViewModels.Count > 0)
+            {
+                var viewModelsFoldout = new Foldout { text = "View Models", value = false };
+
+                root.Add(viewModelsFoldout);
+
+                foreach (var viewModel in riveAsset.EditorOnlyMetadata.ViewModels)
+                {
+                    var viewModelFoldout = new Foldout { text = viewModel.Name, value = false };
+                    viewModelFoldout.style.paddingLeft = 8;
+                    viewModelFoldout.style.paddingRight = 8;
+                    viewModelsFoldout.Add(viewModelFoldout);
+                    AddCopyToClipboardMenu(viewModelFoldout, viewModel.Name, "Copy View Model Name");
+
+                    // Properties
+                    if (viewModel.Properties.Count > 0)
+                    {
+                        var propertiesContainer = new VisualElement();
+                        propertiesContainer.style.marginLeft = 15;
+                        propertiesContainer.style.marginTop = 5;
+                        viewModelFoldout.Add(propertiesContainer);
+
+                        var propertiesLabel = new Label("Properties:");
+                        propertiesLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+                        propertiesLabel.style.marginBottom = 5;
+                        propertiesContainer.Add(propertiesLabel);
+
+                        foreach (var property in viewModel.Properties)
+                        {
+                            var propertyContainer = new VisualElement();
+                            propertyContainer.style.flexDirection = FlexDirection.Row;
+                            propertyContainer.style.alignItems = Align.Center;
+                            propertyContainer.style.marginBottom = 2;
+
+                            var typeLabel = new Label(GetViewModelPropertyTypeLabel(property));
+                            typeLabel.style.marginRight = 8;
+                            typeLabel.style.minWidth = 60;
+
+                            var nameField = new TextField();
+                            nameField.value = property.Name;
+                            StyleAsReadonly(nameField);
+                            nameField.isReadOnly = true;
+                            nameField.SetEnabled(true);
+                            nameField.style.flexGrow = 1;
+
+                            propertyContainer.Add(typeLabel);
+                            propertyContainer.Add(nameField);
+                            propertiesContainer.Add(propertyContainer);
+                        }
+                    }
+
+                    // Instance Names
+                    if (viewModel.InstanceNames.Count > 0)
+                    {
+                        var instancesContainer = new VisualElement();
+                        instancesContainer.style.marginLeft = 15;
+                        instancesContainer.style.marginTop = 10;
+                        instancesContainer.style.marginBottom = 10;
+                        viewModelFoldout.Add(instancesContainer);
+
+                        var instancesLabel = new Label("Instances:");
+                        instancesLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+                        instancesLabel.style.marginBottom = 5;
+                        instancesContainer.Add(instancesLabel);
+
+                        foreach (var instanceName in viewModel.InstanceNames)
+                        {
+                            var instanceField = new TextField();
+                            instanceField.value = instanceName;
+                            StyleAsReadonly(instanceField);
+                            instanceField.isReadOnly = true;
+                            instanceField.SetEnabled(true);
+                            instancesContainer.Add(instanceField);
+                        }
+                    }
+                }
+            }
+
+
+            // Enums Section
+
+            if (riveAsset.EditorOnlyMetadata.Enums.Count > 0)
+            {
+                var enumsFoldout = new Foldout { text = "Enums", value = false };
+                root.Add(enumsFoldout);
+
+                foreach (var enumData in riveAsset.EditorOnlyMetadata.Enums)
+                {
+                    // Create a foldout for each enum type
+                    var enumFoldout = new Foldout { text = enumData.Name, value = false };
+                    enumFoldout.style.paddingLeft = 8;
+                    enumFoldout.style.paddingRight = 8;
+                    enumsFoldout.Add(enumFoldout);
+                    AddCopyToClipboardMenu(enumFoldout, enumData.Name, "Copy Enum Name");
+
+                    // Values
+                    var valuesContainer = new VisualElement();
+                    valuesContainer.style.marginLeft = 15;
+                    valuesContainer.style.marginTop = 5;
+                    valuesContainer.style.marginBottom = 10;
+                    enumFoldout.Add(valuesContainer);
+
+                    var valuesLabel = new Label("Values:");
+                    valuesLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+                    valuesLabel.style.marginBottom = 5;
+                    valuesContainer.Add(valuesLabel);
+
+                    foreach (var value in enumData.Values)
+                    {
+                        var valueField = new TextField();
+                        valueField.value = value;
+                        StyleAsReadonly(valueField);
+                        valueField.isReadOnly = true;
+                        valueField.SetEnabled(true);
+                        valuesContainer.Add(valueField);
+                    }
                 }
             }
 
 
 
-
-
             return root;
+        }
+
+
+        private void AddCopyToClipboardMenu(Foldout foldout, string textToCopy, string itemLabel = null)
+        {
+            if (string.IsNullOrEmpty(textToCopy))
+            {
+                return;
+            }
+
+            itemLabel = itemLabel ?? $"Copy \"{foldout.text}\"";
+
+            foldout.AddManipulator(new ContextualMenuManipulator((ContextualMenuPopulateEvent evt) =>
+            {
+                evt.menu.AppendAction(itemLabel, (action) =>
+                {
+                    GUIUtility.systemCopyBuffer = textToCopy;
+                });
+            }));
+
+        }
+
+
+
+        private string GetViewModelPropertyTypeLabel(FileMetadata.ViewModelPropertyMetadata property)
+        {
+            // We want to display the type of the property, and if it's a ViewModel type, we also want to display the nested ViewModel name.
+            if (property.Type == ViewModelDataType.ViewModel)
+            {
+                return $"{property.Type.ToString()} ({property.NestedViewModelName})";
+            }
+            else if (property.Type == ViewModelDataType.Enum && !string.IsNullOrEmpty(property.EnumTypeName))
+            {
+                return $"{property.Type.ToString()} ({property.EnumTypeName})";
+            }
+
+            return $"{property.Type.ToString()}";
         }
 
         private void StyleAsReadonly(VisualElement element)
@@ -262,14 +428,14 @@ namespace Rive
                 case EmbeddedAssetType.Audio:
                     return typeof(AudioOutOfBandAsset);
                 default:
-                    return typeof(Object);
+                    return typeof(System.Object);
             }
         }
 
 
         public override Texture2D RenderStaticPreview(
             string assetPath,
-            Object[] subAssets,
+            UnityEngine.Object[] subAssets,
             int width,
             int height
         )

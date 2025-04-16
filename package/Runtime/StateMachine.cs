@@ -12,6 +12,7 @@ namespace Rive
     public class StateMachine
     {
         private readonly IntPtr m_nativeStateMachine;
+        private ViewModelInstance m_currentViewModelInstance;
 
         private string m_stateMachineName;
 
@@ -37,6 +38,14 @@ namespace Rive
                 }
                 return m_stateMachineName;
             }
+        }
+
+        /// <summary>
+        /// The current ViewModelInstance set as the data context of the StateMachine.
+        /// </summary>
+        public ViewModelInstance ViewModelInstance
+        {
+            get { return m_currentViewModelInstance; }
         }
 
         public bool Advance(float seconds)
@@ -220,6 +229,27 @@ namespace Rive
             }
         }
 
+        /// <summary>
+        /// Sets the data context of the StateMachine from the given ViewModelInstance. 
+        /// </summary>
+        /// <remarks>
+        /// This method also binds the underlying Artboard to the ViewModelInstance. It is recommended to call this method to automatically bind the ViewModelInstance to the StateMachine and the Artboard.
+        /// </remarks>
+        /// <param name="viewModelInstance"> The ViewModelInstance to bind to the StateMachine. </param>
+        public void BindViewModelInstance(ViewModelInstance viewModelInstance)
+        {
+            if (viewModelInstance == null)
+            {
+                DebugLogger.Instance.LogError("ViewModelInstance is null.");
+                return;
+            }
+
+            bindViewModelInstanceToStateMachine(m_nativeStateMachine, viewModelInstance.NativeSafeHandle);
+
+            m_currentViewModelInstance = viewModelInstance; // Store the current ViewModelInstance to keep the VM alive
+
+        }
+
         #region Native Methods
         [DllImport(NativeLibrary.name)]
         internal static extern void unrefStateMachine(IntPtr stateMachine);
@@ -269,6 +299,13 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr stateMachineGetName(IntPtr stateMachine);
+
+        // Data binding
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void bindViewModelInstanceToStateMachine(IntPtr stateMachine, ViewModelInstanceSafeHandle viewModelInstance);
+
+
         #endregion
     }
 }

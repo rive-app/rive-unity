@@ -819,6 +819,206 @@ namespace Rive.Tests
 
         }
 
+        [UnityTest]
+        public IEnumerator DataBinding_InitialFrame_ShowsExpectedValues()
+        {
+            // Spawn the panel
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            // Load the test rive file with data binding
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_asset_databinding_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            // Configure the widget to use data binding
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            File riveFile = File.Load(riveAsset);
+            widget.Load(riveFile);
+            widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+
+            // Wait for the widget to load
+            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+            yield return new WaitForEndOfFrame();
+
+            // Verify the initial frame shows the default data binding values
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanel_DataBinding_InitialFrame",
+                panel.RenderTexture
+            );
+
+            DestroyObj(panel.gameObject);
+            riveFile?.Dispose();
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator DataBinding_ChangingValues_InOnWidgetStatusChanged_AffectsVisuals_OnFirstFrame()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_asset_databinding_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            File riveFile = File.Load(riveAsset);
+
+            widget.OnWidgetStatusChanged += () =>
+            {
+                if (widget.Status == WidgetStatus.Loaded)
+                {
+                    var viewModelInstance = widget.StateMachine.ViewModelInstance;
+                    Assert.IsNotNull(viewModelInstance, "Expected viewModelInstance to be set");
+
+                    // Change string property
+                    var nameProp = viewModelInstance.GetProperty<ViewModelInstanceStringProperty>("name");
+                    if (nameProp != null)
+                    {
+                        nameProp.Value = "Golden Test User";
+                    }
+
+                    // Change number property
+                    var ageProp = viewModelInstance.GetProperty<ViewModelInstanceNumberProperty>("age");
+                    if (ageProp != null)
+                    {
+                        ageProp.Value = 99;
+                    }
+
+                    // Change boolean property
+                    var agreedTermsProp = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>("agreedToTerms");
+                    if (agreedTermsProp != null)
+                    {
+                        agreedTermsProp.Value = true;
+                    }
+
+                    // Change color property
+                    var favColorProp = viewModelInstance.GetProperty<ViewModelInstanceColorProperty>("favColor");
+                    if (favColorProp != null)
+                    {
+                        favColorProp.Value = new UnityEngine.Color(1, 0, 0, 1); // Bright red
+                    }
+
+                    // Change enum property
+                    var countryProp = viewModelInstance.GetProperty<ViewModelInstanceEnumProperty>("country");
+
+                    Assert.IsNotNull(countryProp, "Expected countryProp to be a ViewModelInstanceEnumProperty");
+
+                    countryProp.Value = "japan";
+
+
+                    // Handle child view model properties
+                    var favDrink = viewModelInstance.GetProperty<ViewModelInstance>("favDrink");
+                    Assert.IsNotNull(favDrink, "Expected favDrink to be a ViewModelInstance");
+
+                    var drinkTypeProp = favDrink.GetProperty<ViewModelInstanceStringProperty>("name");
+
+                    Assert.IsNotNull(drinkTypeProp, "Expected drinkTypeProp to be a ViewModelInstanceStringProperty");
+
+                    drinkTypeProp.Value = "Coffee";
+
+
+                }
+            };
+
+            widget.Load(riveFile);
+            widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+
+            // Wait for the widget to load and data to be set
+            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+            yield return new WaitForEndOfFrame();
+
+            // Verify that changing values on initial frame affected the visuals
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "DataBinding_ChangingValues_InOnWidgetStatusChanged_AffectsVisuals_OnFirstFrame",
+                panel.RenderTexture
+            );
+
+            DestroyObj(panel.gameObject);
+            riveFile?.Dispose();
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator DataBinding_DifferentInstance_ShowsExpectedVisuals()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            // Load the test rive file with data binding
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_asset_databinding_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            // Get multiple widgets from the panel
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+
+            // Instead of the default instance (Steve), let's use the "Jane" instance
+            File riveFile = File.Load(riveAsset);
+            widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindSelected;
+            widget.ViewModelInstanceName = "Jane";
+            widget.Load(riveFile);
+
+
+            // Wait for the widget to load and data to be set
+            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+            yield return new WaitForEndOfFrame();
+
+
+            // Verify that the instance shows different initial values from the default
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanel_DataBinding_DifferentInstance_ShowsExpectedVisuals",
+                panel.RenderTexture
+            );
+
+            DestroyObj(panel.gameObject);
+            riveFile?.Dispose();
+            yield return null;
+        }
+
         private void DestroyObj(UnityEngine.Object obj)
         {
             if (obj != null)

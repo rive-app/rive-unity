@@ -31,8 +31,30 @@ namespace Rive.Components.Utilities
             }
         }
 
+        internal struct DataBindingLoadInfo
+        {
+            public RiveWidget.DataBindingMode BindingMode { get; }
 
+            public string InstanceName { get; }
 
+            public DataBindingLoadInfo(RiveWidget.DataBindingMode bindingMode, string instanceName)
+            {
+                BindingMode = bindingMode;
+                InstanceName = instanceName;
+            }
+        }
+
+        internal struct LoadResult
+        {
+            public bool Success { get; }
+            public LoadErrorEventData ErrorData { get; }
+
+            public LoadResult(bool success, LoadErrorEventData errorData = default)
+            {
+                Success = success;
+                ErrorData = errorData;
+            }
+        }
 
         private Artboard m_artboard;
         private StateMachine m_stateMachine;
@@ -72,20 +94,20 @@ namespace Rive.Components.Utilities
         public delegate void RiveRenderStateChangeDelegate();
 
         public event RiveEventDelegate OnRiveEventReported;
-        public event RiveLoadErrorDelegate OnLoadError;
-        public event RiveLoadCompleteDelegate OnLoadProcessComplete;
 
 
 
 
-        public void Load(File file, Fit fit, Alignment alignment, string artboardName, string stateMachineName, float scaleFactor)
+
+        public LoadResult Load(File file, Fit fit, Alignment alignment, string artboardName, string stateMachineName, float scaleFactor, DataBindingLoadInfo bindingInfo)
         {
             CleanUpBeforeLoad();
 
             if (file == null)
             {
-                HandleLoadError(new LoadErrorEventData(LoadErrorType.InvalidArguments, "File is null"));
-                return;
+                IsLoaded = false;
+
+                return new LoadResult(false, new LoadErrorEventData(LoadErrorType.InvalidArguments, "File is null"));
             }
 
             m_file = file;
@@ -93,8 +115,8 @@ namespace Rive.Components.Utilities
 
             if (m_artboard == null)
             {
-                HandleLoadError(new LoadErrorEventData(LoadErrorType.ArtboardNotFound, $"Artboard {artboardName} not found in file"));
-                return;
+                IsLoaded = false;
+                return new LoadResult(false, new LoadErrorEventData(LoadErrorType.ArtboardNotFound, $"Artboard {artboardName} not found in file"));
             }
 
             originalArtboardWidth = m_artboard.Width;
@@ -104,18 +126,43 @@ namespace Rive.Components.Utilities
 
             if (m_stateMachine == null)
             {
-                HandleLoadError(new LoadErrorEventData(LoadErrorType.StateMachineNotFound, $"State machine {stateMachineName} not found in artboard {artboardName}"));
-                return;
+                IsLoaded = false;
+                return new LoadResult(false, new LoadErrorEventData(LoadErrorType.StateMachineNotFound, $"State machine {stateMachineName} not found in artboard {artboardName}"));
+            }
+
+            var viewModelInstance = GetVmInstanceToApply(bindingInfo.BindingMode, m_artboard, bindingInfo.InstanceName);
+            if (viewModelInstance != null)
+            {
+                m_stateMachine.BindViewModelInstance(viewModelInstance);
             }
 
             m_renderObject = CreateRenderObject(m_artboard, alignment, fit, scaleFactor);
 
-            // Advance the state machine to ensure that inputs work immediately after loading
-            m_stateMachine.Advance(0f);
-            HandleLoadComplete();
+
+            IsLoaded = true;
+
+            return new LoadResult(true);
         }
 
+        private ViewModelInstance GetVmInstanceToApply(RiveWidget.DataBindingMode bindingMode, Artboard artboard, string instanceName = null)
+        {
+            ViewModelInstance vmInstance = null;
+            switch (bindingMode)
+            {
+                case RiveWidget.DataBindingMode.Manual:
+                    break;
+                case RiveWidget.DataBindingMode.AutoBindDefault:
+                    vmInstance = artboard.DefaultViewModel?.CreateDefaultInstance();
+                    break;
+                case RiveWidget.DataBindingMode.AutoBindSelected:
+                    vmInstance = artboard.DefaultViewModel?.CreateInstanceByName(instanceName);
 
+                    break;
+                default:
+                    break;
+            }
+            return vmInstance;
+        }
 
         public void Tick(float deltaTime, RiveWidget.EventPoolingMode poolingMode, float speed)
         {
@@ -143,6 +190,8 @@ namespace Rive.Components.Utilities
             }
 
             m_stateMachine.Advance(deltaTime * speed);
+
+            m_stateMachine.ViewModelInstance?.HandleCallbacks();
         }
 
 
@@ -171,17 +220,6 @@ namespace Rive.Components.Utilities
 
         }
 
-        private void HandleLoadComplete()
-        {
-            IsLoaded = true;
-            OnLoadProcessComplete?.Invoke();
-        }
-
-        private void HandleLoadError(LoadErrorEventData eventData)
-        {
-            IsLoaded = false;
-            OnLoadError?.Invoke(eventData);
-        }
 
         /// <summary>
         /// Calculates the effective scale factor based on the scaling mode and provided parameters.

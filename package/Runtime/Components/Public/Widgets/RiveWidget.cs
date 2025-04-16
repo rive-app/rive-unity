@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+
 #if UNITY_EDITOR
 using System.Linq;
 #endif
@@ -16,6 +18,7 @@ namespace Rive.Components
     [InspectorSection(WidgetInspectorSections.FileSettings, "File Settings")]
     [InspectorSection(WidgetInspectorSections.Display, "Display")]
     [InspectorSection(WidgetInspectorSections.Input, "Input")]
+    [InspectorSection(WidgetInspectorSections.Data, "Data")]
     [AddComponentMenu("Rive/Rive Widget")]
     public sealed class RiveWidget : WidgetBehaviour
     {
@@ -34,6 +37,27 @@ namespace Rive.Components
             Disabled = 1
         }
 
+        /// <summary>
+        /// Determines how the widget should handle binding to a ViewModel instance.
+        /// </summary>
+        public enum DataBindingMode
+        {
+            /// <summary>
+            /// Automatically binds to the default instance if available
+            /// </summary>
+            AutoBindDefault = 0,
+
+            /// <summary>
+            /// Automatically binds to a selected instance if available
+            /// </summary>
+            AutoBindSelected = 1,
+
+            /// <summary>
+            /// No automatic binding
+            /// </summary>
+            Manual = 2
+        }
+
         private static class WidgetInspectorSections
         {
 
@@ -43,6 +67,8 @@ namespace Rive.Components
             public const string Input = "input";
 
             public const string Advanced = "advanced";
+
+            public const string Data = "data";
 
         }
 
@@ -146,6 +172,25 @@ namespace Rive.Components
         [Tooltip("Controls the playback speed of the graphic. A value of 1 is normal speed, 2 is double speed, 0.5 is half speed")]
         [InspectorField(WidgetInspectorSections.Advanced)]
         [SerializeField] private float m_speed = 1.0f;
+
+#if UNITY_EDITOR
+        [Tooltip("Determines how the widget should handle binding to a ViewModel instance.")]
+        [InspectorField(WidgetInspectorSections.Data)]
+        [OnValueChanged(nameof(OnDataBindingModeChangedInEditor))]
+#endif
+        [SerializeField] private DataBindingMode m_dataBindingMode = DataBindingMode.AutoBindDefault;
+
+
+
+        [Tooltip("The ViewModel instance to bind to.")]
+        [InspectorField(WidgetInspectorSections.Data, displayName: "ViewModel Instance")]
+#if UNITY_EDITOR
+        [ShowIf(nameof(ShouldShowDataBindingInstanceField))]
+        [Dropdown(nameof(GetViewModelInstanceNames), trackChanges: true)]
+#endif
+        [SerializeField] private string m_viewModelInstanceName;
+
+
 
 
         private ArtboardLoadHelper m_controller;
@@ -348,6 +393,23 @@ namespace Rive.Components
         public EventPoolingMode ReportedEventPoolingMode { get => m_eventPoolingMode; set => m_eventPoolingMode = value; }
 
         /// <summary>
+        /// Determines how the widget should handle binding to a ViewModel instance.
+        /// </summary>
+        public DataBindingMode BindingMode
+        {
+            get => m_dataBindingMode;
+            set
+            {
+                m_dataBindingMode = value;
+            }
+        }
+
+        /// <summary>
+        /// The name of the ViewModel instance to bind to.
+        /// </summary>
+        public string ViewModelInstanceName { get => m_viewModelInstanceName; set => m_viewModelInstanceName = value; }
+
+        /// <summary>
         /// Controls the playback speed of the graphic. A value of 1 is normal speed, 2 is double speed, 0.5 is half speed.
         /// </summary>
         public float Speed
@@ -384,12 +446,6 @@ namespace Rive.Components
 
         public override bool Tick(float deltaTime)
         {
-            if (m_canTriggerLoadCompleteEvent && Status != WidgetStatus.Loaded)
-            {
-                m_canTriggerLoadCompleteEvent = false;
-                base.HandleLoadComplete();
-            }
-
             bool needsRedraw = base.Tick(deltaTime);
 
             if (Controller == null || Status != WidgetStatus.Loaded)
@@ -409,8 +465,6 @@ namespace Rive.Components
                 return;
             }
 
-            controller.OnLoadProcessComplete += HandleLoadComplete;
-            controller.OnLoadError += HandleLoadError;
             controller.OnRiveEventReported += HandleRiveEventReported;
         }
         private void UnsubscribeFromControllerEvents(ArtboardLoadHelper controller)
@@ -419,8 +473,6 @@ namespace Rive.Components
             {
                 return;
             }
-            controller.OnLoadProcessComplete -= HandleLoadComplete;
-            controller.OnLoadError -= HandleLoadError;
             controller.OnRiveEventReported -= HandleRiveEventReported;
 
         }
@@ -603,7 +655,16 @@ namespace Rive.Components
 
             Status = WidgetStatus.Loading;
             m_fileLoadedFromAsset = fromAsset;
-            Controller.Load(file, m_fit, m_alignment, m_artboardName, m_stateMachineName, GetEffectiveScaleFactor());
+            ArtboardLoadHelper.LoadResult result = Controller.Load(file, m_fit, m_alignment, m_artboardName, m_stateMachineName, GetEffectiveScaleFactor(), new ArtboardLoadHelper.DataBindingLoadInfo(BindingMode, ViewModelInstanceName));
+
+            if (result.Success)
+            {
+                HandleLoadComplete();
+            }
+            else
+            {
+                HandleLoadError(result.ErrorData);
+            }
         }
 
         /// <summary>
@@ -701,6 +762,56 @@ namespace Rive.Components
             }
 
             LoadInternal(loadedFile, m_asset);
+        }
+
+
+
+        private void HandleDataBinding()
+        {
+
+            if (m_dataBindingMode == DataBindingMode.Manual)
+            {
+                return;
+            }
+
+            // If the artboard does not have a default view model, we cannot bind to it
+            // This might happen if the artboard doesn't use data binding
+            if (Artboard == null || Artboard.DefaultViewModel == null)
+            {
+                return;
+            }
+
+            ViewModelInstance viewModelInstance = null;
+            if (m_dataBindingMode == DataBindingMode.AutoBindDefault)
+            {
+                viewModelInstance = this.Artboard.DefaultViewModel.CreateDefaultInstance();
+
+                if (viewModelInstance == null)
+                {
+                    DebugLogger.Instance.LogWarning("No default ViewModel instance found for auto-binding.");
+                    return;
+                }
+
+            }
+            else if (m_dataBindingMode == DataBindingMode.AutoBindSelected)
+            {
+                if (string.IsNullOrEmpty(m_viewModelInstanceName))
+                {
+                    DebugLogger.Instance.LogError("No ViewModel instance name specified for auto-binding.");
+                    return;
+                }
+
+                viewModelInstance = this.Artboard.DefaultViewModel.CreateInstanceByName(m_viewModelInstanceName);
+
+                if (viewModelInstance == null)
+                {
+                    DebugLogger.Instance.LogError("Failed to get ViewModel instance with name: " + m_viewModelInstanceName);
+                    return;
+                }
+            }
+
+
+            StateMachine.BindViewModelInstance(viewModelInstance);
         }
 
 
@@ -823,21 +934,11 @@ namespace Rive.Components
 
         protected override void HandleLoadComplete()
         {
-
             ResizeArtboardForLayoutIfNeeded();
+            base.HandleLoadComplete();
 
-            // Instead of calling the base method here, we set a flag to trigger the load complete event in the initial Tick call so that SMIs input changes are reflected in the first frame
-            // If we don't do this, the widget's status might be set to `Loaded` incorrectly during the first frame so if you try to set an input with the widget in Start(), for instance, it might not work as expected because that might be called after we've processed the widget's settings for that frame
-            // Either way, things would work if you subscribe to the OnWidgetStatusChanged event, check for the Loaded status there and then set the inputs.
-            // However, this change basically means we can no longer assume that a widget will be ready in Start(), and we should always use the callback to know when it's ready, like we do with the OnRiveReady event in Unreal. 
-            // TL;DR: we're slightly delaying the `Loaded` state to ensure that the Rive widget/statemachine is actually ready before we tell other components that it's ready. It still happens in the same frame, just at a slightly different time. The OnWidgetStatusChanged event remains the best/safest/fastest way to know when the widget is ready.
-
-            //base.HandleLoadComplete();
-
-            m_canTriggerLoadCompleteEvent = true;
         }
 
-        bool m_canTriggerLoadCompleteEvent = false;
 
 
         protected override void OnRectTransformDimensionsChange()
@@ -995,6 +1096,21 @@ namespace Rive.Components
             OnAlignmentChanged();
         }
 
+        private void OnDataBindingModeChangedInEditor()
+        {
+            // If we're not in play mode, then set the view model instance name to default
+            if (Application.isPlaying)
+            {
+                return;
+            }
+
+            // Set the view model instance name to default if we're not in auto bind mode
+            if (m_dataBindingMode == DataBindingMode.AutoBindSelected)
+            {
+                m_viewModelInstanceName = GetInitialViewModelNameForArtboard();
+            }
+        }
+
 
         private bool ShouldShowDpiFields()
         {
@@ -1013,6 +1129,48 @@ namespace Rive.Components
         private bool ShouldHideAlignment()
         {
             return Fit == Fit.Layout;
+        }
+
+        private bool ShouldShowDataBindingInstanceField()
+        {
+            return m_dataBindingMode == DataBindingMode.AutoBindSelected;
+        }
+
+        private List<string> GetViewModelInstanceNames()
+        {
+            if (Asset == null || string.IsNullOrEmpty(ArtboardName))
+            {
+                return new List<string>();
+            }
+
+            var metadata = Asset.EditorOnlyMetadata.GetArtboard(m_artboardName);
+            if (metadata == null)
+            {
+                return new List<string>();
+            }
+
+            return metadata.DefaultViewModel.InstanceNames;
+        }
+
+        private string GetInitialViewModelNameForArtboard()
+        {
+            if (Asset == null || string.IsNullOrEmpty(ArtboardName))
+            {
+                return string.Empty;
+            }
+
+            var metadata = Asset.EditorOnlyMetadata.GetArtboard(m_artboardName);
+            if (metadata == null)
+            {
+                return string.Empty;
+            }
+
+            if (metadata.DefaultViewModel.InstanceNames.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            return metadata.DefaultViewModel.InstanceNames[0];
         }
 
 

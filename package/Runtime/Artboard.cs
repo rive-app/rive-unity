@@ -12,15 +12,19 @@ namespace Rive
     {
         private readonly IntPtr m_nativeArtboard;
         private string m_artboardName;
+        private ViewModelInstance m_currentViewModelInstance;
+        private ViewModel m_defaultViewModel;
 
         internal IntPtr NativeArtboard
         {
             get { return m_nativeArtboard; }
         }
 
-        internal Artboard(IntPtr nativeArtboard)
+
+        internal Artboard(IntPtr nativeArtboard, ViewModel defaultViewModel = null)
         {
             m_nativeArtboard = nativeArtboard;
+            m_defaultViewModel = defaultViewModel;
         }
 
         ~Artboard()
@@ -140,6 +144,18 @@ namespace Rive
         public uint StateMachineCount
         {
             get { return getStateMachineCount(m_nativeArtboard); }
+        }
+
+
+        /// <summary>
+        /// The default ViewModel for the artboard.
+        /// </summary>
+        public ViewModel DefaultViewModel
+        {
+            get
+            {
+                return m_defaultViewModel;
+            }
         }
 
         /// Returns the name of the StateMachine at the given index.
@@ -360,6 +376,30 @@ namespace Rive
         }
 
 
+        /// <summary>
+        /// Sets the data context of the Artboard from the given ViewModelInstance.
+        /// </summary>
+        /// <param name="viewModelInstance">The ViewModelInstance to bind to the Artboard.</param>
+        /// <remarks>
+        /// This method binds the ViewModelInstance to the Artboard only. If you intend to bind related state machines,
+        /// you should use the <see cref="StateMachine.BindViewModelInstance(ViewModelInstance)"/> method instead as it automatically binds both the Artboard and the State Machine to the ViewModelInstance.
+        /// </remarks>
+        public void BindViewModelInstance(ViewModelInstance viewModelInstance)
+        {
+            if (viewModelInstance == null)
+            {
+                DebugLogger.Instance.LogError("ViewModelInstance is null.");
+                return;
+            }
+
+
+            bindViewModelInstanceToArtboard(NativeArtboard, viewModelInstance.NativeSafeHandle);
+
+            m_currentViewModelInstance = viewModelInstance;
+
+        }
+
+
 
 
         #region Native Methods
@@ -444,6 +484,12 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr artboardGetName(IntPtr artboard);
+
+        // Data binding
+
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void bindViewModelInstanceToArtboard(IntPtr artboard, ViewModelInstanceSafeHandle viewModelInstance);
         #endregion
     }
 }

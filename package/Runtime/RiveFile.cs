@@ -31,6 +31,11 @@ namespace Rive
         private readonly int? m_assetKey;
         private bool m_isDisposed = false;
 
+        private ViewModel[] m_viewModels;
+
+        private ViewModelEnumData[] m_viewModelEnums;
+
+
         internal IntPtr NativeFile
         {
             get { return m_nativeFile; }
@@ -73,6 +78,37 @@ namespace Rive
         internal int? AssetKey
         {
             get { return m_assetKey; }
+        }
+
+        /// <summary>
+        /// The view models in the file.
+        /// </summary>
+        public IReadOnlyList<ViewModel> ViewModels
+        {
+            get
+            {
+                if (m_viewModels == null)
+                {
+                    LoadViewModels();
+                }
+                return m_viewModels;
+            }
+        }
+
+        /// <summary>
+        /// The enums in the file.
+        /// </summary>
+        public IReadOnlyList<ViewModelEnumData> ViewModelEnums
+        {
+            get
+            {
+
+                if (m_viewModelEnums == null)
+                {
+                    m_viewModelEnums = GetViewModelEnums();
+                }
+                return m_viewModelEnums;
+            }
         }
 
         /// <summary>
@@ -311,7 +347,7 @@ namespace Rive
                 DebugLogger.Instance.LogError($"{LogCodes.ERROR_NO_ARTBOARD_FOUND}: - No Artboard found at index {index}. Could the Rive file you loaded be different from the one you are trying to access? Or is the index possibly out of bounds?");
                 return null;
             }
-            return new Artboard(ptr);
+            return new Artboard(ptr, GetDefaultViewModelForArtboard(ptr));
         }
 
 
@@ -329,9 +365,129 @@ namespace Rive
                 DebugLogger.Instance.LogError($"{LogCodes.ERROR_NO_ARTBOARD_FOUND}: - No Artboard named \"{name}\". It's possible the name is misspelled or the file does not contain the named artboard.");
                 return null;
             }
-            return new Artboard(ptr);
+            return new Artboard(ptr, GetDefaultViewModelForArtboard(ptr));
         }
 
+
+        // Data binding methods
+
+        public int ViewModelCount
+        {
+            get
+            {
+                if (!IsNativeFileValid()) return 0;
+                return (int)NativeFileInterface.getViewModelCount(NativeFile);
+            }
+        }
+
+        /// <summary>
+        /// Get a view model by index in the file.
+        /// </summary>
+        /// <param name="index"> The index of the view model to get. </param>
+        /// <returns> The view model at the given index. </returns>
+        public ViewModel GetViewModelAtIndex(int index)
+        {
+            if (index < 0)
+            {
+                DebugLogger.Instance.LogError("Invalid index: " + index);
+                return null;
+            }
+            if (!IsNativeFileValid()) return null;
+
+
+            if ((nuint)index >= NativeFileInterface.getViewModelCount(NativeFile))
+            {
+                DebugLogger.Instance.LogError("Index out of bounds: " + index);
+                return null;
+            }
+
+            IntPtr ptr = NativeFileInterface.getViewModelAtIndex(NativeFile, (nuint)index);
+            if (ptr == IntPtr.Zero)
+            {
+                DebugLogger.Instance.LogError("Failed to get view model at index: " + index);
+                return null;
+            }
+            return new ViewModel(ptr, this);
+        }
+
+        /// <summary>
+        /// Get a view model by name in the file.
+        /// </summary>
+        /// <param name="name"> The name of the view model to get. </param>
+        /// <returns> The view model with the given name. </returns>
+        public ViewModel GetViewModelByName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                DebugLogger.Instance.LogError("Invalid name: " + name);
+                return null;
+            }
+            if (!IsNativeFileValid()) return null;
+            IntPtr ptr = NativeFileInterface.getViewModelByName(NativeFile, name);
+            if (ptr == IntPtr.Zero)
+            {
+                DebugLogger.Instance.LogError("Failed to get view model with name: " + name);
+                return null;
+            }
+            return new ViewModel(ptr, this);
+        }
+
+
+
+        private void LoadViewModels()
+        {
+            if (m_viewModels != null)
+            {
+                return;
+            }
+
+            nuint count = (nuint)ViewModelCount;
+            m_viewModels = new ViewModel[count];
+            for (nuint i = 0; i < count; i++)
+            {
+                IntPtr ptr = NativeFileInterface.getViewModelAtIndex(NativeFile, i);
+                if (ptr == IntPtr.Zero)
+                {
+                    continue;
+                }
+
+                m_viewModels[i] = new ViewModel(ptr, this);
+            }
+        }
+
+
+        private ViewModelEnumData[] GetViewModelEnums()
+        {
+
+            nuint count = NativeFileInterface.getEnumCountFromFile(NativeFile);
+            var vmEnums = new ViewModelEnumData[count];
+
+            for (nuint i = 0; i < count; i++)
+            {
+                string enumName = Marshal.PtrToStringAnsi(NativeFileInterface.getEnumNameFromFileAtIndex(NativeFile, i));
+                nuint valueCount = NativeFileInterface.getEnumValueCountFromFileEnumIndex(NativeFile, i);
+                string[] values = new string[valueCount];
+                for (nuint j = 0; j < valueCount; j++)
+                {
+                    values[j] = Marshal.PtrToStringAnsi(NativeFileInterface.getEnumValueAtFileEnumIndex(NativeFile, i, j));
+                }
+                vmEnums[i] = new ViewModelEnumData(enumName, values);
+            }
+
+            return vmEnums;
+        }
+
+        private ViewModel GetDefaultViewModelForArtboard(IntPtr artboardPtr)
+        {
+            IntPtr ptr = NativeFileInterface.getDefaultViewModelForArtboard(this.NativeFile, artboardPtr);
+
+            if (ptr == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            return new ViewModel(ptr, this);
+        }
 
     }
 
@@ -395,6 +551,33 @@ namespace Rive
 
             return IntPtr.Zero;
         }
+
+
+        // Data binding methods
+        [DllImport(NativeLibrary.name)]
+        internal static extern nuint getViewModelCount(IntPtr riveFile);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getViewModelAtIndex(IntPtr riveFile, nuint index);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getViewModelByName(IntPtr riveFile, string name);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getDefaultViewModelForArtboard(IntPtr filePtr, IntPtr artboardPtr);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern nuint getEnumCountFromFile(IntPtr riveFile);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getEnumNameFromFileAtIndex(IntPtr riveFile, nuint index);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern nuint getEnumValueCountFromFileEnumIndex(IntPtr riveFile, nuint enumIndex);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getEnumValueAtFileEnumIndex(IntPtr riveFile, nuint enumIndex, nuint valueIndex);
+
         #endregion
 
     }

@@ -31,6 +31,10 @@ namespace Rive.Tests.Utils
                 public const string riv_initial_frame_tests = "Packages/app.rive.rive-unity.tests/Shared/Assets/initial_frame_tests.riv";
                 public const string riv_asset_swapping_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/asset_swapping_test.riv";
 
+                public const string riv_asset_databinding_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/data_binding_test.riv";
+
+                public const string riv_duelist_db = "Packages/app.rive.rive-unity.tests/Shared/Assets/duelist_db.riv";
+
                 public const string textasset_roboDude = "Packages/app.rive.rive-unity.tests/Shared/Assets/robo_dude.bytes";
 
                 public const string imageasset_dog1_asset_swapping = "Packages/app.rive.rive-unity.tests/Shared/Assets/dog-1-asset-swapping.jpg";

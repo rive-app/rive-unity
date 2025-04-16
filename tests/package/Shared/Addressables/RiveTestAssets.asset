@@ -269,6 +269,9 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 549c011152ed547668ba10f1101fbe63
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_WithInitialFrameInputs_FireTrigger_AffectsVisuals.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: cec2d66820f3948629e6d8e2662e8e9a
     m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/asset_swapping_test.riv
     m_ReadOnly: 0
@@ -301,6 +304,31 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 56bb6b84ddc0a4f79a6f03be97cf78c9
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_WithoutCallback_LoadsDefaultEmbeddedAndReferencedAssets.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 298284c138ba040a3b78b1401f77ccdd
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/data_binding_test.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2c7e1baf40a0545fd9d4e15ea7ceb2a5
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/DataBinding_ChangingValues_InOnWidgetStatusChanged_AffectsVisuals_OnFirstFrame.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1f600d5e6cb5e4f3fbdb3571c6855374
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_DataBinding_DifferentInstance_ShowsExpectedVisuals.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8ae0fc9c0f4164fd58fb231e23278dc0
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_DataBinding_InitialFrame.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 323a03b2883a14763bd53d65da4ca111
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/duelist_db.riv
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

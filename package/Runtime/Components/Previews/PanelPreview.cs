@@ -150,7 +150,8 @@ namespace Rive.Components
                             m_riveWidget.Alignment,
                             validArtboardName,
                             validStateMachineName,
-                            m_riveWidget.ScaleFactor
+                            m_riveWidget.ScaleFactor,
+                            new ArtboardLoadHelper.DataBindingLoadInfo(RiveWidget.DataBindingMode.Manual, null)
                         );
 
                         if (m_riveViewController.Artboard != null && m_riveWidget.Fit == Fit.Layout)
