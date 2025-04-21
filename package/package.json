@@ -1,6 +1,6 @@
 {
     "name": "app.rive.rive-unity",
-    "version": "0.3.6-canary.36",
+    "version": "0.3.6-canary.37",
     "displayName": "Rive",
     "description": "Create and ship interactive animations to any platform",
     "unity": "2020.1",
