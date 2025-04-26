@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -15,6 +16,8 @@ namespace Rive
             m_renderer = renderer;
         }
     }
+
+    internal class CoroutineRunner : MonoBehaviour {}
 
     public class Renderer : IRenderer
     {
@@ -177,6 +180,9 @@ namespace Rive
             {
                 commandBuffer.SetRenderTarget(m_renderQueue.Texture);
             }
+            
+            m_renderQueue.UpdateDelayedRenderTexture();
+
             commandBuffer.IssuePluginEventAndData(
                 getRenderCommandBufferCallback(),
                 (int)m_index,
@@ -192,6 +198,9 @@ namespace Rive
             {
                 commandBuffer.SetRenderTarget(m_renderQueue.Texture);
             }
+            
+            m_renderQueue.UpdateDelayedRenderTexture();
+
             commandBuffer.IssuePluginEventAndData(
                 getRenderAndReleaseCommandBufferCallback(),
                 (int)m_index,
@@ -224,6 +233,9 @@ namespace Rive
                     GetResetMaterial()
                 );
             }
+
+            m_renderQueue.UpdateDelayedRenderTexture();
+
             commandBuffer.IssuePluginEventAndData(
                 release
                     ? getRenderAndReleaseCommandBufferCallback()
@@ -253,6 +265,9 @@ namespace Rive
                     GetResetMaterial()
                 );
             }
+
+            m_renderQueue.UpdateDelayedRenderTexture();
+
             commandBuffer.IssuePluginEventAndData(
                 release
                     ? getRenderAndReleaseCommandBufferCallback()
@@ -386,6 +401,12 @@ namespace Rive
     public class RenderQueue : IDisposable
     {
         private bool m_disposed = false;
+        
+        // When using Vulkan we need to pass the RenderTexture.colorBuffer's
+        // native pointer. This colorBuffer's native pointer sometimes returns 0
+        // (null) even after calling RenderTexture.Create. In these rare cases
+        // we hold onto it to try to re-acquire it prior to the next submission.
+        private bool m_delayed = false;
 
         public RenderTexture Texture { get; private set; }
 
@@ -398,7 +419,8 @@ namespace Rive
                 texture.Create();
             }
             m_nativeRenderQueue = makeRenderQueue(
-                texture == null ? IntPtr.Zero : texture.GetNativeTexturePtr(),
+                texture == null ? IntPtr.Zero : 
+                GetNativeTexturePointer(texture),
                 (uint)(texture?.width ?? 0),
                 (uint)(texture?.height ?? 0),
                 clear
@@ -458,22 +480,85 @@ namespace Rive
             }
         }
 
+        
+        static WaitForEndOfFrame s_waitForEndOfFrame = new WaitForEndOfFrame();
+        private static CoroutineRunner s_coroutineHelper;
+        
+        public delegate void CallbackEventHandler();
+        private static IEnumerator CallCallback(CallbackEventHandler callback)
+        {
+            yield return s_waitForEndOfFrame;
+            callback();
+        }
+
+        public static void EndOfFrame(CallbackEventHandler callback) 
+        {
+            if (Application.isPlaying)
+            {
+                if (s_coroutineHelper == null) {
+                    s_coroutineHelper = new GameObject("RenderQueue Coroutine Helper").AddComponent<CoroutineRunner>();;
+                    UnityEngine.Object.DontDestroyOnLoad(s_coroutineHelper.gameObject);
+                }
+                s_coroutineHelper.StartCoroutine(CallCallback(callback));
+            }
+        }
+
+        private IntPtr GetNativeTexturePointer(RenderTexture texture) 
+        {
+            if(UnityEngine.SystemInfo.graphicsDeviceType
+                    == UnityEngine.Rendering.GraphicsDeviceType.Vulkan)
+            {
+                IntPtr pointer = texture.colorBuffer.GetNativeRenderBufferPtr();
+                 if(pointer == IntPtr.Zero) 
+                {
+                    texture.Create();
+                    pointer = texture.colorBuffer.GetNativeRenderBufferPtr();
+                    if(pointer == IntPtr.Zero)
+                    {
+                         m_delayed = true;
+                         EndOfFrame(delegate() 
+                         {
+                            UpdateDelayedRenderTexture();
+                         });
+                    }
+                }
+                return pointer;
+            }
+            return texture.GetNativeTexturePtr();
+        }
+
+        internal void UpdateDelayedRenderTexture()
+        {
+            if(!m_delayed || Texture == null) 
+            {
+                return;
+            }
+            IntPtr pointer = GetNativeTexturePointer(Texture);
+            // Make sure null pointers are set too or the native side could be
+            // left with an invalid/discarded texture.
+            renderQueueUpdateRenderTexture(
+                m_nativeRenderQueue,
+                pointer,
+                (uint)Texture.width,
+                (uint)Texture.height
+            );
+            m_delayed = false;
+        }
+
         /// <summary>
         /// Update the render queue's target texture.
         /// </summary>
         public void UpdateTexture(RenderTexture texture)
         {
             ValidateRenderTexture(texture);
-
+            IntPtr pointer = GetNativeTexturePointer(texture);
             renderQueueUpdateRenderTexture(
                 m_nativeRenderQueue,
-                texture.GetNativeTexturePtr(),
+                pointer,
                 (uint)texture.width,
                 (uint)texture.height
             );
-
             Texture = texture;
-
         }
 
         internal IntPtr m_nativeRenderQueue = IntPtr.Zero;

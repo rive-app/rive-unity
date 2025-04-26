@@ -563,6 +563,7 @@ namespace Rive
             switch (UnityEngine.SystemInfo.graphicsDeviceType)
             {
                 case GraphicsDeviceType.Metal:
+                case GraphicsDeviceType.Vulkan:
                 case GraphicsDeviceType.Direct3D11:
                     return true;
                 default:
