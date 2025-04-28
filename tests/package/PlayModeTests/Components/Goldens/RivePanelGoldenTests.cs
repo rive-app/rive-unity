@@ -9,6 +9,8 @@ using System;
 using System.Linq;
 using Rive.Components;
 using System.Collections.Generic;
+using UnityEngine.TestTools.Graphics;
+using Rive.Utils;
 
 namespace Rive.Tests
 {
@@ -820,6 +822,106 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator RivePanel_RemoveAndAddWidget_MaintainsVisuals()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_sophiaHud;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+
+            widget.Load(riveAsset);
+
+            yield return new WaitForEndOfFrame();
+
+            // Check that the texture has non-transparent content. When nothing is loaded in the widget, the texture is transparent.
+            bool hasInitialContent = CheckRenderTextureHasContent(panel.RenderTexture);
+            Assert.IsTrue(hasInitialContent, "Initial render texture should have visible content");
+
+
+
+            // Remove the widget from panel
+            widget.transform.SetParent(null);
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            Assert.IsFalse(panel.ContainsWidget(widget), "Widget should be unregistered after removal");
+
+            // Check that the texture is transparent after removing the widget
+            bool hasContentAfterRemove = CheckRenderTextureHasContent(panel.RenderTexture);
+            Assert.IsFalse(hasContentAfterRemove, "Render texture should be transparent after removing widget");
+
+            // Add the widget back to the panel
+            widget.transform.SetParent(panel.transform);
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            Assert.IsTrue(panel.ContainsWidget(widget), "Widget should be automatically re-registered when added back to panel");
+
+            // Check that the texture has non-transparent content after re-adding
+            bool hasContentAfterReAdd = CheckRenderTextureHasContent(panel.RenderTexture);
+            Assert.IsTrue(hasContentAfterReAdd, "Render texture should have visible content after re-adding widget");
+
+
+            // Cleanup
+            DestroyObj(panel.gameObject);
+            yield return null;
+        }
+
+
+        /// <summary>
+        /// Checks if the given RenderTexture has any non-transparent content.
+        /// </summary>
+        private static bool CheckRenderTextureHasContent(RenderTexture rt)
+        {
+            if (rt == null) return false;
+
+            Texture2D temp = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+            RenderTexture prevActive = RenderTexture.active;
+            RenderTexture.active = rt;
+
+            // Read the pixels
+            temp.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+            temp.Apply();
+            RenderTexture.active = prevActive;
+
+            // Check if any pixels have non-zero alpha
+            UnityEngine.Color[] pixels = temp.GetPixels();
+            bool hasContent = false;
+
+            foreach (UnityEngine.Color pixel in pixels)
+            {
+                if (pixel.a > 0.01f)
+                {
+                    hasContent = true;
+                    break;
+                }
+            }
+
+            UnityEngine.Object.Destroy(temp);
+            return hasContent;
+        }
+
+        [UnityTest]
         public IEnumerator DataBinding_InitialFrame_ShowsExpectedValues()
         {
             // Spawn the panel
@@ -1019,6 +1121,134 @@ namespace Rive.Tests
             yield return null;
         }
 
+        private static RenderTexture CropTopHalf(RenderTexture original)
+        {
+            int width = original.width;
+            int height = original.height / 2;
+
+            // Read the top‑half pixels (Unity's ReadPixels origin is bottom‑left)
+            var prevActive = RenderTexture.active;
+            RenderTexture.active = original;
+            var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, height, width, height), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prevActive;
+
+            // Blit into a new temporary RT and return it
+            var tmpRT = RenderTexture.GetTemporary(width, height, 0, original.format);
+            Graphics.Blit(tex, tmpRT);
+            UnityEngine.Object.Destroy(tex);
+            return tmpRT;
+        }
+
+        /// <summary>
+        /// We test that the initial values set when the widget status is Loaded show up on the initial frame, regardless of whether the values were set in OnWidgetStatusChanged, Start, or Update.
+        /// This is important because we want to ensure that the initial values are set correctly as long as the widget is loaded.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator DataBinding_InitialValues_SetWhenWidgetStatusLoaded_AreConsistent()
+        {
+            // Test setting data binding values in these three different ways
+            var setupMethods = new[]
+            {
+                ("OnWidgetStatusChanged", RewardsDataBindingTester.SetMethod.OnWidgetStatusChanged),
+                ("Start", RewardsDataBindingTester.SetMethod.Start),
+                ("Update", RewardsDataBindingTester.SetMethod.Update)
+            };
+
+            // Test both attaching the data binding tester to the panel and directly to the widget
+            // We do this because the order of operations for methods like Update() in the panel and widget may be different, and we want to ensure that the results are consistent regardless of where the data binding tester is attached.
+            var attachmentModes = new[]
+            {
+                RewardsDataBindingTester.AttachmentMode.ToPanel,
+                RewardsDataBindingTester.AttachmentMode.ToWidget
+            };
+
+            // We're using a single golden ID for all tests since the results should be identical
+            string goldenId = "DataBinding_InitialValues_SetMethods_Consistent";
+
+            ImageComparisonSettings imageComparisonSettings = new ImageComparisonSettings
+            {
+                PerPixelCorrectnessThreshold = 0.1f,
+                PerPixelGammaThreshold = 0.1f,
+                IncorrectPixelsThreshold = 0.07f,
+
+                ActivePixelTests = ImageComparisonSettings.PixelTests.DeltaE | ImageComparisonSettings.PixelTests.DeltaAlpha | ImageComparisonSettings.PixelTests.DeltaGamma,
+                ActiveImageTests = ImageComparisonSettings.ImageTests.IncorrectPixelsCount
+            };
+
+            // Test each combination of setup method and attachment mode
+            foreach (var attachmentMode in attachmentModes)
+            {
+                foreach (var (methodName, method) in setupMethods)
+                {
+                    RivePanel panel = null;
+                    RewardsDataBindingTester rewardsDataBindingTester = null;
+
+                    yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                        TestPrefabReferences.RivePanelWithSingleWidgetAndLayout,
+                        (prefab) =>
+                        {
+                            var panelObj = UnityEngine.Object.Instantiate(prefab);
+                            panel = panelObj.GetComponent<RivePanel>();
+                            panel.SetDimensions(new Vector2(800, 600));
+
+                            var widget = panel.GetComponentInChildren<RiveWidget>();
+                            // Destroy the default widget and add a new one
+                            DestroyObj(widget);
+                            widget = panelObj.AddComponent<RiveWidget>();
+                            widget.transform.SetParent(panelObj.transform, false);
+                            widget.ScaleFactor = 9.37f; // We just want to focus on the text for this test.
+                            widget.Fit = Fit.Layout;
+
+
+                            if (attachmentMode == RewardsDataBindingTester.AttachmentMode.ToPanel)
+                            {
+                                rewardsDataBindingTester = panelObj.AddComponent<RewardsDataBindingTester>();
+                            }
+                            else
+                            {
+                                rewardsDataBindingTester = widget.gameObject.AddComponent<RewardsDataBindingTester>();
+                            }
+
+                            rewardsDataBindingTester.SetMethodToUse(method);
+                            rewardsDataBindingTester.RiveWidget = widget;
+                        },
+                        () => Assert.Fail($"Failed to load panel prefab")
+                    );
+
+                    Asset riveAsset = null;
+                    yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                        TestAssetReferences.riv_rewards_db,
+                        (asset) => riveAsset = asset,
+                        () => Assert.Fail($"Failed to load Rewards asset")
+                    );
+
+                    var widget = panel.GetComponentInChildren<RiveWidget>();
+                    File riveFile = File.Load(riveAsset);
+                    widget.Load(riveFile);
+                    widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+
+                    yield return rewardsDataBindingTester.IsComplete();
+                    yield return new WaitForEndOfFrame();
+
+                    // We're cropping to the top half of the image to avoid subtle animation differences in the bottom half of the image that are not relevant to the test.
+                    // We want to verify that the number/text values are set correctly, not the animation state of the widget.
+                    RenderTexture croppedRT = CropTopHalf(panel.RenderTexture);
+                    yield return m_goldenHelper.AssertWithRenderTexture(
+                      goldenId,
+                      croppedRT,
+                      imageComparisonSettings
+                    );
+                    RenderTexture.ReleaseTemporary(croppedRT);
+
+                    DestroyObj(panel.gameObject);
+                    riveFile?.Dispose();
+                    yield return null;
+                }
+            }
+        }
+
         private void DestroyObj(UnityEngine.Object obj)
         {
             if (obj != null)
@@ -1027,5 +1257,162 @@ namespace Rive.Tests
             }
         }
     }
+
+    /// <summary>
+    /// Custom component to test setting rewards values in Start, Update, or OnWidgetStatusChanged.
+    /// This component is added to the panel prefab and is used to set the rewards values in the Rive widget.
+    /// </summary>
+    public class RewardsDataBindingTester : MonoBehaviour
+    {
+        /// <summary>
+        /// Enum to determine which method to use for setting the rewards values.
+        /// </summary>
+        public enum SetMethod
+        {
+            OnWidgetStatusChanged,
+            Start,
+            Update
+        }
+
+        /// <summary>
+        /// Enum to determine where the RewardsDataBindingTester is attached.
+        /// </summary>
+        public enum AttachmentMode
+        {
+            ToPanel,
+            ToWidget
+        }
+
+        [SerializeField] private RiveWidget m_riveWidget;
+        private SetMethod m_methodToUse = SetMethod.OnWidgetStatusChanged;
+
+        public RiveWidget RiveWidget
+        {
+            get => m_riveWidget;
+            set
+            {
+                if (m_riveWidget != null)
+                {
+                    m_riveWidget.OnWidgetStatusChanged -= HandleWidgetStatusChanged;
+                }
+                m_riveWidget = value;
+
+                if (m_methodToUse == SetMethod.OnWidgetStatusChanged)
+                {
+                    m_riveWidget.OnWidgetStatusChanged += HandleWidgetStatusChanged;
+                }
+            }
+        }
+
+        public void SetMethodToUse(SetMethod method)
+        {
+            m_methodToUse = method;
+        }
+
+        private void OnEnable()
+        {
+
+            if (m_methodToUse == SetMethod.OnWidgetStatusChanged && m_riveWidget != null)
+            {
+                m_riveWidget.OnWidgetStatusChanged += HandleWidgetStatusChanged;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (m_methodToUse == SetMethod.OnWidgetStatusChanged)
+            {
+                m_riveWidget.OnWidgetStatusChanged -= HandleWidgetStatusChanged;
+            }
+        }
+
+        private void HandleWidgetStatusChanged()
+        {
+            if (m_riveWidget.Status == WidgetStatus.Loaded && m_methodToUse == SetMethod.OnWidgetStatusChanged)
+            {
+                SetRewardsValues();
+            }
+        }
+
+        private IEnumerator Start()
+        {
+            if (m_methodToUse == SetMethod.Start)
+            {
+                if (m_riveWidget.Status == WidgetStatus.Loaded)
+                {
+                    SetRewardsValues();
+
+                }
+                else
+                {
+                    // We need to wait until the widget is loaded
+                    yield return new WaitUntil(() => m_riveWidget.Status == WidgetStatus.Loaded);
+                    SetRewardsValues();
+                }
+            }
+
+        }
+
+        private bool m_hasSetValues = false;
+
+        private void Update()
+        {
+            if (m_methodToUse == SetMethod.Update && !m_hasSetValues)
+            {
+                if (m_riveWidget.Status == WidgetStatus.Loaded)
+                {
+                    SetRewardsValues();
+                }
+            }
+        }
+
+        public IEnumerator IsComplete()
+        {
+            float timeout = 5.0f;
+            float startTime = Time.time;
+
+            while (!m_hasSetValues && Time.time - startTime < timeout)
+            {
+                yield return null;
+            }
+
+            if (!m_hasSetValues)
+            {
+                DebugLogger.Instance.LogWarning($"Timed out waiting for rewards values to be set using method {m_methodToUse}");
+            }
+
+            // To account for the fact that this update might be called after the panel has ticked/advanced the widget, so the values wouldn't show up until the next frame.
+            if (m_methodToUse == SetMethod.Update)
+            {
+                yield return null;
+            }
+        }
+
+        private void SetRewardsValues()
+        {
+
+            var viewModelInstance = m_riveWidget.StateMachine.ViewModelInstance;
+            if (viewModelInstance == null)
+            {
+                Debug.LogError("ViewModelInstance is null. Cannot set rewards values.");
+                return;
+            }
+
+            var coinProp = viewModelInstance.GetNumberProperty("Coin/Item_Value");
+            if (coinProp != null) coinProp.Value = 250;
+
+            var gemProp = viewModelInstance.GetNumberProperty("Gem/Item_Value");
+            if (gemProp != null) gemProp.Value = 50;
+
+            // We force the icon change so that our image comparison works better
+            var itemProp = viewModelInstance.GetEnumProperty("Coin/Property_Of_Item/Item_Selection");
+            if (itemProp != null) itemProp.Value = "Gem";
+
+            m_hasSetValues = true;
+
+        }
+    }
 }
+
+
 #endif

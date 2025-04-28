@@ -481,7 +481,7 @@ namespace Rive
         /// </summary>
         /// <param name="path">The path to the property to replace.</param>
         /// <param name="newInstance">The new instance to replace the property with.</param>
-        public void ReplaceViewModelInstance(string path, ViewModelInstance newInstance)
+        public void SetViewModelInstance(string path, ViewModelInstance newInstance)
         {
             if (string.IsNullOrEmpty(path))
             {

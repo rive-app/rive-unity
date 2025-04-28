@@ -909,7 +909,6 @@ namespace Rive.Tests
 
                     trigger?.Fire();
 
-
                 }
             };
 
@@ -1009,6 +1008,65 @@ namespace Rive.Tests
 
             // Clean up the file ourselves since widget didn't
             riveFile.Dispose();
+        }
+
+        [UnityTest]
+        public IEnumerator OnWidgetStatusChanged_SubscribedInOnEnable_IsTriggered()
+        {
+
+            var subscriberObject = new GameObject("EventSubscriber");
+            var subscriber = subscriberObject.AddComponent<TestWidgetStatusChangeSubscriber>();
+
+            Assert.IsFalse(subscriber.StatusChangedTriggered, "Status change should not be triggered yet");
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_sophiaHud,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load test asset")
+            );
+
+            m_widget.Load(riveAsset);
+
+            // Wait for potential Start and first Update
+            yield return null;
+
+            Assert.IsTrue(subscriber.StatusChangedTriggered,
+                "OnWidgetStatusChanged should be triggered even when subscribed in OnEnable");
+
+            UnityEngine.Object.Destroy(subscriberObject);
+        }
+
+
+
+        private class TestWidgetStatusChangeSubscriber : MonoBehaviour
+        {
+            private RiveWidget m_widget;
+            public bool StatusChangedTriggered { get; private set; }
+
+            private void OnEnable()
+            {
+                m_widget = FindFirstObjectByType<RiveWidget>();
+
+                if (m_widget != null)
+                {
+                    m_widget.OnWidgetStatusChanged += HandleWidgetStatusChanged;
+                }
+            }
+
+            private void HandleWidgetStatusChanged()
+            {
+                StatusChangedTriggered = true;
+            }
+
+
+            private void OnDisable()
+            {
+                if (m_widget != null)
+                {
+                    m_widget.OnWidgetStatusChanged -= HandleWidgetStatusChanged;
+                }
+            }
         }
     }
 }

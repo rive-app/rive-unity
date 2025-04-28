@@ -7,7 +7,7 @@ namespace Rive
     /// <summary>
     /// A view model instance property that holds a color.
     /// </summary>
-    public sealed class ViewModelInstanceColorProperty : ViewModelInstancePrimitiveProperty
+    public sealed class ViewModelInstanceColorProperty : ViewModelInstancePrimitiveProperty<UnityEngine.Color>
     {
         internal ViewModelInstanceColorProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance) : base(instanceValuePtr, rootInstance)
         {
@@ -52,12 +52,10 @@ namespace Rive
         /// <summary>
         /// Gets or sets the color value as a Unity Color.
         /// </summary>
-        public UnityEngine.Color Value
+        public override UnityEngine.Color Value
         {
             get => ArgbToColor(getViewModelInstanceColorValue(InstancePropertyPtr));
-
             set => setViewModelInstanceColorValue(InstancePropertyPtr, ColorToArgb(value));
-
         }
 
         /// <summary>

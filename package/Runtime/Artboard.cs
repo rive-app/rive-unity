@@ -15,16 +15,22 @@ namespace Rive
         private ViewModelInstance m_currentViewModelInstance;
         private ViewModel m_defaultViewModel;
 
+        private WeakReference<File> m_file;
+
         internal IntPtr NativeArtboard
         {
             get { return m_nativeArtboard; }
         }
 
-
-        internal Artboard(IntPtr nativeArtboard, ViewModel defaultViewModel = null)
+        /// <summary>
+        /// Constructor for the Artboard class.
+        /// </summary>
+        /// <param name="nativeArtboard"> Pointer to the native artboard.</param>
+        /// <param name="file"> The file that instanced the artboard.</param>
+        internal Artboard(IntPtr nativeArtboard, File file)
         {
             m_nativeArtboard = nativeArtboard;
-            m_defaultViewModel = defaultViewModel;
+            m_file = new WeakReference<File>(file);
         }
 
         ~Artboard()
@@ -154,6 +160,15 @@ namespace Rive
         {
             get
             {
+                if (m_defaultViewModel == null)
+                {
+                    var file = m_file.TryGetTarget(out var target) ? target : null;
+                    if (file != null)
+                    {
+                        m_defaultViewModel = file.GetDefaultViewModelForArtboard(this.m_nativeArtboard);
+                    }
+                }
+
                 return m_defaultViewModel;
             }
         }

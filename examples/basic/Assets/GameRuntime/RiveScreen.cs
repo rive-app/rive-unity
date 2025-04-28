@@ -95,6 +95,9 @@ public class RiveScreen : MonoBehaviour
 
     [SerializeField] private float m_referenceDPI = 150f;
 
+    [Tooltip("Whether to automatically bind the Rive asset to the default view model instance.")]
+    [SerializeField] private bool autobind = false;
+
 
     public delegate void RiveEventDelegate(ReportedEvent reportedEvent);
     public event RiveEventDelegate OnRiveEvent;
@@ -144,6 +147,8 @@ public class RiveScreen : MonoBehaviour
         int channelCount = GetAudioChannelCount();
         m_audioEngine = Rive.AudioEngine.Make(channelCount, AudioSettings.outputSampleRate);
         m_artboard?.SetAudioEngine(m_audioEngine);
+
+        SetupDataBinding();
     }
 
     private void SetupCamera()
@@ -250,6 +255,15 @@ public class RiveScreen : MonoBehaviour
         DrawRive();
     }
 
+    private void SetupDataBinding()
+    {
+        if (autobind && m_artboard?.DefaultViewModel != null && m_stateMachine != null)
+        {
+            ViewModelInstance viewModelInstance = m_artboard.DefaultViewModel.CreateDefaultInstance();
+            m_stateMachine.BindViewModelInstance(viewModelInstance);
+        }
+    }
+
     private void DrawRive()
     {
         if (m_artboard == null) return;
@@ -268,7 +282,6 @@ public class RiveScreen : MonoBehaviour
             m_artboard.ResetArtboardSize();
         }
 
-        m_stateMachine?.Advance(0f);
 
         m_riveRenderer.Align(fit, alignment, m_artboard, effectiveScale);
         m_riveRenderer.Draw(m_artboard);
@@ -286,7 +299,12 @@ public class RiveScreen : MonoBehaviour
         }
 
         ProcessRiveEvents();
-        m_stateMachine?.Advance(Time.deltaTime);
+
+        if (m_stateMachine != null)
+        {
+            m_stateMachine.Advance(Time.deltaTime);
+            m_stateMachine.ViewModelInstance?.HandleCallbacks(); // This is needed for the ViewModelInstance to process callbacks for its properties.
+        }
     }
 
     private void CheckForDimensionChanges()

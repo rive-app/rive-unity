@@ -101,7 +101,7 @@ namespace Rive.Tests
 
                         }
 
-                        Assert.IsNotNull(prop, $"Property '{Name}' should exist in {addressableAssetPath} for type {Type}");
+                        Assert.IsNotNull(prop, $"Property '{Name}' should exist in {addressableAssetPath}");
                     }
                 }
 
@@ -743,10 +743,12 @@ namespace Rive.Tests
                 bool callbackTriggered = false;
                 string expectedValue = "Test Value " + Guid.NewGuid().ToString().Substring(0, 8); // Unique value
 
-                stringProp.OnValueChanged += () =>
+                stringProp.OnValueChanged += (newValue) =>
                 {
                     callbackTriggered = true;
-                    Assert.AreEqual(expectedValue, stringProp.Value);
+                    Assert.AreEqual(expectedValue, newValue);
+                    Assert.AreEqual(newValue, stringProp.Value,
+                        $"Property '{propName}' value should be '{expectedValue}' in {testAsset.addressableAssetPath}");
                 };
 
                 stringProp.Value = expectedValue;
@@ -892,7 +894,7 @@ namespace Rive.Tests
                 Assert.IsNotNull(triggerProp, $"Trigger property '{propName}' should exist in {testAsset.addressableAssetPath}");
 
                 bool callbackTriggered = false;
-                triggerProp.OnValueChanged += () =>
+                triggerProp.OnTriggered += () =>
                 {
                     callbackTriggered = true;
                 };
@@ -1048,15 +1050,17 @@ namespace Rive.Tests
                 string expectedValue = "Multiple Callbacks Test";
 
                 // Add multiple callbacks
-                stringProp.OnValueChanged += () =>
+                stringProp.OnValueChanged += (value) =>
                 {
                     callbackCount1++;
+                    Assert.AreEqual(expectedValue, value);
                     Assert.AreEqual(expectedValue, stringProp.Value);
                 };
 
-                stringProp.OnValueChanged += () =>
+                stringProp.OnValueChanged += (value) =>
                 {
                     callbackCount2++;
+                    Assert.AreEqual(expectedValue, value);
                     Assert.AreEqual(expectedValue, stringProp.Value);
                 };
 
@@ -1151,10 +1155,12 @@ namespace Rive.Tests
 
                     // Test callback
                     bool callbackTriggered = false;
-                    stringProp.OnValueChanged += () =>
+                    stringProp.OnValueChanged += (value) =>
                     {
                         callbackTriggered = true;
-                        Assert.AreEqual(stringValue + " Updated", stringProp.Value);
+                        var expectedValue = stringValue + " Updated";
+                        Assert.AreEqual(expectedValue, value);
+                        Assert.AreEqual(expectedValue, stringProp.Value);
                     };
 
                     // Update value
@@ -1208,7 +1214,7 @@ namespace Rive.Tests
                 Assert.IsNotNull(stringProp, $"String property '{propName}' should exist in {testAsset.addressableAssetPath}");
 
                 int callbackCount = 0;
-                Action callback = () =>
+                Action<string> callback = (value) =>
                 {
                     callbackCount++;
                 };
@@ -1332,7 +1338,7 @@ namespace Rive.Tests
             // Replace the nested view model with the new instance
             mockLogger.Clear();
 
-            viewModelInstance.ReplaceViewModelInstance(nestedModelPropertyName, newNestedViewModelInstance);
+            viewModelInstance.SetViewModelInstance(nestedModelPropertyName, newNestedViewModelInstance);
 
             var replacedViewModel = viewModelInstance.GetProperty<ViewModelInstance>(nestedModelPropertyName);
             Assert.IsNotNull(replacedViewModel,
@@ -1356,13 +1362,13 @@ namespace Rive.Tests
 
             // Test with invalid vm property path, we want to make sure it also doesn't crash the app 
             mockLogger.Clear();
-            viewModelInstance.ReplaceViewModelInstance("nonExistentPath", newNestedViewModelInstance);
+            viewModelInstance.SetViewModelInstance("nonExistentPath", newNestedViewModelInstance);
             Assert.Greater(mockLogger.LoggedErrors.Count, 0,
                 $"An error should be logged when replacing with an invalid path");
 
             // Same thing with passing a null instance
             mockLogger.Clear();
-            viewModelInstance.ReplaceViewModelInstance(nestedModelPropertyName, null);
+            viewModelInstance.SetViewModelInstance(nestedModelPropertyName, null);
             Assert.Greater(mockLogger.LoggedErrors.Count, 0,
                 $"An error should be logged when replacing with a null instance");
 
@@ -1376,7 +1382,7 @@ namespace Rive.Tests
                 $"Should be able to create a new instance of 'PersonViewModel'");
 
             mockLogger.Clear();
-            viewModelInstance.ReplaceViewModelInstance(nestedModelPropertyName, differentNestedViewModelInstance);
+            viewModelInstance.SetViewModelInstance(nestedModelPropertyName, differentNestedViewModelInstance);
 
             Assert.Greater(mockLogger.LoggedErrors.Count, 0,
                 $"An error should be logged when replacing with a different view model type");
@@ -1444,7 +1450,7 @@ namespace Rive.Tests
                 int callbackCount = 0;
 
                 // Add callback on the shared instance
-                sharedStringProp.OnValueChanged += () =>
+                sharedStringProp.OnValueChanged += (value) =>
                 {
                     callbackCount++;
                 };
@@ -1456,9 +1462,9 @@ namespace Rive.Tests
                 var initialSecondNestedViewModelInstance = secondViewModelInstance.GetProperty<ViewModelInstance>(nestedModelPropertyName);
                 var initialThirdNestedViewModelInstance = thirdViewModelInstance.GetProperty<ViewModelInstance>(nestedModelPropertyName);
 
-                firstViewModelInstance.ReplaceViewModelInstance(nestedModelPropertyName, sharedNestedViewModelInstance);
-                secondViewModelInstance.ReplaceViewModelInstance(nestedModelPropertyName, sharedNestedViewModelInstance);
-                thirdViewModelInstance.ReplaceViewModelInstance(nestedModelPropertyName, sharedNestedViewModelInstance);
+                firstViewModelInstance.SetViewModelInstance(nestedModelPropertyName, sharedNestedViewModelInstance);
+                secondViewModelInstance.SetViewModelInstance(nestedModelPropertyName, sharedNestedViewModelInstance);
+                thirdViewModelInstance.SetViewModelInstance(nestedModelPropertyName, sharedNestedViewModelInstance);
 
                 // Verify replacement worked
                 var firstNestedViewModelInstance = firstViewModelInstance.GetProperty<ViewModelInstance>(nestedModelPropertyName);
@@ -1639,15 +1645,42 @@ namespace Rive.Tests
                 Assert.GreaterOrEqual(testProps.Count, 2,
                     $"Need at least two properties to test multiple callbacks in {testAsset.addressableAssetPath}");
 
-                // Setup callbacks
+                // Setup callbacks using generic OnValueChanged<T>
                 for (int i = 0; i < testProps.Count; i++)
                 {
                     int index = i;
-                    testProps[i].Property.OnValueChanged += () =>
-                    {
-                        var current = testProps[index];
-                        testProps[index] = (current.Property, current.NewValue, current.CallbackCount + 1);
-                    };
+                    var prop = testProps[i].Property;
+
+                    if (prop is ViewModelInstanceStringProperty sp)
+                        sp.OnValueChanged += (string _) =>
+                        {
+                            var current = testProps[index];
+                            testProps[index] = (current.Property, current.NewValue, current.CallbackCount + 1);
+                        };
+                    else if (prop is ViewModelInstanceNumberProperty np)
+                        np.OnValueChanged += (float _) =>
+                        {
+                            var current = testProps[index];
+                            testProps[index] = (current.Property, current.NewValue, current.CallbackCount + 1);
+                        };
+                    else if (prop is ViewModelInstanceBooleanProperty bp)
+                        bp.OnValueChanged += (bool _) =>
+                        {
+                            var current = testProps[index];
+                            testProps[index] = (current.Property, current.NewValue, current.CallbackCount + 1);
+                        };
+                    else if (prop is ViewModelInstanceColorProperty cp)
+                        cp.OnValueChanged += (UnityEngine.Color _) =>
+                        {
+                            var current = testProps[index];
+                            testProps[index] = (current.Property, current.NewValue, current.CallbackCount + 1);
+                        };
+                    else if (prop is ViewModelInstanceEnumProperty ep)
+                        ep.OnValueChanged += (string _) =>
+                        {
+                            var current = testProps[index];
+                            testProps[index] = (current.Property, current.NewValue, current.CallbackCount + 1);
+                        };
                 }
 
                 // Change property values

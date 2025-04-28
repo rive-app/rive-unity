@@ -277,33 +277,27 @@ namespace Rive.Components
         /// </summary>
         protected virtual void OnTransformParentChanged()
         {
+            var currentParentPanel = GetComponentInParent<RivePanel>();
 
-            // Check that the RiveWidget is still a child of a RivePanel.
-            if (RivePanel == null || RivePanel != null && !this.transform.IsChildOf(RivePanel.transform))
+
+            // Unregister from the old panel if the widget is not a child of it anymore
+            // or if the widget is a child of a different panel now.
+            if (RivePanel != null && !ReferenceEquals(currentParentPanel, RivePanel))
             {
-                var parentPanel = GetComponentInParent<RivePanel>();
+                RivePanel.UnregisterWidgetFromRendering(this);
+            }
 
+            // Register with the new panel if there is one
+            if (currentParentPanel != null && !currentParentPanel.ContainsWidget(this))
+            {
+                currentParentPanel.RegisterWidgetForRendering(this);
 
-                if (RivePanel != null && !ReferenceEquals(parentPanel, RivePanel))
-                {
-                    RivePanel.UnregisterWidgetFromRendering(this);
-
-                }
-
-                // If the RiveWidget is a child of a RivePanel, add it to the panel.
-                if (parentPanel != null)
-                {
-
-                    parentPanel.RegisterWidgetForRendering(this);
-
-                    RivePanel = parentPanel;
-
-                }
-
+                RivePanel = currentParentPanel;
 
             }
 
             OnParentChanged?.Invoke();
+
         }
 
         /// <summary>

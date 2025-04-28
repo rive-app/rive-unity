@@ -8,7 +8,7 @@ namespace Rive
     /// <summary>
     /// A view model instance property that holds an enum.
     /// </summary>
-    public sealed class ViewModelInstanceEnumProperty : ViewModelInstancePrimitiveProperty
+    public sealed class ViewModelInstanceEnumProperty : ViewModelInstancePrimitiveProperty<string>
     {
         private string[] m_enumValues;
 
@@ -36,7 +36,7 @@ namespace Rive
         /// <summary>
         /// The current enum value of the property.
         /// </summary>
-        public string Value
+        public override string Value
         {
             get
             {

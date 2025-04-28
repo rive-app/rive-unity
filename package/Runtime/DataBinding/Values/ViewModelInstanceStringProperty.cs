@@ -6,7 +6,7 @@ namespace Rive
     /// <summary>
     /// A view model instance property that holds a string.
     /// </summary>
-    public sealed class ViewModelInstanceStringProperty : ViewModelInstancePrimitiveProperty
+    public sealed class ViewModelInstanceStringProperty : ViewModelInstancePrimitiveProperty<string>
     {
         [StructLayout(LayoutKind.Sequential)]
         private struct StringHashInfo
@@ -23,7 +23,7 @@ namespace Rive
         {
         }
 
-        public string Value
+        public override string Value
         {
             get
             {

@@ -6,18 +6,20 @@ namespace Rive
     /// <summary>
     /// A view model instance property that holds a number.
     /// </summary>
-    public sealed class ViewModelInstanceNumberProperty : ViewModelInstancePrimitiveProperty
+    public sealed class ViewModelInstanceNumberProperty : ViewModelInstancePrimitiveProperty<float>
     {
         internal ViewModelInstanceNumberProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance) : base(instanceValuePtr, rootInstance)
         {
         }
 
-
-
         /// <summary>
         /// The value of the property.
         /// </summary>
-        public float Value { get { return getViewModelInstanceNumberValue(InstancePropertyPtr); } set { setViewModelInstanceNumberValue(InstancePropertyPtr, value); } }
+        public override float Value
+        {
+            get => getViewModelInstanceNumberValue(InstancePropertyPtr);
+            set => setViewModelInstanceNumberValue(InstancePropertyPtr, value);
+        }
 
         [DllImport(NativeLibrary.name)]
         private static extern float getViewModelInstanceNumberValue(IntPtr instanceProperty);

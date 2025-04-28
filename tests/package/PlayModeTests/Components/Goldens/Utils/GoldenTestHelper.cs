@@ -158,7 +158,7 @@ namespace Rive.Tests.Utils
             return resized;
         }
 
-        public IEnumerator AssertWithTexture2D(string testId, Texture2D actual)
+        public IEnumerator AssertWithTexture2D(string testId, Texture2D actual, ImageComparisonSettings imageComparisonSettings = null)
         {
             if (m_isCapturingGolden)
             {
@@ -187,11 +187,15 @@ namespace Rive.Tests.Utils
             var rgba32Golden = ConvertToRGBA32(goldenImage);
             var rgba32Actual = ConvertToRGBA32(actual);
 
-            ImageComparisonSettings imageComparisonSettings = new ImageComparisonSettings
+            if (imageComparisonSettings == null)
             {
-                AverageCorrectnessThreshold = 0.0154115018f
+                imageComparisonSettings = new ImageComparisonSettings
+                {
+                    AverageCorrectnessThreshold = 0.0154115018f
 
-            };
+                };
+            }
+
 
 
             ImageAssert.AreEqual(rgba32Golden, rgba32Actual, saveFailedImage: true, settings: imageComparisonSettings);
@@ -207,7 +211,7 @@ namespace Rive.Tests.Utils
             }
         }
 
-        public IEnumerator AssertWithRenderTexture(string testId, RenderTexture renderTexture)
+        public IEnumerator AssertWithRenderTexture(string testId, RenderTexture renderTexture, ImageComparisonSettings imageComparisonSettings = null)
         {
             yield return LoadGoldenImageIfNeeded(testId);
 
@@ -255,7 +259,7 @@ namespace Rive.Tests.Utils
             texture2D.Apply();
             RenderTexture.active = prevRT;
 
-            yield return AssertWithTexture2D(testId, texture2D);
+            yield return AssertWithTexture2D(testId, texture2D, imageComparisonSettings);
 
             Object.Destroy(texture2D);
             Object.Destroy(tempRT);

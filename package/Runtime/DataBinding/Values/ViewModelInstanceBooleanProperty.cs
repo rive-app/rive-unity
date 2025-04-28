@@ -6,7 +6,7 @@ namespace Rive
     /// <summary>
     /// A view model instance property that holds a boolean.
     /// </summary>
-    public sealed class ViewModelInstanceBooleanProperty : ViewModelInstancePrimitiveProperty
+    public sealed class ViewModelInstanceBooleanProperty : ViewModelInstancePrimitiveProperty<bool>
     {
         internal ViewModelInstanceBooleanProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance) : base(instanceValuePtr, rootInstance)
         {
@@ -15,10 +15,10 @@ namespace Rive
         /// <summary> 
         /// The value of the property.
         /// </summary>
-        public bool Value
+        public override bool Value
         {
-            get { return getViewModelInstanceBooleanValue(InstancePropertyPtr); }
-            set { setViewModelInstanceBooleanValue(InstancePropertyPtr, value); }
+            get => getViewModelInstanceBooleanValue(InstancePropertyPtr);
+            set => setViewModelInstanceBooleanValue(InstancePropertyPtr, value);
         }
 
 

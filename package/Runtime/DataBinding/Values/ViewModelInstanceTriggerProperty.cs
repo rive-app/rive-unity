@@ -5,7 +5,7 @@ using Rive.Utils;
 namespace Rive
 {
     /// <summary>
-    /// A view model instance property that is a trigger.
+    /// A view model instance property for trigger properties.
     /// </summary>
     public sealed class ViewModelInstanceTriggerProperty : ViewModelInstancePrimitiveProperty
     {
@@ -14,7 +14,17 @@ namespace Rive
         }
 
         /// <summary>
-        /// Fires the trigger.
+        /// Raised when the trigger property is fired in the Rive graphic.
+        /// </summary>
+        public event Action OnTriggered
+        {
+            add => AddPropertyCallback(value, ref m_onTriggered);
+            remove => RemovePropertyCallback(value, ref m_onTriggered);
+        }
+        private Action m_onTriggered;
+
+        /// <summary>
+        /// Fires the trigger
         /// </summary>
         public void Trigger()
         {
@@ -29,5 +39,16 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         private static extern void fireViewModelInstanceTrigger(IntPtr instanceProperty);
+
+        internal override void RaiseChangedEvent()
+        {
+            m_onTriggered?.Invoke();
+        }
+
+        internal override void ClearAllCallbacks()
+        {
+            m_onTriggered = null;
+            base.ClearAllCallbacks();
+        }
     }
 }

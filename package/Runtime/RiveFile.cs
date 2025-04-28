@@ -347,7 +347,7 @@ namespace Rive
                 DebugLogger.Instance.LogError($"{LogCodes.ERROR_NO_ARTBOARD_FOUND}: - No Artboard found at index {index}. Could the Rive file you loaded be different from the one you are trying to access? Or is the index possibly out of bounds?");
                 return null;
             }
-            return new Artboard(ptr, GetDefaultViewModelForArtboard(ptr));
+            return new Artboard(ptr, this);
         }
 
 
@@ -365,7 +365,7 @@ namespace Rive
                 DebugLogger.Instance.LogError($"{LogCodes.ERROR_NO_ARTBOARD_FOUND}: - No Artboard named \"{name}\". It's possible the name is misspelled or the file does not contain the named artboard.");
                 return null;
             }
-            return new Artboard(ptr, GetDefaultViewModelForArtboard(ptr));
+            return new Artboard(ptr, this);
         }
 
 
@@ -477,7 +477,7 @@ namespace Rive
             return vmEnums;
         }
 
-        private ViewModel GetDefaultViewModelForArtboard(IntPtr artboardPtr)
+        internal ViewModel GetDefaultViewModelForArtboard(IntPtr artboardPtr)
         {
             IntPtr ptr = NativeFileInterface.getDefaultViewModelForArtboard(this.NativeFile, artboardPtr);
 

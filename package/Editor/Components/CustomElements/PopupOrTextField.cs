@@ -391,16 +391,25 @@ namespace Rive.EditorTools
 
         private void UpdateFromSerializedProperty()
         {
-            if (serializedObject == null || boundProperty == null || serializedObject.targetObject == null)
-            {
-                return;
-            }
-
             try
             {
+                if (serializedObject == null || boundProperty == null)
+                {
+                    UnbindProperty();
+                    return;
+                }
+
+                // Check if the serializedObject is still valid
+                if (serializedObject.targetObject == null)
+                {
+                    UnbindProperty();
+                    return;
+                }
+
                 serializedObject.Update();
 
-                if (boundProperty.serializedObject.targetObject == null)
+                // Double-check everything is still valid after the update
+                if (boundProperty == null || boundProperty.serializedObject == null || boundProperty.serializedObject.targetObject == null)
                 {
                     UnbindProperty();
                     return;

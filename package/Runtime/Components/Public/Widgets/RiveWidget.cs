@@ -191,6 +191,7 @@ namespace Rive.Components
         [SerializeField] private string m_viewModelInstanceName;
 
 
+        bool m_needsLayoutRecalculationFix = false;
 
 
         private ArtboardLoadHelper m_controller;
@@ -433,10 +434,16 @@ namespace Rive.Components
 
         private bool m_isDestroyed = false;
 
+
         protected override void OnEnable()
         {
             base.OnEnable();
 
+        }
+
+
+        private void Start()
+        {
             if (m_asset != null && Status == WidgetStatus.Uninitialized)
             {
                 LoadFromAssetIfNeeded();
@@ -446,14 +453,16 @@ namespace Rive.Components
 
         public override bool Tick(float deltaTime)
         {
+
             bool needsRedraw = base.Tick(deltaTime);
 
             if (Controller == null || Status != WidgetStatus.Loaded)
             {
                 return needsRedraw;
             }
-            Controller.Tick(deltaTime, ReportedEventPoolingMode, Speed);
 
+            ApplyLayoutRecalculationFixIfNeeded();// Do this before Controller.Tick because doing it after affects triggers on the first frame
+            Controller.Tick(deltaTime, ReportedEventPoolingMode, Speed);
             return needsRedraw;
 
         }
@@ -766,55 +775,6 @@ namespace Rive.Components
 
 
 
-        private void HandleDataBinding()
-        {
-
-            if (m_dataBindingMode == DataBindingMode.Manual)
-            {
-                return;
-            }
-
-            // If the artboard does not have a default view model, we cannot bind to it
-            // This might happen if the artboard doesn't use data binding
-            if (Artboard == null || Artboard.DefaultViewModel == null)
-            {
-                return;
-            }
-
-            ViewModelInstance viewModelInstance = null;
-            if (m_dataBindingMode == DataBindingMode.AutoBindDefault)
-            {
-                viewModelInstance = this.Artboard.DefaultViewModel.CreateDefaultInstance();
-
-                if (viewModelInstance == null)
-                {
-                    DebugLogger.Instance.LogWarning("No default ViewModel instance found for auto-binding.");
-                    return;
-                }
-
-            }
-            else if (m_dataBindingMode == DataBindingMode.AutoBindSelected)
-            {
-                if (string.IsNullOrEmpty(m_viewModelInstanceName))
-                {
-                    DebugLogger.Instance.LogError("No ViewModel instance name specified for auto-binding.");
-                    return;
-                }
-
-                viewModelInstance = this.Artboard.DefaultViewModel.CreateInstanceByName(m_viewModelInstanceName);
-
-                if (viewModelInstance == null)
-                {
-                    DebugLogger.Instance.LogError("Failed to get ViewModel instance with name: " + m_viewModelInstanceName);
-                    return;
-                }
-            }
-
-
-            StateMachine.BindViewModelInstance(viewModelInstance);
-        }
-
-
         private void OnScaleFactorChanged()
         {
             if (RenderObjectWithArtboard != null && Fit == Fit.Layout)
@@ -919,27 +879,39 @@ namespace Rive.Components
                     Artboard.Height = newHeight;
 
 
-                    if (StateMachine != null)
-                    {
-                        // Force the state machine to update the layout
-                        StateMachine.Advance(0f);
-
-                    }
-
                 }
 
 
             }
         }
 
+
         protected override void HandleLoadComplete()
         {
             ResizeArtboardForLayoutIfNeeded();
-            base.HandleLoadComplete();
+            TriggerWidgetLoadedEvent();
 
+            m_needsLayoutRecalculationFix = true;
         }
 
 
+        private void TriggerWidgetLoadedEvent()
+        {
+            base.HandleLoadComplete();
+        }
+
+        private void ApplyLayoutRecalculationFixIfNeeded()
+        {
+            // This is a workaround for a bug where the layout is not recalculated correctly when the widget is first loaded. This seems to only happen with some files, like duelist.riv where we see the initial layout shift if we don't do this.
+            // TODO: check if we need to do something in the C++ layer to fix this instead of doing it here.
+            if (m_needsLayoutRecalculationFix && StateMachine != null)
+            {
+                m_needsLayoutRecalculationFix = false;
+                // On the initial frame, force the state machine to update the layout. We do this after base.HandleLoadComplete(); because that's where the OnWidgetStatusChanged event is triggered, and we want values that were set there to be applied before we advance the state machine.
+                // If we do this before base.HandleLoadComplete(); the values set in the OnWidgetStatusChanged event will not be applied on the first frame.
+                StateMachine.Advance(0f);
+            }
+        }
 
         protected override void OnRectTransformDimensionsChange()
         {
