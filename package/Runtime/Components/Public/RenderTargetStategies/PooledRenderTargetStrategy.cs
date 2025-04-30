@@ -384,7 +384,8 @@ namespace Rive.Components
 
             if (!ReferenceEquals(renderer.RenderQueue.Texture, renderTexture))
             {
-                renderer.RenderQueue.UpdateTexture(renderTexture);
+                RenderPipelineHandler.SetRendererTexture(renderer, renderTexture);
+
             }
 
 

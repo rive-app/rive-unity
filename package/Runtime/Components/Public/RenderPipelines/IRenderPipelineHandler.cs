@@ -49,5 +49,13 @@ namespace Rive.Components
         /// <param name="height"> The new height of the render texture</param>
         /// <returns></returns>
         RenderTexture ResizeRenderTexture(RenderTexture renderTexture, int width, int height);
+
+        /// <summary>
+        /// Sets the render texture for the specified renderer. This tells the render pipeline handler to use the specified render texture for rendering.
+        /// </summary>
+        /// <param name="renderer"> The Rive renderer to set the render texture for</param>
+        /// <param name="renderTexture"> The render texture to set</param>
+        void SetRendererTexture(IRenderer renderer, RenderTexture renderTexture);
+
     }
 }

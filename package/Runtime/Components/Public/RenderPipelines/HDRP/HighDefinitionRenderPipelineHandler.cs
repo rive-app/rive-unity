@@ -211,6 +211,27 @@ namespace Rive.Components.HDRP
             return AllocateRenderTexture(width, height);
         }
 
+        public void SetRendererTexture(IRenderer renderer, RenderTexture renderTexture)
+        {
+            if (renderer == null)
+            {
+                DebugLogger.Instance.LogError("Cannot set texture on a null renderer.");
+                return;
+            }
+
+            Renderer riveRenderer = renderer as Renderer;
+
+            if (riveRenderer == null)
+            {
+                DebugLogger.Instance.LogError("Cannot set texture on a non-Rive renderer.");
+                return;
+            }
+
+            riveRenderer.RenderQueue.UpdateTexture(renderTexture);
+
+
+        }
+
         public bool IsRendererRegistered(IRenderer renderer)
         {
             return m_activeRenderPasses.Contains(renderer);

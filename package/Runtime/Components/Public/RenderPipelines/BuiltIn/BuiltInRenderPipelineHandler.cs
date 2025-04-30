@@ -210,7 +210,15 @@ namespace Rive.Components.BuiltIn
 
             renderer.AddToCommandBuffer(commandBuffer);
 
+           
+
+
             m_activeRenderCommandBuffers.Add(renderer, commandBuffer);
+
+             if (renderer is Renderer r && r.RenderQueue != null && r.RenderQueue.Texture != null)
+            {
+                InternalSetRenderTargetToCommandBufferIfNeeded(commandBuffer, r.RenderQueue.Texture);
+            }
 
             Camera cameraToUse = RenderCamera;
 
@@ -237,6 +245,47 @@ namespace Rive.Components.BuiltIn
             {
                 // If we already have a camera, add the new command buffer to it
                 AddCommandBufferToCamera(cameraToUse, commandBuffer);
+            }
+
+        }
+
+        public void SetRendererTexture(IRenderer renderer, RenderTexture renderTexture)
+        {
+            if (renderer == null)
+            {
+                DebugLogger.Instance.LogError("Cannot set texture on a null renderer.");
+                return;
+            }
+
+            Renderer riveRenderer = renderer as Renderer;
+
+            if (riveRenderer == null)
+            {
+                DebugLogger.Instance.LogError("Cannot set texture on a non-Rive renderer.");
+                return;
+            }
+
+
+            riveRenderer.RenderQueue.UpdateTexture(renderTexture);
+
+
+
+            if (m_activeRenderCommandBuffers.TryGetValue(renderer, out var commandBuffer))
+            {
+                InternalSetRenderTargetToCommandBufferIfNeeded(commandBuffer, renderTexture);
+            }
+        }
+
+        private void InternalSetRenderTargetToCommandBufferIfNeeded(CommandBuffer commandBuffer, RenderTexture renderTexture)
+        {
+            if (commandBuffer == null || renderTexture == null)
+            {
+                return;
+            }
+
+            if (TextureHelper.NeedsRenderTargetSetOnCommandBuffer())
+            {
+                commandBuffer.SetRenderTarget(renderTexture);
             }
 
         }

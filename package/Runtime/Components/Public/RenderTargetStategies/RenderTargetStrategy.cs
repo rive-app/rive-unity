@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Rive.Utils;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Rive.Components
 {
@@ -370,7 +371,7 @@ namespace Rive.Components
         internal static bool ProceduralDrawingRequiresRotationCorrection()
         {
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-        return TextureHelper.IsOpenGLPlatform() || TextureHelper.IsDirect3DPlatform();
+            return TextureHelper.IsOpenGLPlatform() || TextureHelper.IsDirect3DPlatform() || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Vulkan;
 #else
             return false;
 #endif

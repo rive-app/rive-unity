@@ -410,8 +410,11 @@ namespace Rive
 
         public RenderTexture Texture { get; private set; }
 
-        public RenderQueue(RenderTexture texture = null, bool clear = true)
+
+        private void Initialize(RenderTexture texture, bool clear)
         {
+            m_updateDelayedCallback = UpdateDelayedRenderTexture;
+
             Texture = texture;
             ValidateRenderTexture(texture, true);
             if (texture != null)
@@ -419,12 +422,23 @@ namespace Rive
                 texture.Create();
             }
             m_nativeRenderQueue = makeRenderQueue(
-                texture == null ? IntPtr.Zero : 
+                texture == null ? IntPtr.Zero :
                 GetNativeTexturePointer(texture),
                 (uint)(texture?.width ?? 0),
                 (uint)(texture?.height ?? 0),
                 clear
             );
+        }
+
+        public RenderQueue(RenderTexture texture = null, bool clear = true)
+        {
+            Initialize(texture, clear);
+        }
+
+        internal RenderQueue(RenderTexture texture, bool clear, MonoBehaviour coroutineHelper)
+        {
+            CoroutineHelper = coroutineHelper;
+            Initialize(texture, clear);
         }
 
         public Renderer Renderer()
@@ -482,21 +496,28 @@ namespace Rive
 
         
         static WaitForEndOfFrame s_waitForEndOfFrame = new WaitForEndOfFrame();
-        private static CoroutineRunner s_coroutineHelper;
-        
-        public delegate void CallbackEventHandler();
+        private CallbackEventHandler m_updateDelayedCallback;
+
+        private static MonoBehaviour s_coroutineHelper;
+
+        /// <summary>
+        /// Used to run coroutines for the render queue. Needs to be a dontdestroyonload object so that it can be used across scenes.
+        /// </summary>
+        internal MonoBehaviour CoroutineHelper { get { return s_coroutineHelper; } set { s_coroutineHelper = value; } }
+
+        private delegate void CallbackEventHandler();
         private static IEnumerator CallCallback(CallbackEventHandler callback)
         {
             yield return s_waitForEndOfFrame;
             callback();
         }
 
-        public static void EndOfFrame(CallbackEventHandler callback) 
+        private static void EndOfFrame(CallbackEventHandler callback) 
         {
             if (Application.isPlaying)
             {
                 if (s_coroutineHelper == null) {
-                    s_coroutineHelper = new GameObject("RenderQueue Coroutine Helper").AddComponent<CoroutineRunner>();;
+                    s_coroutineHelper = new GameObject("[Rive] RenderQueue Coroutine Helper").AddComponent<CoroutineRunner>();;
                     UnityEngine.Object.DontDestroyOnLoad(s_coroutineHelper.gameObject);
                 }
                 s_coroutineHelper.StartCoroutine(CallCallback(callback));
@@ -516,10 +537,7 @@ namespace Rive
                     if(pointer == IntPtr.Zero)
                     {
                          m_delayed = true;
-                         EndOfFrame(delegate() 
-                         {
-                            UpdateDelayedRenderTexture();
-                         });
+                         EndOfFrame(m_updateDelayedCallback);
                     }
                 }
                 return pointer;

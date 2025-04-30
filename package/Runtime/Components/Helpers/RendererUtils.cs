@@ -15,7 +15,7 @@ namespace Rive.Components.Utilities
         /// <returns> The created renderer. </returns>
         public static Renderer CreateRenderer()
         {
-            RenderQueue renderQueue = new RenderQueue(null, true);
+            RenderQueue renderQueue = new RenderQueue(null, true, RenderPipelineHelper.CurrentHandler as MonoBehaviour); // Use the current render pipeline handler as the coroutine helper since it already exists
 
             return renderQueue.Renderer();
         }
@@ -27,7 +27,7 @@ namespace Rive.Components.Utilities
         /// <returns> The created renderer. </returns>
         public static Renderer CreateRenderer(RenderTexture renderTexture)
         {
-            RenderQueue renderQueue = new RenderQueue(renderTexture, true);
+            RenderQueue renderQueue = new RenderQueue(renderTexture, true, RenderPipelineHelper.CurrentHandler as MonoBehaviour); // Use the current render pipeline handler as the coroutine helper since it already exists
 
             return renderQueue.Renderer();
         }

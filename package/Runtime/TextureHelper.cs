@@ -84,5 +84,16 @@ namespace Rive
             return ShouldFlipTexture();
         }
 
+        internal static bool NeedsRenderTargetSetOnCommandBuffer()
+        {
+            // Direct3D11 requires that we call SetRenderTarget on the command buffer. Otherwise, nothing will be rendered.
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
     }
 }

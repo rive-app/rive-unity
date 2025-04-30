@@ -149,7 +149,7 @@ namespace Rive.Components
                 {
                     m_renderTexture.Create();
                 }
-                m_renderer.RenderQueue.UpdateTexture(m_renderTexture);
+                RenderPipelineHandler.SetRendererTexture(m_renderer, m_renderTexture);
                 return true;
             }
 
@@ -161,14 +161,16 @@ namespace Rive.Components
                 {
                     m_renderTexture.Create();
                 }
-                m_renderer.RenderQueue.UpdateTexture(m_renderTexture);
+                RenderPipelineHandler.SetRendererTexture(m_renderer, m_renderTexture);
+
                 return true;
             }
 
             // If for some reason the renderer is not using the correct texture, update it
             if (m_renderer != null && !ReferenceEquals(m_renderer.RenderQueue.Texture, m_renderTexture))
             {
-                m_renderer.RenderQueue.UpdateTexture(m_renderTexture);
+                RenderPipelineHandler.SetRendererTexture(m_renderer, m_renderTexture);
+
             }
 
             return false;

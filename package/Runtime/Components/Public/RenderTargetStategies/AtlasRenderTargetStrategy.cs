@@ -204,7 +204,7 @@ namespace Rive.Components
                 }
             }
 
-            m_renderer.RenderQueue.UpdateTexture(m_atlasTexture);
+            RenderPipelineHandler.SetRendererTexture(m_renderer, m_atlasTexture);
         }
 
         private void RedrawAtlas()
