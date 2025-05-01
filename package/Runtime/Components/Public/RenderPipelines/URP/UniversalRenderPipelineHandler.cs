@@ -266,8 +266,6 @@ namespace Rive.Components.URP
             }
 
             riveRenderer.RenderQueue.UpdateTexture(renderTexture);
-
-          
         }
 
         public RenderTexture ResizeRenderTexture(RenderTexture renderTexture, int width, int height)

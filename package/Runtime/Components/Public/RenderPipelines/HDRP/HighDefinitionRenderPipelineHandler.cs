@@ -228,8 +228,6 @@ namespace Rive.Components.HDRP
             }
 
             riveRenderer.RenderQueue.UpdateTexture(renderTexture);
-
-
         }
 
         public bool IsRendererRegistered(IRenderer renderer)
