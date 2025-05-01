@@ -7,6 +7,10 @@
 
 A Unity runtime library for [Rive](https://rive.app). This is currently a **technical preview** for Mac and Windows installs of Unity. We're hoping to gather feedback about the API and feature-set as we expand platform support.
 
+## Unity Version Support
+
+The package supports Unity LTS versions from 2021 upwards (including Unity 6).
+
 ### Rendering support
 
 Currently supported platforms and backends include:
@@ -17,11 +21,13 @@ Currently supported platforms and backends include:
 - D3D11 on Windows
 - OpenGL on Windows
 - OpenGL on Android
+- Vulkan on Windows
+- Vulkan on Android
+- Vulkan on Linux (x86_64)
 
 Planned support for:
 
 - D3D12
-- Vulkan
 
 ### Feature support
 
