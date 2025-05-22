@@ -122,5 +122,17 @@ namespace Rive.Components
             return m_proceduralDrawing.HandlePointerUp(normalizedPointInRect, RectTransform.rect);
         }
 
+        public override bool OnPointerExit(Vector2 normalizedPointInRect)
+        {
+            base.OnPointerExit(normalizedPointInRect);
+
+            if (m_proceduralDrawing == null)
+            {
+                return false;
+            }
+
+            return m_proceduralDrawing.HandlePointerExit(normalizedPointInRect, RectTransform.rect);
+        }
+
     }
 }

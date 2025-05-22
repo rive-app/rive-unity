@@ -70,5 +70,19 @@ namespace Rive.Components
         /// <returns>Returns <c>true</c> if the pointer release hits an interactive element; otherwise, <c>false</c>.</returns>
         bool OnPointerUp(Vector2 normalizedPointInRect);
 
+        /// <summary>
+        /// Called when a pointer exits the widget.
+        /// </summary>
+        /// <param name="normalizedPointInRect"> The normalized point of the pointer exit in the widget's rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
+        /// <returns> Returns <c>true</c> if the pointer exit hits an interactive element; otherwise, <c>false</c>.</returns>
+        bool OnPointerExit(Vector2 normalizedPointInRect);
+
+        /// <summary>
+        /// Called when a pointer enters the widget.
+        /// </summary>
+        /// <param name="normalizedPointInRect"> The normalized point of the pointer enter in the widget's rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
+        /// <returns> Returns <c>true</c> if the pointer enter hits an interactive element; otherwise, <c>false</c>.</returns>
+        bool OnPointerEnter(Vector2 normalizedPointInRect);
+
     }
 }

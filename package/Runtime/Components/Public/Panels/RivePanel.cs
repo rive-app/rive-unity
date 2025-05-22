@@ -91,6 +91,10 @@ namespace Rive.Components
         private readonly Action<IRiveWidget, Vector2> m_pointerUpHandler = (widget, localPoint) => widget.OnPointerUp(localPoint);
         private readonly Action<IRiveWidget, Vector2> m_pointerMoveHandler = (widget, localPoint) => widget.OnPointerMove(localPoint);
 
+        private readonly Action<IRiveWidget, Vector2> m_pointerExitHandler = (widget, localPoint) => widget.OnPointerExit(localPoint);
+
+        private readonly Action<IRiveWidget, Vector2> m_pointerEnterHandler = (widget, localPoint) => widget.OnPointerEnter(localPoint);
+
 
         private static int DefaultEventHandlersPoolCapacity => 1;
 
@@ -885,6 +889,16 @@ namespace Rive.Components
             ProcessPointerEvent(normalizedPointInPanel, m_pointerMoveHandler);
         }
 
+        private void HandlePointerExit(Vector2 normalizedPointInPanel)
+        {
+            ProcessPointerEvent(normalizedPointInPanel, m_pointerExitHandler);
+        }
+
+        private void HandlePointerEnter(Vector2 normalizedPointInPanel)
+        {
+            ProcessPointerEvent(normalizedPointInPanel, m_pointerEnterHandler);
+        }
+
         private void ProcessPointerEvent(Vector2 normalizedPointInPanel, Action<IRiveWidget, Vector2> handler)
         {
             m_raycastResults.Clear();
@@ -901,11 +915,12 @@ namespace Rive.Components
 
                 Vector2 normalizedWidgetPoint;
 
-                if (PanelRaycaster.TryGetNormalizedPointInWidget(
-                    this, normalizedPointInPanel, widget, out normalizedWidgetPoint))
-                {
-                    handler(widget, normalizedWidgetPoint);
-                }
+                PanelRaycaster.TryGetNormalizedPointInWidget(
+                                    this, normalizedPointInPanel, widget, out normalizedWidgetPoint);
+
+
+                handler(widget, normalizedWidgetPoint);
+
             }
         }
 
@@ -920,6 +935,8 @@ namespace Rive.Components
             inputProvider.PointerPressed += HandlePointerDown;
             inputProvider.PointerReleased += HandlePointerUp;
             inputProvider.PointerMoved += HandlePointerMove;
+            inputProvider.PointerExited += HandlePointerExit;
+            inputProvider.PointerEntered += HandlePointerEnter;
 
             m_panelInputProviders.Add(inputProvider);
         }
@@ -934,6 +951,8 @@ namespace Rive.Components
             inputProvider.PointerPressed -= HandlePointerDown;
             inputProvider.PointerReleased -= HandlePointerUp;
             inputProvider.PointerMoved -= HandlePointerMove;
+            inputProvider.PointerExited -= HandlePointerExit;
+            inputProvider.PointerEntered -= HandlePointerEnter;
 
             m_panelInputProviders.Remove(inputProvider);
 

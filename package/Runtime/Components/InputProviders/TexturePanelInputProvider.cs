@@ -9,7 +9,7 @@ namespace Rive.Components
     /// <summary>
     /// Provides input to a RiveTextureRenderer and the RivePanel it displays.
     /// </summary>
-    internal class TexturePanelInputProvider : MonoBehaviour, IPanelInputProvider, IPointerDownHandler, IPointerUpHandler, IPointerMoveHandler
+    internal class TexturePanelInputProvider : MonoBehaviour, IPanelInputProvider, IPointerDownHandler, IPointerUpHandler, IPointerMoveHandler, IPointerExitHandler, IPointerEnterHandler
     {
 
 
@@ -17,11 +17,13 @@ namespace Rive.Components
         [SerializeField] private RiveTextureRenderer m_rivePanelTextureRenderer;
 
         private bool m_hasLoggedWrongColliderTypeError = false;
+        private Vector2 m_lastNormalizedLocalPointInPanel = Vector2.zero;
 
         public event Action<Vector2> PointerPressed;
         public event Action<Vector2> PointerReleased;
         public event Action<Vector2> PointerMoved;
-
+        public event Action<Vector2> PointerExited;
+        public event Action<Vector2> PointerEntered;
 
         private IRivePanel RivePanel
         {
@@ -123,7 +125,6 @@ namespace Rive.Components
             return true;
         }
 
-
         private void LogWrongColliderErrorIfNeeded()
         {
             if (!m_hasLoggedWrongColliderTypeError)
@@ -132,7 +133,6 @@ namespace Rive.Components
                 m_hasLoggedWrongColliderTypeError = true;
             }
         }
-
 
         private void ProcessEvent(PointerEventData eventData, Action<Vector2> pointerHandler)
         {
@@ -146,10 +146,21 @@ namespace Rive.Components
                 return;
             }
 
-            if (TryGetNormalizedLocalPointInPanel(eventData.pointerCurrentRaycast, out Vector2 normalizedLocalPointInPanel))
+            bool pointIsInPanel = TryGetNormalizedLocalPointInPanel(eventData.pointerCurrentRaycast, out Vector2 normalizedLocalPointInPanel);
+
+            if (pointIsInPanel)
             {
-                pointerHandler?.Invoke(normalizedLocalPointInPanel);
+                // Store the last known point in case we need to call the event with it later (like with OnPointerExit).
+                m_lastNormalizedLocalPointInPanel = normalizedLocalPointInPanel;
             }
+            else
+            {
+                // This would be the case with OnPointerExit, because the raycast wouldn't have anything to hit, so we call the event with the last known point.
+                normalizedLocalPointInPanel = m_lastNormalizedLocalPointInPanel;
+            }
+
+            pointerHandler?.Invoke(normalizedLocalPointInPanel);
+
         }
 
 
@@ -168,6 +179,15 @@ namespace Rive.Components
             ProcessEvent(eventData, PointerPressed);
         }
 
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            ProcessEvent(eventData, PointerExited);
+        }
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            ProcessEvent(eventData, PointerEntered);
+        }
 
         void OnValidate()
         {

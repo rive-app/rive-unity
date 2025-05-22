@@ -644,8 +644,43 @@ namespace Rive.Components
 
         }
 
+        public override bool OnPointerExit(Vector2 normalizedPointInRect)
+        {
+            if (StateMachine == null)
+            {
+                return false;
+            }
 
+            Vector2 rivePoint;
+            if (!TryGetRivePoint(normalizedPointInRect, out rivePoint))
+            {
+                return false;
+            }
+            HitResult hitResult = StateMachine.PointerExit(rivePoint);
 
+            return hitResult != HitResult.None;
+
+        }
+
+        public override bool OnPointerEnter(Vector2 normalizedPointInRect)
+        {
+            if (StateMachine == null)
+            {
+                return false;
+            }
+
+            Vector2 rivePoint;
+            if (!TryGetRivePoint(normalizedPointInRect, out rivePoint))
+            {
+                return false;
+            }
+
+            // There's no specific StateMachine.PointerEnter method, so we use PointerMove instead to inform rive of the current pointer position.
+            HitResult hitResult = StateMachine.PointerMove(rivePoint);
+
+            return hitResult != HitResult.None;
+
+        }
 
 
         /// <summary>

@@ -178,6 +178,14 @@ namespace Rive
         }
 
         /// <summary>
+        /// Exit the pointer at the given position
+        /// </summary>
+        public HitResult PointerExit(Vector2 position)
+        {
+            return (HitResult)pointerExitStateMachineWithHit(m_nativeStateMachine, position.x, position.y);
+        }
+
+        /// <summary>
         /// Performs a hit test at the given position
         /// </summary>
         /// <param name="position">The position to test in local coordinates</param>
@@ -284,6 +292,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern byte pointerUpStateMachineWithHit(IntPtr smi, float x, float y);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern byte pointerExitStateMachineWithHit(IntPtr smi, float x, float y);
 
         [DllImport(NativeLibrary.name)]
         internal static extern bool hitTestStateMachine(IntPtr stateMachine, float x, float y);

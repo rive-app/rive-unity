@@ -71,5 +71,19 @@ namespace Rive.Components
         /// </param>
         /// <returns> Returns <c>true</c> if the pointer move event was handled; otherwise, <c>false</c>. </returns>
         bool HandlePointerMove(Vector2 point, Rect rect);
+
+
+
+        /// <summary>
+        /// Responds to a pointer exit event within the procedural graphic in the given rect.
+        /// </summary>
+        /// <param name="point">
+        /// The normalized point of the pointer position in the rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.
+        /// </param>
+        /// <param name="rect">
+        /// The rectangle to reference for the pointer exit event.
+        /// </param>
+        /// <returns> Returns <c>true</c> if the pointer exit event was handled; otherwise, <c>false</c>. </returns>
+        bool HandlePointerExit(Vector2 point, Rect rect);
     }
 }

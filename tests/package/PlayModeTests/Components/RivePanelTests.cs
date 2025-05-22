@@ -549,10 +549,10 @@ namespace Rive.Tests
             m_mockInputProvider.SimulatePointerUp(testPoint);
             m_mockInputProvider.SimulatePointerMove(testPoint);
 
-            // The widget should not receive any pointer events, because the test point is outside the widget's bounds.
-            Assert.AreEqual(mockWidget.PointerDownCalledCount, 1);
-            Assert.AreEqual(mockWidget.PointerUpCalledCount, 1);
-            Assert.AreEqual(mockWidget.PointerMoveCalledCount, 1);
+            // The widget should still receive pointer events even if the test point is outside the widget's bounds to account for events that happen outside the widget like OnPointerExit
+            Assert.AreEqual(mockWidget.PointerDownCalledCount, 2);
+            Assert.AreEqual(mockWidget.PointerUpCalledCount, 2);
+            Assert.AreEqual(mockWidget.PointerMoveCalledCount, 2);
 
 
 
@@ -566,8 +566,8 @@ namespace Rive.Tests
 
             yield return null;
 
-            // The widget should now receive the pointer events.
-            expectedCount = 2;
+            // The widget should still receive the pointer events.
+            expectedCount = 3;
 
             Assert.AreEqual(mockWidget.PointerDownCalledCount, expectedCount);
             Assert.AreEqual(mockWidget.PointerUpCalledCount, expectedCount);
@@ -881,10 +881,14 @@ namespace Rive.Tests
         public event System.Action<Vector2> PointerPressed;
         public event System.Action<Vector2> PointerReleased;
         public event System.Action<Vector2> PointerMoved;
+        public event Action<Vector2> PointerExited;
+        public event Action<Vector2> PointerEntered;
 
         public void SimulatePointerDown(Vector2 point) => PointerPressed?.Invoke(point);
         public void SimulatePointerUp(Vector2 point) => PointerReleased?.Invoke(point);
         public void SimulatePointerMove(Vector2 point) => PointerMoved?.Invoke(point);
+        public void SimulatePointerExit(Vector2 point) => PointerExited?.Invoke(point);
+        public void SimulatePointerEnter(Vector2 point) => PointerEntered?.Invoke(point);
     }
 
 

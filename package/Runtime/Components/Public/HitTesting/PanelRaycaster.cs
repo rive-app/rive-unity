@@ -35,12 +35,11 @@ namespace Rive.Components
                     continue;
 
                 Vector2 normalizedWidgetPoint;
-                if (TryGetNormalizedPointInWidget(rivePanel, normalizedPointInPanel, widget, out normalizedWidgetPoint))
+                bool isWithinWidgetBounds = TryGetNormalizedPointInWidget(rivePanel, normalizedPointInPanel, widget, out normalizedWidgetPoint);
+
+                if (ProcessHitTestBehavior(widget, normalizedWidgetPoint, raycastResults, isWithinWidgetBounds))
                 {
-                    if (ProcessHitTestBehavior(widget, normalizedWidgetPoint, raycastResults))
-                    {
-                        return;
-                    }
+                    return;
                 }
 
 
@@ -55,20 +54,22 @@ namespace Rive.Components
         /// <param name="normalizedPointInWidgetRect"> The normalized point in the widget's rect to check for a hit. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner. </param>
         /// <param name="raycastResults"> The list to populate with hit widgets. </param>
         /// <returns> True if should should block other widgets from being hit, false otherwise. </returns>
-        private static bool ProcessHitTestBehavior(IRiveWidget widget, Vector2 normalizedPointInWidgetRect, List<IRiveWidget> raycastResults)
+        private static bool ProcessHitTestBehavior(IRiveWidget widget, Vector2 normalizedPointInWidgetRect, List<IRiveWidget> raycastResults, bool isWithinWidgetBounds)
         {
             switch (widget.HitTestBehavior)
             {
                 case HitTestBehavior.Opaque:
+
                     raycastResults.Add(widget);
-                    return true;
+                    // Block other widgets from being hit if the pointer is within the widget
+                    return isWithinWidgetBounds;
                 case HitTestBehavior.Translucent:
                     bool foundHit = widget.HitTest(normalizedPointInWidgetRect);
 
                     if (foundHit)
                     {
                         raycastResults.Add(widget);
-                        return true;
+                        return isWithinWidgetBounds;
                     }
                     break;
                 case HitTestBehavior.Transparent:
@@ -90,7 +91,7 @@ namespace Rive.Components
         /// <param name="normalizedPointInPanel"> The normalized local point in the panel.  The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
         /// <param name="widget"> The widget to get the normalized local point in. </param>
         /// <param name="normalizedWidgetPoint"> The normalized point in the widget's rect. </param>
-        /// <returns> True if the normalized local point was successfully retrieved, false otherwise. </returns>
+        /// <returns> True if the normalized local point is within the widget's bounds, false otherwise. </returns>
         public static bool TryGetNormalizedPointInWidget(IRivePanel rivePanel, Vector2 normalizedPointInPanel, IRiveWidget widget, out Vector2 normalizedWidgetPoint)
         {
             normalizedWidgetPoint = Vector2.zero;
@@ -112,12 +113,13 @@ namespace Rive.Components
 
             Vector3 widgetLocalPoint = widget.RectTransform.InverseTransformPoint(worldPoint);
 
+            normalizedWidgetPoint = new Vector2(
+                   (widgetLocalPoint.x - widget.RectTransform.rect.xMin) / widget.RectTransform.rect.width,
+                   (widgetLocalPoint.y - widget.RectTransform.rect.yMin) / widget.RectTransform.rect.height
+               );
+
             if (widget.RectTransform.rect.Contains(widgetLocalPoint))
             {
-                normalizedWidgetPoint = new Vector2(
-                    (widgetLocalPoint.x - widget.RectTransform.rect.xMin) / widget.RectTransform.rect.width,
-                    (widgetLocalPoint.y - widget.RectTransform.rect.yMin) / widget.RectTransform.rect.height
-                );
                 return true;
             }
 

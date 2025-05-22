@@ -9,7 +9,7 @@ namespace Rive.Components
     /// <summary>
     /// Provides input to a RiveCanvasRenderer and the RivePanel it displays.
     /// </summary>
-    internal class CanvasPanelInputProvider : MonoBehaviour, IPanelInputProvider, ICanvasRaycastFilter, IPointerDownHandler, IPointerUpHandler, IPointerMoveHandler
+    internal class CanvasPanelInputProvider : MonoBehaviour, IPanelInputProvider, ICanvasRaycastFilter, IPointerDownHandler, IPointerUpHandler, IPointerMoveHandler, IPointerExitHandler, IPointerEnterHandler
     {
 
         [HideInInspector]
@@ -34,6 +34,8 @@ namespace Rive.Components
         public event Action<Vector2> PointerPressed;
         public event Action<Vector2> PointerReleased;
         public event Action<Vector2> PointerMoved;
+        public event Action<Vector2> PointerExited;
+        public event Action<Vector2> PointerEntered;
 
         void OnValidate()
         {
@@ -75,11 +77,11 @@ namespace Rive.Components
                 return false;
             }
 
+
             normalizedLocalPointInFrame = Rect.PointToNormalized(rectTransform.rect, localPoint);
 
             return true;
         }
-
 
         // When used in a canvas, we don't want the panel raycast target to block raycasts if there are no widgets to hit so we filter out the raycasts in this case.
         // This allows the raycasts to pass through to regular canvas raycast targets outside of the panel.
@@ -143,6 +145,14 @@ namespace Rive.Components
             ProcessPointerEvent(eventData, PointerMoved);
         }
 
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            ProcessPointerEvent(eventData, PointerExited);
+        }
 
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            ProcessPointerEvent(eventData, PointerEntered);
+        }
     }
 }

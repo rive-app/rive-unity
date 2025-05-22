@@ -25,5 +25,18 @@ namespace Rive.Components
         /// where coordinates are in the range [0,1] with (0,0) at bottom-left and (1,1) at top-right.
         /// </summary>
         event Action<Vector2> PointerMoved;
+
+
+        /// <summary>
+        /// Event fired when a pointer exits the panel. The Vector2 parameter represents the normalized local point in the panel,
+        /// where coordinates are in the range [0,1] with (0,0) at bottom-left and (1,1) at top-right.
+        /// </summary>
+        event Action<Vector2> PointerExited;
+
+        /// <summary>
+        /// Event fired when a pointer enters the panel. The Vector2 parameter represents the normalized local point in the panel,
+        /// where coordinates are in the range [0,1] with (0,0) at bottom-left and (1,1) at top-right.
+        /// </summary>
+        event Action<Vector2> PointerEntered;
     }
 }

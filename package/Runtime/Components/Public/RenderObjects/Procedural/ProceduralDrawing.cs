@@ -35,5 +35,10 @@ namespace Rive.Components
         {
             return false;
         }
+
+        public bool HandlePointerExit(Vector2 point, Rect rect)
+        {
+            return false;
+        }
     }
 }
