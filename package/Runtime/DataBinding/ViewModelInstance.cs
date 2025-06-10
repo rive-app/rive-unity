@@ -39,7 +39,17 @@ namespace Rive
         private string m_viewModelName = null;
 
 
-        internal File RiveFile => m_riveFile?.TryGetTarget(out var file) == true ? file : null;
+        internal File RiveFile
+        {
+            get
+            {
+                if (m_riveFile != null && m_riveFile.TryGetTarget(out var file))
+                {
+                    return file;
+                }
+                return null;
+            }
+        }
 
         internal ViewModelInstanceSafeHandle NativeSafeHandle => m_safeHandle;
 
