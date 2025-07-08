@@ -603,6 +603,16 @@ namespace Rive
         }
 
         /// <summary>
+        /// Gets an image property of the view model instance.
+        /// </summary>
+        /// <param name="path">The path to the property.</param>
+        /// <returns>The image property, or null if the property doesn't exist or is not an image.</returns>
+        public ViewModelInstanceImageProperty GetImageProperty(string path)
+        {
+            return GetProperty<ViewModelInstanceImageProperty>(path);
+        }
+
+        /// <summary>
         /// Gets a nested view model instance property.
         /// </summary>
         /// <param name="path">The path to the property.</param>

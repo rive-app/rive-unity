@@ -971,6 +971,137 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator ImageProperty_CanBeSetAndTriggersCallback()
+        {
+
+            string testAssetPath = TestAssetReferences.riv_image_db_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+            var imageProp = viewModelInstance.GetProperty<ViewModelInstanceImageProperty>("image");
+            Assert.IsNotNull(imageProp, "Image property should exist");
+
+            // minimal test image bytes (1x1 PNG)
+            byte[] testImageBytes1 = new byte[] {
+                0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+                0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+                0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+                0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0x0F, 0x00, 0x00,
+                0x01, 0x00, 0x01, 0x5C, 0xC2, 0x8A, 0x8E, 0x00, 0x00, 0x00, 0x00, 0x49,
+                0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+            };
+
+            // different test image bytes (1x1 PNG with different color)
+            byte[] testImageBytes2 = new byte[] {
+                0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+                0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+                0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+                0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xFC, 0x0F, 0x00, 0x00,
+                0x01, 0x00, 0x01, 0x60, 0xC2, 0x8A, 0x8E, 0x00, 0x00, 0x00, 0x00, 0x49,
+                0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+            };
+
+            var testImage1 = OutOfBandAsset.Create<ImageOutOfBandAsset>(testImageBytes1);
+            var testImage2 = OutOfBandAsset.Create<ImageOutOfBandAsset>(testImageBytes2);
+
+            testImage1.Load();
+            testImage2.Load();
+
+            try
+            {
+
+                bool callbackTriggered = false;
+                ImageOutOfBandAsset receivedImage = null;
+
+                imageProp.OnValueChanged += (image) =>
+                {
+                    callbackTriggered = true;
+                    receivedImage = image;
+                };
+
+                // Test setting image
+                imageProp.SetImage(testImage1);
+                viewModelInstance.HandleCallbacks();
+
+                Assert.IsTrue(callbackTriggered, "Callback should be triggered when image is set");
+                Assert.AreSame(testImage1, receivedImage, "Callback should receive the correct image");
+
+                // Test setting different image
+                callbackTriggered = false;
+                receivedImage = null;
+
+                imageProp.SetImage(testImage2);
+                viewModelInstance.HandleCallbacks();
+
+                Assert.IsTrue(callbackTriggered, "Callback should be triggered when image is changed");
+                Assert.AreSame(testImage2, receivedImage, "Callback should receive the new image");
+
+                // Test setting null to clear image
+                callbackTriggered = false;
+
+                imageProp.SetImage(null);
+                viewModelInstance.HandleCallbacks();
+
+                Assert.IsTrue(callbackTriggered, "Callback should still be triggered when image is set to null");
+
+                Assert.IsNull(receivedImage, "Received image should be null when setting image to null");
+
+                Assert.IsFalse(mockLogger.LoggedErrors.Count > 0 || mockLogger.LoggedWarnings.Count > 0,
+                    "Should not log error when trying to set image to null");
+            }
+            finally
+            {
+                // Clean up
+                if (testImage1 != null) testImage1.Unload();
+                if (testImage2 != null) testImage2.Unload();
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ImageProperty_WithUnloadedAsset_LogsWarning()
+        {
+
+            string testAssetPath = TestAssetReferences.riv_image_db_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            var imageProp = viewModelInstance.GetProperty<ViewModelInstanceImageProperty>("image");
+            Assert.IsNotNull(imageProp, "Image property should exist");
+
+            var unloadedImage = ScriptableObject.CreateInstance<ImageOutOfBandAsset>();
+            // Don't load the image - it should have NativeAsset == IntPtr.Zero
+
+            mockLogger.Clear();
+            imageProp.SetImage(unloadedImage);
+
+            Assert.IsTrue(mockLogger.LoggedWarnings.Any(w => w.Contains("unloaded")),
+                "Should log warning when trying to set unloaded image asset");
+        }
+
+
+        [UnityTest]
         public IEnumerator PropertyCache_ReturnsSameInstance()
         {
             List<DataBindingTestAsset> testAssetsWithStringProperties = GetTestAssetInfo().Where(a =>

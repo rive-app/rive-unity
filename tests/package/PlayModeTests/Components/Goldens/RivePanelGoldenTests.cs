@@ -1249,6 +1249,196 @@ namespace Rive.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator RivePanel_Supports_ImageDataBinding()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+
+            // Spawn the panel
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            // Load the image data binding test rive file
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_image_db_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            // Load the test image assets
+            ImageOutOfBandAsset desertImageAsset = null;
+            ImageOutOfBandAsset forestImageAsset = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<ImageOutOfBandAsset>(
+                TestAssetReferences.imageasset_desert,
+                (asset) => desertImageAsset = asset,
+                () => Assert.Fail($"Failed to load desert image asset")
+            );
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<ImageOutOfBandAsset>(
+                TestAssetReferences.imageasset_forest,
+                (asset) => forestImageAsset = asset,
+                () => Assert.Fail($"Failed to load forest image asset")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.Fit = Fit.Contain;
+
+            try
+            {
+                // Decode the image assets
+                desertImageAsset.Load();
+                forestImageAsset.Load();
+
+                // <-- Case 1: Initial state with default/no image -->
+                File file1 = File.Load(riveAsset);
+                widget.Load(file1);
+                widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return new WaitForEndOfFrame();
+
+                // Test initial state (should show default or no image)
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_InitialState_NoImage",
+                    panel.RenderTexture
+                );
+
+                // <-- Case 2: Set desert image via data binding -->
+                var viewModelInstance = widget.StateMachine.ViewModelInstance;
+                Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+                var imageProp = viewModelInstance.GetProperty<ViewModelInstanceImageProperty>("image");
+                Assert.IsNotNull(imageProp, "Image property should exist");
+
+                imageProp.SetImage(desertImageAsset);
+                yield return new WaitForEndOfFrame();
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_DesertImage",
+                    panel.RenderTexture
+                );
+
+                // <-- Case 3: Change to forest image -->
+                imageProp.SetImage(forestImageAsset);
+                yield return new WaitForEndOfFrame();
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_ForestImage",
+                    panel.RenderTexture
+                );
+
+                // <-- Case 4: Set image to null -->
+                imageProp.SetImage(null);
+                yield return new WaitForEndOfFrame();
+
+                // It should show the initial state (no image)
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_InitialState_NoImage",
+                    panel.RenderTexture
+                );
+
+                file1?.Dispose();
+            }
+            finally
+            {
+                // Clean up
+                desertImageAsset?.Unload();
+                forestImageAsset?.Unload();
+                DestroyObj(panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RivePanel_ImageDataBinding_InitialFrameSetup()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            // Load assets
+            Asset riveAsset = null;
+            ImageOutOfBandAsset desertImageAsset = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                TestAssetReferences.riv_image_db_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load rive asset")
+            );
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<ImageOutOfBandAsset>(
+                TestAssetReferences.imageasset_desert,
+                (asset) => desertImageAsset = asset,
+                () => Assert.Fail($"Failed to load desert image asset")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.Fit = Fit.Contain;
+
+            try
+            {
+                // Decode the image asset
+                desertImageAsset.Load();
+
+                // Set up image on initial frame using OnWidgetStatusChanged
+                widget.OnWidgetStatusChanged += () =>
+                {
+                    if (widget.Status == WidgetStatus.Loaded)
+                    {
+                        var viewModelInstance = widget.StateMachine.ViewModelInstance;
+                        Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+                        var imageProp = viewModelInstance.GetProperty<ViewModelInstanceImageProperty>("image");
+                        Assert.IsNotNull(imageProp, "Image property should exist");
+
+                        imageProp.SetImage(desertImageAsset);
+                    }
+                };
+
+                File riveFile = File.Load(riveAsset);
+                widget.Load(riveFile);
+                widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return new WaitForEndOfFrame();
+
+                // Verify that setting image on initial frame works correctly
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_DesertImage",
+                    panel.RenderTexture
+                );
+
+                riveFile?.Dispose();
+            }
+            finally
+            {
+                desertImageAsset?.Unload();
+                DestroyObj(panel.gameObject);
+            }
+        }
+
+
         private void DestroyObj(UnityEngine.Object obj)
         {
             if (obj != null)

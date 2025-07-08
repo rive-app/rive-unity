@@ -31,7 +31,7 @@ namespace Rive
             public readonly nuint? EnumIndex { get; }
             public ViewModelInstance RootViewModelInstance { get; }
 
-            public PropertyGetterResult(IntPtr property, ViewModelInstance rootVmInstance, EnumTypeOption enumType, nuint? enumIndex = null)
+            public PropertyGetterResult(IntPtr property, ViewModelInstance rootVmInstance, EnumTypeOption enumType = EnumTypeOption.None, nuint? enumIndex = null)
             {
                 PropertyPtr = property;
                 EnumType = enumType;
@@ -67,7 +67,8 @@ namespace Rive
                 { typeof(ViewModelInstanceBooleanProperty), CreateBooleanPropertyHandler() },
                 { typeof(ViewModelInstanceNumberProperty), CreateNumberPropertyHandler() },
                 { typeof(ViewModelInstanceStringProperty), CreateStringPropertyHandler() },
-                { typeof(ViewModelInstanceColorProperty), CreateColorPropertyHandler() }
+                { typeof(ViewModelInstanceColorProperty), CreateColorPropertyHandler() },
+                { typeof(ViewModelInstanceImageProperty), CreateImagePropertyHandler() }
             };
         }
 
@@ -213,6 +214,22 @@ namespace Rive
             );
         }
 
+        /// <summary>
+        /// Creates a handler for image properties
+        /// </summary>
+        private static (PropertyGetter getter,
+            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateImagePropertyHandler()
+        {
+            return (
+                (instance, path, rootInstance) => new PropertyGetterResult(
+                    getViewModelInstanceImageProperty(instance.NativeSafeHandle, path),
+                    rootInstance),
+                (result) => new ViewModelInstanceImageProperty(
+                    result.PropertyPtr,
+                    result.RootViewModelInstance)
+            );
+        }
+
         #endregion
 
         #region Public Property Fetching API
@@ -344,6 +361,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         private static extern IntPtr getViewModelInstanceColorProperty(ViewModelInstanceSafeHandle instanceValue, string path);
+
+        [DllImport(NativeLibrary.name)]
+        private static extern IntPtr getViewModelInstanceImageProperty(ViewModelInstanceSafeHandle instanceValue, string path);
 
 
         [DllImport(NativeLibrary.name)]

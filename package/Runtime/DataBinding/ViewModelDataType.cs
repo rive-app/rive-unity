@@ -30,6 +30,10 @@ namespace Rive
         Trigger = 7,
 
         /// <summary>View Model.</summary>
-        ViewModel = 8
+        ViewModel = 8,
+
+        /// <summary>Image.</summary>
+        AssetImage = 11
+
     }
 }

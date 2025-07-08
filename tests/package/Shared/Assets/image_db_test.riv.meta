@@ -1,0 +1,10 @@
+fileFormatVersion: 2
+guid: a3de30862e44d4e2ba4e06b8b2413113
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: '{"oobReferences":[{"assetIdInRiv":86902,"assetGuid":""}]}'
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 043c4b240e8f94f828b8b81fa436f7f0, type: 3}
