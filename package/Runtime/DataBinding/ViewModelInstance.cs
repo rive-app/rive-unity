@@ -613,6 +613,16 @@ namespace Rive
         }
 
         /// <summary>
+        /// Gets a list property of the view model instance.
+        /// </summary>
+        /// <param name="path">The path to the property.</param>
+        /// <returns>The list property, or null if the property doesn't exist or is not a list.</returns>
+        public ViewModelInstanceListProperty GetListProperty(string path)
+        {
+            return GetProperty<ViewModelInstanceListProperty>(path);
+        }
+
+        /// <summary>
         /// Gets a nested view model instance property.
         /// </summary>
         /// <param name="path">The path to the property.</param>
@@ -622,7 +632,6 @@ namespace Rive
             return GetProperty<ViewModelInstance>(path);
         }
         #endregion
-
 
         private void Dispose(bool disposing)
         {
@@ -757,6 +766,6 @@ namespace Rive
         private static extern void unrefViewModelInstance(IntPtr instancePtr);
 
         [DllImport(NativeLibrary.name)]
-        private static extern void incrementViewModelInstanceReference(IntPtr instancePtr);
+        internal static extern void incrementViewModelInstanceReference(IntPtr instancePtr);
     }
 }

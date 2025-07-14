@@ -39,6 +39,8 @@ namespace Rive.Tests.Utils
 
                 public const string riv_image_db_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/image_db_test.riv";
 
+                public const string riv_db_list_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/db_list_test.riv";
+
                 public const string textasset_roboDude = "Packages/app.rive.rive-unity.tests/Shared/Assets/robo_dude.bytes";
 
                 public const string imageasset_dog1_asset_swapping = "Packages/app.rive.rive-unity.tests/Shared/Assets/dog-1-asset-swapping.jpg";

@@ -15,6 +15,14 @@ namespace Rive
         {
         }
 
+        /// <summary>
+        /// Sets the image asset for the property.
+        /// </summary>
+        /// <param name="imageAsset"> The image asset to set. </param>
+        public ImageOutOfBandAsset Value
+        {
+            set => SetImage(value);
+        }
 
         /// <summary>
         /// Raised when the image property is changed in the Rive graphic.
@@ -30,7 +38,7 @@ namespace Rive
         /// Sets the image asset for the property.
         /// </summary>
         /// <param name="imageAsset"> The image asset to set. </param>
-        public void SetImage(ImageOutOfBandAsset imageAsset)
+        private void SetImage(ImageOutOfBandAsset imageAsset)
         {
 
             if (imageAsset != null && imageAsset.NativeAsset == IntPtr.Zero)

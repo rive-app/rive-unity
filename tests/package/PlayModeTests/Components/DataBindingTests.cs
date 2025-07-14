@@ -1032,7 +1032,7 @@ namespace Rive.Tests
                 };
 
                 // Test setting image
-                imageProp.SetImage(testImage1);
+                imageProp.Value = testImage1;
                 viewModelInstance.HandleCallbacks();
 
                 Assert.IsTrue(callbackTriggered, "Callback should be triggered when image is set");
@@ -1042,7 +1042,7 @@ namespace Rive.Tests
                 callbackTriggered = false;
                 receivedImage = null;
 
-                imageProp.SetImage(testImage2);
+                imageProp.Value = testImage2;
                 viewModelInstance.HandleCallbacks();
 
                 Assert.IsTrue(callbackTriggered, "Callback should be triggered when image is changed");
@@ -1051,7 +1051,7 @@ namespace Rive.Tests
                 // Test setting null to clear image
                 callbackTriggered = false;
 
-                imageProp.SetImage(null);
+                imageProp.Value = null;
                 viewModelInstance.HandleCallbacks();
 
                 Assert.IsTrue(callbackTriggered, "Callback should still be triggered when image is set to null");
@@ -1094,12 +1094,623 @@ namespace Rive.Tests
             // Don't load the image - it should have NativeAsset == IntPtr.Zero
 
             mockLogger.Clear();
-            imageProp.SetImage(unloadedImage);
+            imageProp.Value = unloadedImage;
 
             Assert.IsTrue(mockLogger.LoggedWarnings.Any(w => w.Contains("unloaded")),
                 "Should log warning when trying to set unloaded image asset");
         }
 
+
+        [UnityTest]
+        public IEnumerator ListProperty_CanBeAccessedAndHasCorrectLength()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+            var listProperty = viewModelInstance.GetListProperty("items");
+
+            if (listProperty != null)
+            {
+                Assert.IsNotNull(listProperty, "List property should exist");
+                Assert.GreaterOrEqual(listProperty.Count, 0, "List length should be non-negative");
+
+                var listPropertyViaGeneric = viewModelInstance.GetProperty<ViewModelInstanceListProperty>("items");
+                Assert.AreSame(listProperty, listPropertyViaGeneric, "Both methods should return same instance");
+            }
+            else
+            {
+                Assert.Fail("No list property found in test asset");
+            }
+        }
+
+
+        [UnityTest]
+        public IEnumerator ListProperty_CanAddAndRemoveInstances()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            var listProperty = viewModelInstance.GetListProperty("items");
+
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            // Get the view model type for list items
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            int initialLength = listProperty.Count;
+
+            // Create and add a new instance
+            var newInstance = itemViewModel.CreateInstance();
+            Assert.IsNotNull(newInstance, "Should be able to create new instance");
+
+            listProperty.Add(newInstance);
+            Assert.AreEqual(initialLength + 1, listProperty.Count, "Length should increase after adding instance");
+
+            // Verify we can get the added instance
+            var retrievedInstance = listProperty.GetInstanceAt(listProperty.Count - 1);
+            Assert.IsNotNull(retrievedInstance, "Should be able to retrieve added instance");
+
+            // Test that it is the same instance we added
+            Assert.AreSame(newInstance, retrievedInstance, "Retrieved instance should be the same as added instance");
+
+            // Remove the instance
+            listProperty.Remove(newInstance);
+            Assert.AreEqual(initialLength, listProperty.Count, "Length should return to original after removing instance");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_RemoveMethod_RemovesEveryOccurenceOfInstance()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
+            if (viewModelInstance == null)
+            {
+                Assert.Fail("Failed to create view model instance from default artboard");
+                yield break;
+            }
+
+            m_widget.StateMachine.BindViewModelInstance(viewModelInstance);
+
+            var listProperty = viewModelInstance.GetListProperty("items");
+
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            var instance1 = itemViewModel.CreateInstance();
+
+            listProperty.Add(instance1);
+            listProperty.Add(instance1);
+
+            Assert.AreEqual(2, listProperty.Count, "Length should be 2 after adding instances");
+
+            listProperty.Remove(instance1);
+            Assert.AreEqual(0, listProperty.Count, "Length should be 0 after removing instance");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_CanInsertInstanceAtIndex()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+
+            var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
+            if (viewModelInstance == null)
+            {
+                Assert.Fail("Failed to create view model instance from default artboard");
+                yield break;
+            }
+
+            m_widget.StateMachine.BindViewModelInstance(viewModelInstance);
+
+            var listProperty = viewModelInstance.GetListProperty("items");
+
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            // Get the view model type for list items
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            Assert.AreEqual(0, listProperty.Count, "List should start empty");
+
+            var instance1 = itemViewModel.CreateInstance();
+            var instance2 = itemViewModel.CreateInstance();
+            var instance3 = itemViewModel.CreateInstance();
+
+            Assert.IsNotNull(instance1, "Should be able to create first instance");
+            Assert.IsNotNull(instance2, "Should be able to create second instance");
+            Assert.IsNotNull(instance3, "Should be able to create third instance");
+
+            // Add first two instances
+            listProperty.Add(instance1);
+            listProperty.Add(instance2);
+
+            int initialLength = listProperty.Count;
+            Assert.AreEqual(2, initialLength, "Should have 2 items after adding");
+
+            // Insert at the beginning
+            listProperty.Insert(instance3, 0);
+            Assert.AreEqual(initialLength + 1, listProperty.Count, "Length should increase after inserting instance");
+
+            // Verify the inserted instance is at the correct position
+            var retrievedInstance = listProperty.GetInstanceAt(0);
+            Assert.IsNotNull(retrievedInstance, "Should be able to retrieve inserted instance");
+            Assert.AreSame(instance3, retrievedInstance, "Retrieved instance should be the same as inserted instance");
+
+            // Verify the other instances shifted correctly
+            Assert.AreSame(instance1, listProperty.GetInstanceAt(1), "First instance should now be at index 1");
+            Assert.AreSame(instance2, listProperty.GetInstanceAt(2), "Second instance should now be at index 2");
+
+            // Test inserting at an invalid index
+            mockLogger.Clear();
+            listProperty.Insert(itemViewModel.CreateInstance(), -1);
+            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0 || mockLogger.LoggedErrors.Count > 0, "Should log warning when inserting at negative index");
+            Assert.AreEqual(initialLength + 1, listProperty.Count, "Length should not change after failed insert");
+
+            // Test inserting at the end
+            var instance4 = itemViewModel.CreateInstance();
+            listProperty.Insert(instance4, listProperty.Count);
+            Assert.AreEqual(initialLength + 2, listProperty.Count, "Length should increase after inserting at end");
+            Assert.AreSame(instance4, listProperty.GetInstanceAt(listProperty.Count - 1), "Instance should be at the end");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_CanRemoveInstanceByIndex()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            var listProperty = viewModelInstance.GetListProperty("items");
+
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            var instance1 = itemViewModel.CreateInstance();
+            var instance2 = itemViewModel.CreateInstance();
+
+            listProperty.Add(instance1);
+            listProperty.Add(instance2);
+
+            int lengthAfterAdding = listProperty.Count;
+            Assert.GreaterOrEqual(lengthAfterAdding, 2, "Should have at least 2 items after adding");
+
+            // Remove by index
+            listProperty.RemoveAt(lengthAfterAdding - 1);
+            Assert.AreEqual(lengthAfterAdding - 1, listProperty.Count, "Length should decrease after removing by index");
+
+            // Test bounds checking
+            mockLogger.Clear();
+            listProperty.RemoveAt(-1);
+            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for negative index");
+
+            mockLogger.Clear();
+            listProperty.RemoveAt(listProperty.Count);
+            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for out of bounds index");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_CanSwapInstances()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            var listProperty = viewModelInstance.GetListProperty("items");
+
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            var instance1 = itemViewModel.CreateInstance();
+            var instance2 = itemViewModel.CreateInstance();
+
+            // We're setting different values to distinguish them
+            var textProp1 = instance1.GetStringProperty("text");
+            var textProp2 = instance2.GetStringProperty("text");
+
+            if (textProp1 != null && textProp2 != null)
+            {
+                textProp1.Value = "First Item";
+                textProp2.Value = "Second Item";
+            }
+
+            listProperty.Add(instance1);
+            listProperty.Add(instance2);
+
+            if (listProperty.Count >= 2)
+            {
+                // Get instances before swap
+                var beforeSwapFirst = listProperty.GetInstanceAt(0);
+                var beforeSwapSecond = listProperty.GetInstanceAt(1);
+
+                // Swap instances
+                listProperty.Swap(0, 1);
+
+                // Verify swap occurred
+                var afterSwapFirst = listProperty.GetInstanceAt(0);
+                var afterSwapSecond = listProperty.GetInstanceAt(1);
+
+                Assert.AreSame(beforeSwapFirst, afterSwapSecond, "First instance should now be at second position");
+                Assert.AreSame(beforeSwapSecond, afterSwapFirst, "Second instance should now be at first position");
+            }
+
+            mockLogger.Clear();
+            listProperty.Swap(0, 0);
+            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning when swapping same index");
+
+            mockLogger.Clear();
+            listProperty.Swap(-1, 0);
+            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for negative index");
+
+            mockLogger.Clear();
+            listProperty.Swap(0, listProperty.Count);
+            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for out of bounds index");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_GetInstanceAt_HandlesInvalidIndices()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            var listProperty = viewModelInstance.GetListProperty("items");
+
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            // Test negative index
+            mockLogger.Clear();
+            var negativeResult = listProperty.GetInstanceAt(-1);
+            Assert.IsNull(negativeResult, "Should return null for negative index");
+            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for negative index");
+
+            // Test out of bounds index
+            mockLogger.Clear();
+            var outOfBoundsResult = listProperty.GetInstanceAt(listProperty.Count);
+            Assert.IsNull(outOfBoundsResult, "Should return null for out of bounds index");
+            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for out of bounds index");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_OnChanged_TriggersWhenListModified()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            var listProperty = boundViewModelInstance.GetListProperty("items");
+
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            int changeCallbackCount = 0;
+            listProperty.OnChanged += () => changeCallbackCount++;
+
+            // Test adding instance triggers callback
+            var newInstance = itemViewModel.CreateInstance();
+            listProperty.Add(newInstance);
+            boundViewModelInstance.HandleCallbacks();
+
+            Assert.AreEqual(1, changeCallbackCount, "OnChanged should be triggered when adding instance");
+
+            // Test removing instance triggers callback
+            listProperty.Remove(newInstance);
+            boundViewModelInstance.HandleCallbacks();
+
+            Assert.AreEqual(2, changeCallbackCount, "OnChanged should be triggered when removing instance");
+
+            // Test removing by index triggers callback
+            if (listProperty.Count > 0)
+            {
+                listProperty.RemoveAt(0);
+                boundViewModelInstance.HandleCallbacks();
+
+                Assert.AreEqual(3, changeCallbackCount, "OnChanged should be triggered when removing by index");
+            }
+
+            // Test swapping triggers callback
+            if (listProperty.Count >= 2)
+            {
+                listProperty.Swap(0, 1);
+                boundViewModelInstance.HandleCallbacks();
+
+                Assert.AreEqual(4, changeCallbackCount, "OnChanged should be triggered when swapping instances");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_InstancePropertyCallbacks_TriggeredAfterAddingToList()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            var listProperty = boundViewModelInstance.GetListProperty("items");
+
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            var newInstance = itemViewModel.CreateInstance();
+            Assert.IsNotNull(newInstance, "Should be able to create new instance");
+
+            // Get a property from the instance to test callbacks
+            var textProperty = newInstance.GetStringProperty("text");
+            if (textProperty == null)
+            {
+                Assert.Fail("No text property found in item view model for callback testing");
+                yield break;
+            }
+
+            int callbackCount = 0;
+            string lastCallbackValue = null;
+
+            textProperty.OnValueChanged += (value) =>
+            {
+                callbackCount++;
+                lastCallbackValue = value;
+            };
+
+            // Set initial value before adding to list
+            string initialValue = "Initial Value";
+            textProperty.Value = initialValue;
+
+            // Process callbacks for the standalone instance
+            newInstance.HandleCallbacks();
+
+            Assert.AreEqual(1, callbackCount, "Callback should be triggered for standalone instance");
+            Assert.AreEqual(initialValue, lastCallbackValue, "Callback should receive correct initial value");
+
+            // Add the instance to the list
+            listProperty.Add(newInstance);
+
+            Assert.AreEqual(newInstance, listProperty.GetInstanceAt(listProperty.Count - 1),
+                "Instance should be retrievable from list");
+
+            // Reset callback tracking
+            callbackCount = 0;
+            lastCallbackValue = null;
+
+            // Change the property value after adding to list
+            string updatedValue = "Updated Value After Adding To List";
+            textProperty.Value = updatedValue;
+
+            // Process callbacks - this should work for instances in the list
+            boundViewModelInstance.HandleCallbacks();
+
+            Assert.AreEqual(1, callbackCount,
+                "Callback should be triggered for instance property after adding to list");
+            Assert.AreEqual(updatedValue, lastCallbackValue,
+                "Callback should receive correct updated value");
+
+            // Test that we can also access the property through the list and get the same callback behavior
+            var retrievedInstance = listProperty.GetInstanceAt(listProperty.Count - 1);
+            var retrievedTextProperty = retrievedInstance.GetStringProperty("text");
+
+            Assert.AreSame(textProperty, retrievedTextProperty,
+                "Property retrieved from list instance should be the same object");
+
+            // Reset callback tracking again
+            callbackCount = 0;
+            lastCallbackValue = null;
+
+            // Change value through the retrieved property
+            string finalValue = "Final Value Through Retrieved Property";
+            retrievedTextProperty.Value = finalValue;
+
+            // Process callbacks through the retrieved instance
+            boundViewModelInstance.HandleCallbacks();
+
+            Assert.AreEqual(1, callbackCount,
+                "Callback should be triggered when changing property through retrieved instance");
+            Assert.AreEqual(finalValue, lastCallbackValue,
+                "Callback should receive correct final value");
+
+            // Verify both property references show the same value
+            Assert.AreEqual(finalValue, textProperty.Value,
+                "Original property reference should show updated value");
+            Assert.AreEqual(finalValue, retrievedTextProperty.Value,
+                "Retrieved property reference should show updated value");
+
+
+            // Reset callback tracking again
+            callbackCount = 0;
+            lastCallbackValue = null;
+
+            // Remove the instance from the list with removeInstance and verify that callbacks are not triggered
+            listProperty.Remove(newInstance);
+
+            boundViewModelInstance.HandleCallbacks();
+            Assert.AreEqual(0, callbackCount,
+                "Callback should not be triggered when removing instance from list");
+
+            // Add the instance back to the list and then remove it by index
+            listProperty.Add(newInstance);
+            Assert.AreEqual(newInstance, listProperty.GetInstanceAt(listProperty.Count - 1),
+                "Instance should be retrievable from list after re-adding");
+
+            // Reset callback tracking again
+            callbackCount = 0;
+            lastCallbackValue = null;
+
+            // Remove by index
+            listProperty.RemoveAt(listProperty.Count - 1);
+
+            boundViewModelInstance.HandleCallbacks();
+
+            Assert.AreEqual(0, callbackCount,
+                "Callback should not be triggered when removing instance by index");
+
+        }
 
         [UnityTest]
         public IEnumerator PropertyCache_ReturnsSameInstance()

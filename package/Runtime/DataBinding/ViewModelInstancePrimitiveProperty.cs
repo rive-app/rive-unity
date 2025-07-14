@@ -14,6 +14,11 @@ namespace Rive
         internal IntPtr InstancePropertyPtr => m_instanceValuePropertyPtr;
 
         /// <summary>
+        /// The instance this property belongs to.
+        /// </summary>
+        internal ViewModelInstance RootInstance => m_instance;
+
+        /// <summary>
         /// Whether the value has changed since the last time it was read.
         /// </summary>
         internal bool HasChanged => viewModelInstancePropertyValueHasChanged(m_instanceValuePropertyPtr);

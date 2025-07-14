@@ -1322,7 +1322,7 @@ namespace Rive.Tests
                 var imageProp = viewModelInstance.GetProperty<ViewModelInstanceImageProperty>("image");
                 Assert.IsNotNull(imageProp, "Image property should exist");
 
-                imageProp.SetImage(desertImageAsset);
+                imageProp.Value = desertImageAsset;
                 yield return new WaitForEndOfFrame();
 
                 yield return m_goldenHelper.AssertWithRenderTexture(
@@ -1331,7 +1331,7 @@ namespace Rive.Tests
                 );
 
                 // <-- Case 3: Change to forest image -->
-                imageProp.SetImage(forestImageAsset);
+                imageProp.Value = forestImageAsset;
                 yield return new WaitForEndOfFrame();
 
                 yield return m_goldenHelper.AssertWithRenderTexture(
@@ -1340,7 +1340,7 @@ namespace Rive.Tests
                 );
 
                 // <-- Case 4: Set image to null -->
-                imageProp.SetImage(null);
+                imageProp.Value = null;
                 yield return new WaitForEndOfFrame();
 
                 // It should show the initial state (no image)
@@ -1412,7 +1412,7 @@ namespace Rive.Tests
                         var imageProp = viewModelInstance.GetProperty<ViewModelInstanceImageProperty>("image");
                         Assert.IsNotNull(imageProp, "Image property should exist");
 
-                        imageProp.SetImage(desertImageAsset);
+                        imageProp.Value = desertImageAsset;
                     }
                 };
 
@@ -1438,6 +1438,311 @@ namespace Rive.Tests
             }
         }
 
+
+        [UnityTest]
+        public IEnumerator DataBinding_ListProperty_InitialState_ShowsExpectedVisuals()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 800));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            // Load the test rive file with list data binding
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_db_list_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            File riveFile = File.Load(riveAsset);
+            widget.Load(riveFile);
+            widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+
+            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+            yield return new WaitForEndOfFrame();
+
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanel_DataBinding_ListProperty_InitialState",
+                panel.RenderTexture
+            );
+
+            DestroyObj(panel.gameObject);
+            riveFile?.Dispose();
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator DataBinding_ListProperty_AddItems_ShowsExpectedVisuals()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 800));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_db_list_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.BindingMode = RiveWidget.DataBindingMode.Manual;
+            File riveFile = File.Load(riveAsset);
+
+            widget.OnWidgetStatusChanged += () =>
+            {
+                if (widget.Status == WidgetStatus.Loaded)
+                {
+                    var viewModel = widget.Artboard.DefaultViewModel;
+                    var viewModelInstance = viewModel.CreateInstance();
+                    widget.StateMachine.BindViewModelInstance(viewModelInstance);
+                    Assert.IsNotNull(viewModelInstance, "Expected viewModelInstance to be set");
+
+                    var listProperty = viewModelInstance.GetListProperty("items");
+                    Assert.IsNotNull(listProperty, "Expected list property to exist");
+
+                    var itemViewModel = widget.File.GetViewModelByName("TodoItem");
+                    Assert.IsNotNull(itemViewModel, "Expected TodoItem view model to exist");
+
+                    var items = new[] { "Buy groceries", "Walk the dog", "Read a book", "Call friends" };
+
+                    foreach (var itemText in items)
+                    {
+                        var newInstance = itemViewModel.CreateInstance();
+                        var textProperty = newInstance.GetStringProperty("text");
+                        if (textProperty != null)
+                        {
+                            textProperty.Value = itemText;
+                        }
+                        listProperty.Add(newInstance);
+                    }
+                }
+            };
+
+            widget.Load(riveFile);
+
+            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+            yield return new WaitForEndOfFrame();
+
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanel_DataBinding_ListProperty_AddItems",
+                panel.RenderTexture
+            );
+
+            DestroyObj(panel.gameObject);
+            riveFile?.Dispose();
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator DataBinding_ListProperty_ModifyItemProperties_ShowsExpectedVisuals()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 800));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_db_list_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.BindingMode = RiveWidget.DataBindingMode.Manual;
+
+            File riveFile = File.Load(riveAsset);
+
+            widget.OnWidgetStatusChanged += () =>
+            {
+                if (widget.Status == WidgetStatus.Loaded)
+                {
+                    var viewModel = widget.Artboard.DefaultViewModel;
+                    var viewModelInstance = viewModel.CreateInstance();
+                    widget.StateMachine.BindViewModelInstance(viewModelInstance);
+
+                    var listProperty = viewModelInstance.GetListProperty("items");
+
+                    // Clear existing items if any
+                    if (listProperty != null && listProperty.Count > 0)
+                    {
+                        for (int i = listProperty.Count - 1; i >= 0; i--)
+                        {
+                            var instance = listProperty.GetInstanceAt(i);
+                            if (instance != null)
+                            {
+                                listProperty.Remove(instance);
+                            }
+                        }
+                    }
+
+                    var itemViewModel = widget.File.GetViewModelByName("TodoItem");
+
+                    var items = new[] { "Task 1", "Task 2", "Task 3" };
+
+                    foreach (var itemText in items)
+                    {
+                        var newInstance = itemViewModel.CreateInstance();
+                        var textProperty = newInstance.GetStringProperty("text");
+                        if (textProperty != null)
+                        {
+                            textProperty.Value = itemText;
+                        }
+
+                        var completedProperty = newInstance.GetBooleanProperty("isDone");
+                        if (completedProperty != null)
+                        {
+                            completedProperty.Value = itemText == "Task 2"; // Mark second task as completed
+                        }
+
+                        listProperty.Add(newInstance);
+                    }
+
+                    // Modify the first item's text after adding to list
+                    if (listProperty.Count > 0)
+                    {
+                        var firstInstance = listProperty.GetInstanceAt(0);
+                        var firstTextProperty = firstInstance.GetStringProperty("text");
+                        if (firstTextProperty != null)
+                        {
+                            firstTextProperty.Value = "Modified Task 1";
+                        }
+                    }
+                }
+            };
+
+            widget.Load(riveFile);
+
+            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+            yield return new WaitForEndOfFrame();
+
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanel_DataBinding_ListProperty_ModifyItemProperties",
+                panel.RenderTexture
+            );
+
+            DestroyObj(panel.gameObject);
+            riveFile?.Dispose();
+            yield return null;
+        }
+
+
+        [UnityTest]
+        public IEnumerator DataBinding_ListProperty_RemoveAndSwapItems_ShowsExpectedVisuals()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 800));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_db_list_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.BindingMode = RiveWidget.DataBindingMode.Manual;
+
+            File riveFile = File.Load(riveAsset);
+
+            widget.OnWidgetStatusChanged += () =>
+            {
+                if (widget.Status == WidgetStatus.Loaded)
+                {
+                    var viewModel = widget.Artboard.DefaultViewModel;
+                    var viewModelInstance = viewModel.CreateInstance();
+                    widget.StateMachine.BindViewModelInstance(viewModelInstance);
+                    var listProperty = viewModelInstance.GetListProperty("items");
+                    var itemViewModel = widget.File.GetViewModelByName("TodoItem");
+
+                    // Add initial items
+                    var items = new[] { "First", "Second", "Third", "Fourth", "Fifth" };
+
+                    foreach (var itemText in items)
+                    {
+                        var newInstance = itemViewModel.CreateInstance();
+                        var textProperty = newInstance.GetStringProperty("text");
+                        if (textProperty != null)
+                        {
+                            textProperty.Value = itemText;
+                        }
+                        listProperty.Add(newInstance);
+                    }
+
+                    // Remove the middle item (index 2 - "Third")
+                    if (listProperty.Count > 2)
+                    {
+                        listProperty.RemoveAt(2);
+                    }
+
+                    // Swap first and last items (indices 0 and 3, since we removed one item)
+                    if (listProperty.Count > 3)
+                    {
+                        listProperty.Swap(0, 3);
+                    }
+                }
+            };
+
+            widget.Load(riveFile);
+
+            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+            yield return new WaitForEndOfFrame();
+
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanel_DataBinding_ListProperty_RemoveAndSwapItems",
+                panel.RenderTexture
+            );
+
+            DestroyObj(panel.gameObject);
+            riveFile?.Dispose();
+            yield return null;
+        }
 
         private void DestroyObj(UnityEngine.Object obj)
         {

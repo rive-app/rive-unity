@@ -372,6 +372,31 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 551c8bb5071b04b0793926454d638d16
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/db_list_test.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c7c0123fa64d64f59819a238d32754e0
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_DataBinding_ListProperty_AddItems.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e81ddb35585d943a59ce40c5150475b2
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_DataBinding_ListProperty_RemoveAndSwapItems.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fd348c8baa40e444daa2a1c657bf6b91
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_DataBinding_ListProperty_InitialState.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0c442ea0b804f44d6832088552b6638b
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_DataBinding_ListProperty_ModifyItemProperties.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: b7ab8ec4605cd415985bb2f170839da3, type: 2}
   m_SchemaSet:
