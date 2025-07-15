@@ -35,6 +35,8 @@ namespace Rive
 
         private ViewModelEnumData[] m_viewModelEnums;
 
+        private Dictionary<string, WeakReference<BindableArtboard>> m_bindableArtboardCacheByName;
+
 
         internal IntPtr NativeFile
         {
@@ -369,6 +371,52 @@ namespace Rive
         }
 
 
+        /// <summary>
+        /// Returns a bindable artboard with the given name.
+        /// </summary>
+        /// <param name="name">The name of the artboard to retrieve.</param>
+        /// <returns>A BindableArtboard instance, or null if not found.</returns>
+        public BindableArtboard BindableArtboard(string name)
+        {
+            if (name == null)
+            {
+                DebugLogger.Instance.LogError("Invalid name: " + name);
+                return null;
+            }
+
+            if (m_bindableArtboardCacheByName == null)
+            {
+                m_bindableArtboardCacheByName = new Dictionary<string, WeakReference<BindableArtboard>>();
+            }
+
+            // Check cache first
+
+            if (m_bindableArtboardCacheByName.TryGetValue(name, out WeakReference<BindableArtboard> weakRef))
+            {
+                if (weakRef.TryGetTarget(out BindableArtboard cachedArtboard))
+                {
+                    return cachedArtboard;
+                }
+                else
+                {
+                    // Weak reference is dead, remove it
+                    m_bindableArtboardCacheByName.Remove(name);
+                }
+            }
+
+            IntPtr ptr = NativeFileInterface.getFileBindableArtboardNamed(m_nativeFile, name);
+            if (ptr == IntPtr.Zero)
+            {
+                DebugLogger.Instance.Log($"No bindable artboard named \"{name}\".");
+                return null;
+            }
+
+            var bindableArtboard = new BindableArtboard(ptr);
+            m_bindableArtboardCacheByName[name] = new WeakReference<BindableArtboard>(bindableArtboard);
+            return bindableArtboard;
+        }
+
+
         // Data binding methods
 
         public int ViewModelCount
@@ -515,6 +563,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getArtboardName(IntPtr riveFile, uint index);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getFileBindableArtboardNamed(IntPtr file, string name);
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr instanceArtboardAtIndex(IntPtr riveFile, uint index);

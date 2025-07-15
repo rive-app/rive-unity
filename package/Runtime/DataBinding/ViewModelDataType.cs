@@ -33,7 +33,9 @@ namespace Rive
         ViewModel = 8,
 
         /// <summary>Image.</summary>
-        AssetImage = 11
+        AssetImage = 11,
 
+        /// <summary>Artboard.</summary>
+        Artboard = 12
     }
 }

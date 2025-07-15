@@ -1100,6 +1100,186 @@ namespace Rive.Tests
                 "Should log warning when trying to set unloaded image asset");
         }
 
+        [UnityTest]
+        public IEnumerator ArtboardProperty_CanBeSetAndTriggersCallback()
+        {
+            string testAssetPath = TestAssetReferences.riv_artboard_db_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+            var artboardProp1 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_1");
+            Assert.IsNotNull(artboardProp1, "Artboard property 'artboard_1' should exist");
+
+            var artboardProp2 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_2");
+            Assert.IsNotNull(artboardProp2, "Artboard property 'artboard_2' should exist");
+
+            // Get color coded artboards from the file
+            var blueArtboard1 = riveFile.BindableArtboard("ArtboardBlue");
+            var redArtboard2 = riveFile.BindableArtboard("ArtboardRed");
+
+            Assert.IsNotNull(blueArtboard1, "Blue artboard should exist in file");
+            Assert.IsNotNull(redArtboard2, "Red artboard should exist in file");
+
+            bool callback1Triggered = false;
+            bool callback2Triggered = false;
+            BindableArtboard receivedArtboard1 = null;
+            BindableArtboard receivedArtboard2 = null;
+
+            artboardProp1.OnValueChanged += (artboard) =>
+            {
+                callback1Triggered = true;
+                receivedArtboard1 = artboard;
+            };
+
+            artboardProp2.OnValueChanged += (artboard) =>
+            {
+                callback2Triggered = true;
+                receivedArtboard2 = artboard;
+            };
+
+            // Test setting artboards
+            artboardProp1.Value = blueArtboard1;
+            artboardProp2.Value = redArtboard2;
+
+            viewModelInstance.HandleCallbacks();
+
+            Assert.IsTrue(callback1Triggered, "Callback should be triggered when artboard_1 is set");
+            Assert.IsTrue(callback2Triggered, "Callback should be triggered when artboard_2 is set");
+            Assert.AreSame(blueArtboard1, receivedArtboard1, "Callback should receive the correct artboard for artboard_1");
+            Assert.AreSame(redArtboard2, receivedArtboard2, "Callback should receive the correct artboard for artboard_2");
+            mockLogger.Clear();
+
+            // Test setting to null (this isn't currently supported, but we want to ensure it doesn't crash)
+            callback1Triggered = false;
+            artboardProp1.Value = null;
+            viewModelInstance.HandleCallbacks();
+
+            Assert.IsFalse(callback1Triggered, "Callback should not be triggered when artboard is set to null");
+
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0 || mockLogger.LoggedWarnings.Count > 0,
+                "Should log warning when setting artboard_1 to null");
+        }
+
+        [UnityTest]
+        public IEnumerator ArtboardProperty_CanUseExternalFileArtboards()
+        {
+            string testAssetPath = TestAssetReferences.riv_artboard_db_test;
+            string externalArtboardAssetPath = TestAssetReferences.riv_events_test;
+
+            Asset riveAsset = null;
+            Asset externalArtboardAsset = null;
+
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                externalArtboardAssetPath,
+                (asset) => externalArtboardAsset = asset,
+                () => Assert.Fail($"Failed to load external artboard asset at {externalArtboardAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            File externalArtboardFile = LoadAndTrackFile(externalArtboardAsset);
+
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+            var artboardProp1 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_1");
+            Assert.IsNotNull(artboardProp1, "Artboard property 'artboard_1' should exist");
+
+            // Get an artboard from the events file
+            var eventsArtboard = externalArtboardFile.BindableArtboard(externalArtboardFile.ArtboardName(0));
+            Assert.IsNotNull(eventsArtboard, "Sample artboard should exist in external artboard file");
+
+            bool callbackTriggered = false;
+            BindableArtboard receivedArtboard = null;
+
+            artboardProp1.OnValueChanged += (artboard) =>
+            {
+                callbackTriggered = true;
+                receivedArtboard = artboard;
+            };
+
+            // Test setting artboard from external file
+            artboardProp1.Value = eventsArtboard;
+            viewModelInstance.HandleCallbacks();
+
+            Assert.IsTrue(callbackTriggered, "Callback should be triggered when artboard is set to external artboard");
+            Assert.AreSame(eventsArtboard, receivedArtboard, "Callback should receive the correct external artboard");
+
+        }
+
+        [UnityTest]
+        public IEnumerator BindableArtboard_SameNameReturnsSameInstance()
+        {
+            string testAssetPath = TestAssetReferences.riv_artboard_db_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+
+            // Test that calling BindableArtboard with the same name returns the same C# instance
+            string artboardName = "ArtboardBlue";
+            var bindableArtboard1 = riveFile.BindableArtboard(artboardName);
+            var bindableArtboard2 = riveFile.BindableArtboard(artboardName);
+            var bindableArtboard3 = riveFile.BindableArtboard(artboardName);
+
+            Assert.IsNotNull(bindableArtboard1, $"BindableArtboard '{artboardName}' should exist");
+            Assert.IsNotNull(bindableArtboard2, $"BindableArtboard '{artboardName}' should exist on second call");
+            Assert.IsNotNull(bindableArtboard3, $"BindableArtboard '{artboardName}' should exist on third call");
+
+            Assert.AreEqual(artboardName, bindableArtboard1.Name,
+                $"BindableArtboard Name should match '{artboardName}'");
+
+            // Verify all calls return the same instance
+            Assert.AreSame(bindableArtboard1, bindableArtboard2,
+                $"Multiple calls to BindableArtboard('{artboardName}') should return the same instance");
+            Assert.AreSame(bindableArtboard2, bindableArtboard3,
+                $"Multiple calls to BindableArtboard('{artboardName}') should return the same instance");
+
+            // Test that different names return different instances
+            string differentArtboardName = "ArtboardRed";
+            var differentBindableArtboard = riveFile.BindableArtboard(differentArtboardName);
+
+            Assert.IsNotNull(differentBindableArtboard, $"BindableArtboard '{differentArtboardName}' should exist");
+            Assert.AreNotSame(bindableArtboard1, differentBindableArtboard,
+                $"Different artboard names should return different instances");
+
+            // Test that calling the same different name multiple times also returns the same instance
+            var differentBindableArtboard2 = riveFile.BindableArtboard(differentArtboardName);
+            Assert.AreSame(differentBindableArtboard, differentBindableArtboard2,
+                $"Multiple calls to BindableArtboard('{differentArtboardName}') should return the same instance");
+
+            mockLogger.Clear();
+            var nullBindableArtboard = riveFile.BindableArtboard(null);
+            Assert.IsNull(nullBindableArtboard, "BindableArtboard with null name should return null");
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0 || mockLogger.LoggedWarnings.Count > 0,
+                "Should log error when trying to get BindableArtboard with null name");
+        }
+
 
         [UnityTest]
         public IEnumerator ListProperty_CanBeAccessedAndHasCorrectLength()
@@ -1378,11 +1558,11 @@ namespace Rive.Tests
             // Test bounds checking
             mockLogger.Clear();
             listProperty.RemoveAt(-1);
-            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for negative index");
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0, "Should log error for negative index");
 
             mockLogger.Clear();
             listProperty.RemoveAt(listProperty.Count);
-            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for out of bounds index");
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0, "Should log error for out of bounds index");
         }
 
         [UnityTest]
@@ -1452,15 +1632,15 @@ namespace Rive.Tests
 
             mockLogger.Clear();
             listProperty.Swap(0, 0);
-            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning when swapping same index");
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0, "Should log error when swapping same index");
 
             mockLogger.Clear();
             listProperty.Swap(-1, 0);
-            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for negative index");
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0, "Should log error for negative index");
 
             mockLogger.Clear();
             listProperty.Swap(0, listProperty.Count);
-            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for out of bounds index");
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0, "Should log error for out of bounds index");
         }
 
         [UnityTest]
@@ -1492,13 +1672,13 @@ namespace Rive.Tests
             mockLogger.Clear();
             var negativeResult = listProperty.GetInstanceAt(-1);
             Assert.IsNull(negativeResult, "Should return null for negative index");
-            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for negative index");
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0, "Should log error for negative index");
 
             // Test out of bounds index
             mockLogger.Clear();
             var outOfBoundsResult = listProperty.GetInstanceAt(listProperty.Count);
             Assert.IsNull(outOfBoundsResult, "Should return null for out of bounds index");
-            Assert.IsTrue(mockLogger.LoggedWarnings.Count > 0, "Should log warning for out of bounds index");
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0, "Should log error for out of bounds index");
         }
 
         [UnityTest]

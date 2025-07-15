@@ -1438,6 +1438,111 @@ namespace Rive.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator RivePanel_Supports_ArtboardDataBinding()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            // Load the artboard data binding test rive file
+            Asset artboardTestAsset = null;
+            string artboardTestPath = TestAssetReferences.riv_artboard_db_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                artboardTestPath,
+                (asset) => artboardTestAsset = asset,
+                () => Assert.Fail($"Failed to load artboard test asset at {artboardTestPath}")
+            );
+
+            // Load the external artboard rive file for cross-file testing
+            Asset externalArtboardAsset = null;
+            string externalArtboardAssetPath = TestAssetReferences.riv_ratingAnimationWithEvents;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                externalArtboardAssetPath,
+                (asset) => externalArtboardAsset = asset,
+                () => Assert.Fail($"Failed to load external artboard asset at {externalArtboardAssetPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.Fit = Fit.Contain;
+
+            try
+            {
+                // Load the main artboard test file
+                File artboardFile = File.Load(artboardTestAsset);
+                File externalArtboardFile = File.Load(externalArtboardAsset);
+
+                widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+                widget.Load(artboardFile);
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return new WaitForEndOfFrame();
+
+                // <-- Case 1: Initial state with default artboards -->
+                var viewModelInstance = widget.StateMachine.ViewModelInstance;
+                Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+                var artboardProp1 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_1");
+                var artboardProp2 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_2");
+
+                Assert.IsNotNull(artboardProp1, "Artboard property 'artboard_1' should exist");
+                Assert.IsNotNull(artboardProp2, "Artboard property 'artboard_2' should exist");
+
+                // Test initial state (should show default red and blue artboards)
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ArtboardDataBinding_InitialState",
+                    panel.RenderTexture
+                );
+
+                yield return null;
+
+                // <-- Case 2: Change artboard_1 to green artboard -->
+                var greenArtboard = artboardFile.BindableArtboard("ArtboardGreen");
+                Assert.IsNotNull(greenArtboard, "Green artboard should exist in file");
+
+                artboardProp1.Value = greenArtboard;
+                yield return new WaitForEndOfFrame();
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ArtboardDataBinding_GreenArtboard",
+                    panel.RenderTexture
+                );
+
+                yield return null;
+
+                // <-- Case 3: Change artboard_2 to artboard from external file -->
+                var externalArtboard = externalArtboardFile.BindableArtboard(externalArtboardFile.ArtboardName(0)); // Get default artboard from external file
+                Assert.IsNotNull(externalArtboard, "External artboard should exist");
+                artboardProp2.Value = externalArtboard;
+
+                yield return new WaitForEndOfFrame();
+
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ArtboardDataBinding_CrossFileArtboard",
+                    panel.RenderTexture
+                );
+
+
+                artboardFile?.Dispose();
+                externalArtboardFile?.Dispose();
+            }
+            finally
+            {
+                DestroyObj(panel.gameObject);
+            }
+        }
+
 
         [UnityTest]
         public IEnumerator DataBinding_ListProperty_InitialState_ShowsExpectedVisuals()

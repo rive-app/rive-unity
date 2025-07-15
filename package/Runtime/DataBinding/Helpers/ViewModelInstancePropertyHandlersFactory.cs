@@ -69,7 +69,8 @@ namespace Rive
                 { typeof(ViewModelInstanceStringProperty), CreateStringPropertyHandler() },
                 { typeof(ViewModelInstanceColorProperty), CreateColorPropertyHandler() },
                 { typeof(ViewModelInstanceImageProperty), CreateImagePropertyHandler() },
-                { typeof(ViewModelInstanceListProperty), CreateListPropertyHandler() }
+                { typeof(ViewModelInstanceListProperty), CreateListPropertyHandler() },
+                { typeof(ViewModelInstanceArtboardProperty), CreateArtboardPropertyHandler() }
             };
         }
 
@@ -245,6 +246,19 @@ namespace Rive
             );
         }
 
+        private static (PropertyGetter getter,
+            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateArtboardPropertyHandler()
+        {
+            return (
+                (instance, path, rootInstance) => new PropertyGetterResult(
+                    getViewModelInstanceArtboardProperty(instance.NativeSafeHandle, path),
+                    rootInstance),
+                (result) => new ViewModelInstanceArtboardProperty(
+                    result.PropertyPtr,
+                    result.RootViewModelInstance)
+            );
+        }
+
         #endregion
 
         #region Public Property Fetching API
@@ -382,6 +396,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         private static extern IntPtr getViewModelInstanceListProperty(ViewModelInstanceSafeHandle instanceValue, string path);
+        [DllImport(NativeLibrary.name)]
+        private static extern IntPtr getViewModelInstanceArtboardProperty(ViewModelInstanceSafeHandle instanceValue, string path);
+
 
         [DllImport(NativeLibrary.name)]
         private static extern ViewModelInstanceEnumPropertyInfo getEnumPropertyInfoFromViewModelInstance(

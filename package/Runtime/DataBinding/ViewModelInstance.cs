@@ -623,6 +623,16 @@ namespace Rive
         }
 
         /// <summary>
+        /// Gets an artboard property of the view model instance.
+        /// </summary>
+        /// <param name="path">The path to the property.</param>
+        /// <returns>The artboard property, or null if the property doesn't exist or is not an artboard.</returns>
+        public ViewModelInstanceArtboardProperty GetArtboardProperty(string path)
+        {
+            return GetProperty<ViewModelInstanceArtboardProperty>(path);
+        }
+
+        /// <summary>
         /// Gets a nested view model instance property.
         /// </summary>
         /// <param name="path">The path to the property.</param>
@@ -766,6 +776,6 @@ namespace Rive
         private static extern void unrefViewModelInstance(IntPtr instancePtr);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void incrementViewModelInstanceReference(IntPtr instancePtr);
+        private static extern void incrementViewModelInstanceReference(IntPtr instancePtr);
     }
 }

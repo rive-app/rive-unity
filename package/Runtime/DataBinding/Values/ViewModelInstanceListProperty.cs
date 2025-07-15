@@ -41,13 +41,13 @@ namespace Rive
         {
             if (InstancePropertyPtr == IntPtr.Zero)
             {
-                DebugLogger.Instance.LogWarning("Trying to get item from a null list property.");
+                DebugLogger.Instance.LogError("Trying to get item from a null list property.");
                 return null;
             }
 
             if (index < 0 || index >= Count)
             {
-                DebugLogger.Instance.LogWarning($"Index {index} is out of bounds for list of length {Count}.");
+                DebugLogger.Instance.LogError($"Index {index} is out of bounds for list of length {Count}.");
                 return null;
             }
 
@@ -94,13 +94,13 @@ namespace Rive
         {
             if (InstancePropertyPtr == IntPtr.Zero)
             {
-                DebugLogger.Instance.LogWarning("Trying to add to a null list property.");
+                DebugLogger.Instance.LogError("Trying to add to a null list property.");
                 return;
             }
 
             if (instance == null || instance.NativeSafeHandle.IsInvalid)
             {
-                DebugLogger.Instance.LogWarning("Cannot add null or invalid view model instance to list.");
+                DebugLogger.Instance.LogError("Cannot add null or invalid view model instance to list.");
                 return;
             }
 
@@ -120,25 +120,25 @@ namespace Rive
 
             if (instance == null)
             {
-                DebugLogger.Instance.LogWarning("Cannot insert null or invalid view model instance into list.");
+                DebugLogger.Instance.LogError("Cannot insert null or invalid view model instance into list.");
                 return;
             }
 
             if (InstancePropertyPtr == IntPtr.Zero)
             {
-                DebugLogger.Instance.LogWarning("Trying to insert into a null list property.");
+                DebugLogger.Instance.LogError("Trying to insert into a null list property.");
                 return;
             }
 
             if (index < 0)
             {
-                DebugLogger.Instance.LogWarning($"Index {index} is out of bounds for list of length {Count}.");
+                DebugLogger.Instance.LogError($"Index {index} is out of bounds for list of length {Count}.");
                 return;
             }
 
             if (!addViewModelInstanceToListAt(InstancePropertyPtr, instance.NativeSafeHandle.DangerousGetHandle(), index))
             {
-                DebugLogger.Instance.LogWarning($"Failed to insert view model instance at index {index}.");
+                DebugLogger.Instance.LogError($"Failed to insert view model instance at index {index}.");
                 return;
             }
 
@@ -156,13 +156,13 @@ namespace Rive
         {
             if (InstancePropertyPtr == IntPtr.Zero)
             {
-                DebugLogger.Instance.LogWarning("Trying to remove from a null list property.");
+                DebugLogger.Instance.LogError("Trying to remove from a null list property.");
                 return;
             }
 
             if (instance == null || instance.NativeSafeHandle.IsInvalid)
             {
-                DebugLogger.Instance.LogWarning("Cannot remove null or invalid view model instance from list.");
+                DebugLogger.Instance.LogError("Cannot remove null or invalid view model instance from list.");
                 return;
             }
 
@@ -180,13 +180,13 @@ namespace Rive
         {
             if (InstancePropertyPtr == IntPtr.Zero)
             {
-                DebugLogger.Instance.LogWarning("Trying to remove from a null list property.");
+                DebugLogger.Instance.LogError("Trying to remove from a null list property.");
                 return;
             }
 
             if (index < 0 || index >= Count)
             {
-                DebugLogger.Instance.LogWarning($"Index {index} is out of bounds for list of length {Count}.");
+                DebugLogger.Instance.LogError($"Index {index} is out of bounds for list of length {Count}.");
                 return;
             }
 
@@ -194,7 +194,7 @@ namespace Rive
             IntPtr instancePtr = getViewModelInstanceListItemAt(InstancePropertyPtr, index);
             if (instancePtr == IntPtr.Zero)
             {
-                DebugLogger.Instance.LogWarning($"No instance found at index {index}.");
+                DebugLogger.Instance.LogError($"No instance found at index {index}.");
                 return;
             }
 
@@ -211,25 +211,25 @@ namespace Rive
         {
             if (InstancePropertyPtr == IntPtr.Zero)
             {
-                DebugLogger.Instance.LogWarning("Trying to swap instances in a null list property.");
+                DebugLogger.Instance.LogError("Trying to swap instances in a null list property.");
                 return;
             }
 
             if (indexA == indexB)
             {
-                DebugLogger.Instance.LogWarning("Cannot swap instances at the same index.");
+                DebugLogger.Instance.LogError("Cannot swap instances at the same index.");
                 return;
             }
 
             if (indexA < 0 || indexA >= Count)
             {
-                DebugLogger.Instance.LogWarning($"Index {indexA} is out of bounds for list of length {Count}.");
+                DebugLogger.Instance.LogError($"Index {indexA} is out of bounds for list of length {Count}.");
                 return;
             }
 
             if (indexB < 0 || indexB >= Count)
             {
-                DebugLogger.Instance.LogWarning($"Index {indexB} is out of bounds for list of length {Count}.");
+                DebugLogger.Instance.LogError($"Index {indexB} is out of bounds for list of length {Count}.");
                 return;
             }
 
