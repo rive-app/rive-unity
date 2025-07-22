@@ -57,6 +57,16 @@ namespace Rive.Components
 
 
 
+#if UNITY_EDITOR
+        // We need to account for Domain Reload in the editor being disabled, so we reset the current handler when the domain reloads.
+        // If we don't do this, Rive Widgets won't render after domain reload and will show a white screen instead.
+        // More info: https://docs.unity3d.com/6000.0/Documentation/Manual/domain-reloading.html
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void Init()
+        {
+            s_currentHandler = null;
+        }
+#endif
 
     }
 }

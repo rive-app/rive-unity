@@ -56,7 +56,7 @@ namespace Rive.Components
         {
             // We want to prevent multiple calls to UpdateEditorPreview in the same frame 
             // as that can cause performance issues and glitches
-            if (!m_isUpdating && RivePanel.gameObject.activeInHierarchy && RivePanel.enabled)
+            if (!m_isUpdating && RivePanel != null && RivePanel.gameObject.activeInHierarchy && RivePanel.enabled)
             {
                 DelayedUpdatePreview();
             }
