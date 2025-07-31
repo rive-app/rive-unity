@@ -1533,6 +1533,14 @@ namespace Rive.Tests
                     panel.RenderTexture
                 );
 
+                // <-- Case 4: Change artboard_1 to null -->
+                artboardProp1.Value = null;
+                yield return new WaitForEndOfFrame();
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ArtboardDataBinding_NullArtboard",
+                    panel.RenderTexture
+                );
+
 
                 artboardFile?.Dispose();
                 externalArtboardFile?.Dispose();

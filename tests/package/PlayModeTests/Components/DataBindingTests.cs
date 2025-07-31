@@ -1161,15 +1161,16 @@ namespace Rive.Tests
             Assert.AreSame(redArtboard2, receivedArtboard2, "Callback should receive the correct artboard for artboard_2");
             mockLogger.Clear();
 
-            // Test setting to null (this isn't currently supported, but we want to ensure it doesn't crash)
+            // Test setting to null
             callback1Triggered = false;
             artboardProp1.Value = null;
             viewModelInstance.HandleCallbacks();
 
-            Assert.IsFalse(callback1Triggered, "Callback should not be triggered when artboard is set to null");
+            Assert.IsTrue(callback1Triggered, "Callback should be triggered when artboard is set to null");
+            Assert.IsNull(receivedArtboard1, "Received artboard should be null when setting artboard_1 to null");
 
-            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0 || mockLogger.LoggedWarnings.Count > 0,
-                "Should log warning when setting artboard_1 to null");
+            Assert.IsFalse(mockLogger.LoggedErrors.Count > 0 || mockLogger.LoggedWarnings.Count > 0,
+                "Should not log error when setting artboard_1 to null");
         }
 
         [UnityTest]

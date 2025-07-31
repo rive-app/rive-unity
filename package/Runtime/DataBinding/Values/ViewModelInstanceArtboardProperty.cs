@@ -42,13 +42,8 @@ namespace Rive
         /// <param name="artboard"> The artboard to set. </param>
         private void SetArtboard(BindableArtboard artboard)
         {
-            if (artboard == null)
-            {
-                DebugLogger.Instance.LogError("Trying to assign a null artboard.");
-                return;
-            }
 
-            if (artboard.NativeBindableArtboard == IntPtr.Zero)
+            if (artboard != null && artboard.NativeBindableArtboard == IntPtr.Zero)
             {
                 DebugLogger.Instance.LogError("Trying to assign an invalid artboard.");
                 return;
