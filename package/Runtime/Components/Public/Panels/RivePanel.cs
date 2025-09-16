@@ -120,6 +120,23 @@ namespace Rive.Components
 
 
         /// <summary>
+        /// Used to track if the panel is dirty outside of widget updates.
+        /// </summary>
+        private bool m_isDirty = false;
+
+        /// <summary>
+        /// Sets the panel dirty. This will cause the panel to be redrawn on the next frame.
+        /// </summary>
+        internal void SetDirty()
+        {
+            if (WidgetContainer == null)
+            {
+                return;
+            }
+            m_isDirty = true;
+        }
+
+        /// <summary>
         /// The RectTransform that holds the panel's widgets.
         /// </summary>
         public RectTransform WidgetContainer => this.transform as RectTransform;
@@ -802,8 +819,9 @@ namespace Rive.Components
                 }
             }
 
-            if (panelNeedsRedraw)
+            if (panelNeedsRedraw || m_isDirty)
             {
+                m_isDirty = false;
                 RedrawIfNeeded();
             }
         }

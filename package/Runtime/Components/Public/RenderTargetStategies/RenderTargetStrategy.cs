@@ -82,6 +82,9 @@ namespace Rive.Components
 
         protected bool IsDestroyed => m_isDestroyed;
 
+        internal Func<IRivePanel, Vector2Int> ExternalPixelSizeProvider { get; set; }
+        internal Func<IRivePanel, Vector2> ExternalDrawScaleProvider { get; set; }
+
         /// <summary>
         /// The render pipeline handler to use for rendering panels.
         /// </summary>
@@ -147,6 +150,7 @@ namespace Rive.Components
         public event Action<IRivePanel> OnPanelRegistered;
 
         public event Action<IRivePanel> OnPanelUnregistered;
+
 
         internal static void DrawPanelWithRenderer(Renderer renderer, IRivePanel panel, RenderTargetInfo targetInfo, RenderTargetSpaceOccupancy renderTargetSpaceOccupancy)
         {

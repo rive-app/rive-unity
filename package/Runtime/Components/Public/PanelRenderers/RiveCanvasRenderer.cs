@@ -22,6 +22,9 @@ namespace Rive.Components
         [Tooltip("A custom UI material to use when rendering the Rive graphic.")]
         [SerializeField] private Material m_customMaterial;
 
+        [Tooltip("Whether to match the canvas resolution to the RivePanel's resolution. \n\nThis is useful for keeping the Rive graphic crisp when using a Canvas Scaler. By default, the RivePanel resolution is defined by it's rect transform's width and height. Setting this to true will cause the RivePanel to be rendered at a higher resolution than the panel's rect transform's size if needed.\n\nThis feature is currently only supported when the RivePanel uses the SimpleRenderTargetStrategy, which is the default strategy used if none is provided.")]
+        [SerializeField] private bool m_matchCanvasResolution = false;
+
 
         private IRivePanel m_rivePanel;
 
@@ -49,12 +52,32 @@ namespace Rive.Components
             }
         }
 
+        public bool MatchCanvasResolution
+        {
+            get => m_matchCanvasResolution;
+            set
+            {
+                if (m_matchCanvasResolution != value)
+                {
+                    m_matchCanvasResolution = value;
+                    AttachCanvasProviders(RivePanel);
 
+                    RivePanel rPanel = RivePanel as RivePanel;
+                    if (rPanel != null)
+                    {
+                        rPanel.SetDirty(); // Force a redraw to apply the new resolution.
+                    }
+                }
+            }
+        }
 
         protected override void OnEnable()
         {
             Setup();
             base.OnEnable();
+
+
+            if (m_matchCanvasResolution) AttachCanvasProviders(RivePanel);
 
             if (m_inputProvider != null && RivePanel != null)
             {
@@ -72,6 +95,81 @@ namespace Rive.Components
                 RivePanel.UnregisterInputProvider(m_inputProvider);
 
             }
+        }
+
+        /// <summary>
+        /// Supersampling multiplier for the RenderTexture only.
+        /// </summary>
+        private float m_renderScale = 1f;
+
+
+        /// <summary>
+        /// Attach providers that the strategy can call to (1) size the RT and (2) pick draw scale.
+        /// This keeps strategies/panels canvas-agnostic and lets other renderers (UITK, material)
+        /// provide their own sizing rules or none at all.
+        /// </summary>
+        /// <param name="panel"></param>
+        private void AttachCanvasProviders(IRivePanel panel)
+        {
+            var concretePanel = panel as RivePanel;
+            if (concretePanel == null) return;
+
+            var strategy = concretePanel.RenderTargetStrategy as RenderTargetStrategy;
+            if (strategy == null) return;
+
+            if (!m_matchCanvasResolution)
+            {
+                // Explicitly clear to legacy behavior
+                strategy.ExternalPixelSizeProvider = null;
+                strategy.ExternalDrawScaleProvider = null;
+                return;
+            }
+
+            strategy.ExternalPixelSizeProvider = ComputeCanvasPixelSize;
+            strategy.ExternalDrawScaleProvider = ComputeCanvasDrawScale;
+        }
+
+
+        /// <summary>
+        /// Computes the pixel size of the canvas. Determines the size of the render texture based on the canvas scale factor and the local scale of the widget container.
+        /// We do this because the Canvas Scaler (especially when set to "Scale With Screen Size") changes how many pixels each UI unit occupies on screen. Allocating the RT at that pixel size keeps Rive crisp.
+        /// </summary>
+        /// <param name="p">The panel to compute the pixel size for.</param>
+        /// <returns>The pixel size of the canvas.</returns>
+        private Vector2Int ComputeCanvasPixelSize(IRivePanel p)
+        {
+            var rt = p.WidgetContainer;
+            var canvas = DisplayImage != null ? DisplayImage.canvas : null;
+            if (rt == null || canvas == null) return new Vector2Int(1, 1);
+
+            float canvasScale = canvas.scaleFactor;
+
+            // Include local UI scale so “manually scaled” panels (e.g. 1080×2340 at 0.3333) resolve to the same on-screen pixels
+            float uiW = rt.rect.width * Mathf.Abs(rt.localScale.x);
+            float uiH = rt.rect.height * Mathf.Abs(rt.localScale.y);
+
+            int w = Mathf.Max(1, Mathf.CeilToInt(uiW * canvasScale * m_renderScale));
+            int h = Mathf.Max(1, Mathf.CeilToInt(uiH * canvasScale * m_renderScale));
+            return new Vector2Int(w, h);
+        }
+
+
+        /// <summary>
+        /// Computes the draw scale of the canvas. Used to ensure the graphics are drawn at the correct scale and position within the render texture.
+        /// </summary>
+        /// <param name="p">The panel to compute the draw scale for.</param>
+        /// <returns>The draw scale of the canvas.</returns>
+        private Vector2 ComputeCanvasDrawScale(IRivePanel p)
+        {
+            var rt = p.WidgetContainer;
+            var canvas = DisplayImage != null ? DisplayImage.canvas : null;
+            if (rt == null || canvas == null) return Vector2.one;
+
+            float canvasScale = canvas.scaleFactor;
+
+            float sx = canvasScale * Mathf.Abs(rt.localScale.x);
+            float sy = canvasScale * Mathf.Abs(rt.localScale.y);
+            return new Vector2(sx, sy);
         }
 
         private void Setup()

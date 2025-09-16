@@ -133,7 +133,13 @@ namespace Rive.Components
 
         private bool RefreshRenderTexture(IRivePanel panel)
         {
-            Vector2Int size = new Vector2Int((int)panel.WidgetContainer.rect.width, (int)panel.WidgetContainer.rect.height);
+            Vector2Int size =
+    ExternalPixelSizeProvider != null
+        ? ExternalPixelSizeProvider(panel)
+        : new Vector2Int(
+              Mathf.Max(1, (int)panel.WidgetContainer.rect.width),
+              Mathf.Max(1, (int)panel.WidgetContainer.rect.height)
+          );
             size.x = Mathf.Max(1, size.x);
             size.y = Mathf.Max(1, size.y);
 
@@ -211,6 +217,17 @@ namespace Rive.Components
 
             bool wasRefreshed = RefreshRenderTexture(panel);
             m_renderer.Clear();
+
+
+            if (ExternalDrawScaleProvider != null)
+            {
+                var s = ExternalDrawScaleProvider(panel);
+                if (Mathf.Abs(s.x - 1f) > 0.001f || Mathf.Abs(s.y - 1f) > 0.001f)
+                {
+                    m_renderer.Transform(System.Numerics.Matrix3x2.CreateScale(s.x, s.y));
+                }
+            }
+
 
             var targetInfo = new RenderTargetInfo(
                 new Vector2Int(m_renderTexture.width, m_renderTexture.height), // Target size

@@ -422,6 +422,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: bc1b7c7c26c6b4f2fa9e997a93bf3d60
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RiveCanvasRenderer_MatchCanvasResolution_True_360x780_sf3_25.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: b7ab8ec4605cd415985bb2f170839da3, type: 2}
   m_SchemaSet:

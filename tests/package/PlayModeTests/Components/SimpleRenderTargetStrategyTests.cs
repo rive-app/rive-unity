@@ -337,5 +337,125 @@ namespace Rive.Tests
             // Strategy should be unregistered and texture destroyed
             Assert.IsTrue(texture == null || !texture.IsCreated());
         }
+
+
+        [Test]
+        public void UsesExternalPixelSizeProvider_ForRenderTextureSize()
+        {
+            m_strategy.UnregisterPanel(m_panel);
+            m_strategy.DrawTiming = DrawTimingOption.DrawImmediate;
+
+            // Provider says 1170x2532
+            m_strategy.ExternalPixelSizeProvider = (p) => new Vector2Int(1170, 2532);
+            m_strategy.ExternalDrawScaleProvider = null;
+
+            Assert.IsTrue(m_strategy.RegisterPanel(m_panel));
+            m_strategy.DrawPanel(m_panel);
+
+            var rt = m_strategy.GetRenderTexture(m_panel);
+            Assert.IsNotNull(rt);
+            Assert.AreEqual(1170, rt.width);
+            Assert.AreEqual(2532, rt.height);
+        }
+
+        [UnityTest]
+        public IEnumerator CanvasScaler_AttachProviders_SetsExpectedRTSize()
+        {
+            // Arrange Canvas with constant scaleFactor to avoid dependency on screen resolution
+            var canvasGO = new GameObject("Canvas");
+            var canvas = canvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+            var scaler = canvasGO.AddComponent<UnityEngine.UI.CanvasScaler>();
+            scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = 3.25f;
+
+            // Put panel under Canvas and add Canvas renderer (which attaches providers)
+            m_panel.transform.SetParent(canvasGO.transform, false);
+            var canvasRenderer = m_panel.gameObject.AddComponent<RiveCanvasRenderer>();
+            canvasRenderer.MatchCanvasResolution = true;
+
+            // Ensure Simple strategy is active and draws immediately
+            m_strategy.UnregisterPanel(m_panel);
+            m_strategy.DrawTiming = DrawTimingOption.DrawImmediate;
+            m_panel.RenderTargetStrategy = m_strategy;
+
+            // Set panel logical size (UI units)
+            m_panel.SetDimensions(new Vector2(360, 780));
+
+            Assert.IsTrue(m_strategy.RegisterPanel(m_panel));
+            m_strategy.DrawPanel(m_panel);
+            yield return null; // allow one frame for changes to propagate
+
+            // Assert RT uses UI size × canvas scale (≈ 1170×2535)
+            var rt = m_strategy.GetRenderTexture(m_panel);
+            Assert.IsNotNull(rt);
+            Assert.AreEqual(Mathf.CeilToInt(360 * 3.25f), rt.width);
+            Assert.AreEqual(Mathf.CeilToInt(780 * 3.25f), rt.height);
+
+            Object.Destroy(canvasGO);
+        }
+
+        [UnityTest]
+        public IEnumerator MatchCanvasResolution_Toggle_Causes_Redraw_Via_SetDirty()
+        {
+            var canvasGO = new GameObject("Canvas_ToggleTest");
+            var canvas = canvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+            var scaler = canvasGO.AddComponent<UnityEngine.UI.CanvasScaler>();
+            scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = 3.25f;
+
+            // Put panel under Canvas; attach canvas renderer so providers are attached
+            m_panel.transform.SetParent(canvasGO.transform, false);
+            var canvasRenderer = m_panel.gameObject.AddComponent<RiveCanvasRenderer>();
+            Assert.IsFalse(canvasRenderer.MatchCanvasResolution);
+            canvasRenderer.MatchCanvasResolution = true; // start using canvas pixels
+
+            // Ensure the panel uses Simple strategy (already set in Setup) and is rendering
+            m_panel.SetDimensions(new Vector2(360, 780));
+            m_panel.StartRendering();
+
+            // Wait a frame so the initial RT is created
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            // Baseline: RT is scaled by canvas scale (≈ 1170×2535)
+            var rt = m_strategy.GetRenderTexture(m_panel);
+            Assert.IsNotNull(rt);
+            Assert.AreEqual(Mathf.CeilToInt(360 * 3.25f), rt.width);
+            Assert.AreEqual(Mathf.CeilToInt(780 * 3.25f), rt.height);
+
+            // Toggle OFF (RiveCanvasRenderer stops providing canvas pixels)
+            canvasRenderer.MatchCanvasResolution = false;
+
+            // Same frame: RT size has not changed yet (redraw happens next Update/Tick)
+            var sameFrameRT = m_strategy.GetRenderTexture(m_panel);
+            Assert.AreEqual(rt.width, sameFrameRT.width);
+            Assert.AreEqual(rt.height, sameFrameRT.height);
+
+            // Next frame: SetDirty flag causes RedrawIfNeeded() in Tick() and RT reverts to logical rect
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            var revertedRT = m_strategy.GetRenderTexture(m_panel);
+            Assert.IsNotNull(revertedRT);
+            Assert.AreEqual(360, revertedRT.width);
+            Assert.AreEqual(780, revertedRT.height);
+
+            // Toggle ON again (providers reattached) → SetDirty → next frame scales back up
+            canvasRenderer.MatchCanvasResolution = true;
+
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            var scaledRT = m_strategy.GetRenderTexture(m_panel);
+            Assert.IsNotNull(scaledRT);
+            Assert.AreEqual(Mathf.CeilToInt(360 * 3.25f), scaledRT.width);
+            Assert.AreEqual(Mathf.CeilToInt(780 * 3.25f), scaledRT.height);
+
+            Object.Destroy(canvasGO);
+        }
     }
 }

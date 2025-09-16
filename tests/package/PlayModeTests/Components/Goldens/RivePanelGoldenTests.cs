@@ -1857,6 +1857,77 @@ namespace Rive.Tests
             yield return null;
         }
 
+        [UnityTest]
+        public IEnumerator RiveCanvasRenderer_MatchCanvasResolution_True_RendersCrispAndAligned()
+        {
+            var canvasGO = new GameObject("Canvas_MatchOn");
+            var canvas = canvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+            var scaler = canvasGO.AddComponent<UnityEngine.UI.CanvasScaler>();
+            scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = 3.25f;
+
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                TestPrefabReferences.RivePanelWithSingleWidgetAndLayout,
+                (prefab) =>
+                {
+                    var go = UnityEngine.Object.Instantiate(prefab, canvasGO.transform, false);
+                    panel = go.GetComponent<RivePanel>();
+                },
+                () => Assert.Fail("Failed to load panel prefab")
+            );
+
+            var canvasRenderer = panel.gameObject.AddComponent<RiveCanvasRenderer>();
+            canvasRenderer.PointerInputMode = PointerInputMode.DisablePointerInput;
+            canvasRenderer.MatchCanvasResolution = true;
+
+            // Baseline: 360x780 UI units → RT should be ceil(360*3.25) x ceil(780*3.25)
+            panel.SetDimensions(new Vector2(360, 780));
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            Assert.IsNotNull(panel.RenderTexture);
+            var expectedW = Mathf.CeilToInt(360 * 3.25f);
+            var expectedH = Mathf.CeilToInt(780 * 3.25f);
+            Assert.AreEqual(expectedW, panel.RenderTexture.width);
+            Assert.AreEqual(expectedH, panel.RenderTexture.height);
+
+            // Golden check for crisp/aligned output (MatchCanvasResolution = true)
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RiveCanvasRenderer_MatchCanvasResolution_True_360x780_sf3_25",
+                panel.RenderTexture
+            );
+
+            // Change rect to 1080x2340 and scale to 1/3 → on-screen pixels same as 360x780.
+            // With MatchCanvasResolution=true, RT should remain ~1170x2535 (no drift).
+            panel.SetDimensions(new Vector2(1080, 2340));
+            panel.transform.localScale = new Vector3(1f / 3f, 1f / 3f, 1f);
+            yield return new WaitForEndOfFrame();
+
+            Assert.IsNotNull(panel.RenderTexture);
+            Assert.AreEqual(expectedW, panel.RenderTexture.width);
+            Assert.AreEqual(expectedH, panel.RenderTexture.height);
+
+            // Still matches the baseline golden
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RiveCanvasRenderer_MatchCanvasResolution_True_360x780_sf3_25",
+                panel.RenderTexture
+            );
+
+            // Toggle MatchCanvasResolution off → next frame RT falls back to logical rect (ignores canvas scale/localScale)
+            canvasRenderer.MatchCanvasResolution = false;
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            Assert.IsNotNull(panel.RenderTexture);
+            Assert.AreEqual(1080, panel.RenderTexture.width);
+            Assert.AreEqual(2340, panel.RenderTexture.height);
+
+            UnityEngine.Object.Destroy(canvasGO);
+        }
+
         private void DestroyObj(UnityEngine.Object obj)
         {
             if (obj != null)
