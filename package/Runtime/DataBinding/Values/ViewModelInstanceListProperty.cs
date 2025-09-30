@@ -70,18 +70,7 @@ namespace Rive
                 return null;
             }
 
-            // Check if we already have a cached instance for this pointer, we want to return the same C# instance if it exists for the same pointer.
-            if (ViewModelInstance.TryGetCachedViewModelInstanceForPointer(instancePtr, out ViewModelInstance existingInstance))
-            {
-                return existingInstance;
-            }
-
-            // Create a new instance and cache it
-            var newInstance = new ViewModelInstance(instancePtr, this.RootInstance?.RiveFile);
-            ViewModelInstance.AddCachedViewModelInstanceForPointer(instancePtr, newInstance);
-
-
-            return newInstance;
+            return ViewModelInstance.GetOrCreateFromPointer(instancePtr, this.RootInstance?.RiveFile);
         }
 
 
@@ -190,9 +179,8 @@ namespace Rive
                 return;
             }
 
-            // Get the instance pointer at the specified index so we can track whether we've incremented the ref count
-            IntPtr instancePtr = getViewModelInstanceListItemAt(InstancePropertyPtr, index);
-            if (instancePtr == IntPtr.Zero)
+            ViewModelInstance instance = GetInstanceAt(index);
+            if (instance == null)
             {
                 DebugLogger.Instance.LogError($"No instance found at index {index}.");
                 return;

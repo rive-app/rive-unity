@@ -151,9 +151,8 @@ namespace Rive
                 return existingInstance;
             }
 
-            ViewModelInstance newInstance = new ViewModelInstance(instanceValue, m_riveFile.TryGetTarget(out File file) ? file : null);
+            ViewModelInstance newInstance = ViewModelInstance.GetOrCreateFromPointer(instanceValue, m_riveFile.TryGetTarget(out File file) ? file : null);
 
-            ViewModelInstance.AddCachedViewModelInstanceForPointer(instanceValue, newInstance);
             return newInstance;
         }
 

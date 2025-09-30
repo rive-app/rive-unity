@@ -69,7 +69,7 @@ namespace Rive
 
 
 
-        internal ViewModelInstance(IntPtr instanceValue, File riveFile, ViewModelInstance parentInstance = null)
+        private ViewModelInstance(IntPtr instanceValue, File riveFile, ViewModelInstance parentInstance = null)
         {
             m_safeHandle = new ViewModelInstanceSafeHandle(instanceValue);
 
@@ -185,9 +185,8 @@ namespace Rive
                     return cachedInstance;
                 }
 
-                var newInstance = new ViewModelInstance(ptr, RiveFile, this);
+                var newInstance = GetOrCreateFromPointer(ptr, RiveFile, this);
                 m_viewModelInstances[name] = newInstance;
-                ViewModelInstanceProperty.AddGloballyCachedVMPropertyForPointer(ptr, newInstance);
 
                 return newInstance;
             }
@@ -697,6 +696,29 @@ namespace Rive
             Dispose(true);
         }
 
+        /// <summary>
+        /// Helper method to get or create a ViewModelInstance from a native pointer.
+        /// This method checks if the instance already exists in the cache. If it does, it returns the existing instance so that a single C# instance is always used for the same native instance no matter which method returns it.
+        /// If it doesn't exist, it creates a new ViewModelInstance and adds it to the cache.
+        /// </summary>
+        /// <param name="instancePtr"> The native pointer to the ViewModelInstance.</param>
+        /// <param name="riveFile"> The Rive file associated with the ViewModelInstance. This is used to resolve the file context for the instance.</param>
+        /// <param name="parent"> The parent ViewModelInstance, if any.</param>
+        /// <returns>The ViewModelInstance associated with the native pointer.</returns>
+        internal static ViewModelInstance GetOrCreateFromPointer(IntPtr instancePtr, File riveFile, ViewModelInstance parent = null)
+        {
+            if (TryGetCachedViewModelInstanceForPointer(instancePtr, out ViewModelInstance existingInstance))
+            {
+                // Unity already owns this - balance the extra ref from underlying native methods.
+                // If we don't do this, the native instance might stay in memory longer than intended.
+                ViewModelInstanceSafeHandle.unrefViewModelInstance(instancePtr);
+                return existingInstance;
+            }
+
+            var newInstance = new ViewModelInstance(instancePtr, riveFile, parent);
+            AddCachedViewModelInstanceForPointer(instancePtr, newInstance);
+            return newInstance;
+        }
 
 
 
@@ -752,14 +774,6 @@ namespace Rive
         public ViewModelInstanceSafeHandle(IntPtr handle) : base(true)
         {
             SetHandle(handle);
-
-            // We want to keep the native VM instance alive as long as the C# instance is alive so ref() it during construction and unref() it during destruction.
-            // This is important because it allows users to reuse the VM instance as long as they have a reference to the class.
-            // The alternative would be to have the user manually call ref() on the instance, which is error-prone and would require them to keep track of the reference count along with all the other resources they have to manage.
-            if (!IsInvalid)
-            {
-                incrementViewModelInstanceReference(handle);
-            }
         }
 
         protected override bool ReleaseHandle()
@@ -773,9 +787,6 @@ namespace Rive
         }
 
         [DllImport(NativeLibrary.name)]
-        private static extern void unrefViewModelInstance(IntPtr instancePtr);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void incrementViewModelInstanceReference(IntPtr instancePtr);
+        internal static extern void unrefViewModelInstance(IntPtr instancePtr);
     }
 }
