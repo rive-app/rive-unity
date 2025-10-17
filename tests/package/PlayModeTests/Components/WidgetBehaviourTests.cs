@@ -214,9 +214,9 @@ namespace Rive.Tests
         public void PointerEvents_DefaultToFalse()
         {
             var widget = RivePanelTestUtils.CreateWidget<MockRiveWidgetBase>();
-            Assert.IsFalse(widget.OnPointerDown(Vector2.zero));
-            Assert.IsFalse(widget.OnPointerUp(Vector2.zero));
-            Assert.IsFalse(widget.OnPointerMove(Vector2.zero));
+            Assert.IsFalse(widget.OnPointerDown(Vector2.zero, 0));
+            Assert.IsFalse(widget.OnPointerUp(Vector2.zero, 0));
+            Assert.IsFalse(widget.OnPointerMove(Vector2.zero, 0));
         }
 
         [UnityTest]

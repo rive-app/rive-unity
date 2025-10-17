@@ -19,11 +19,11 @@ namespace Rive.Components
         private bool m_hasLoggedWrongColliderTypeError = false;
         private Vector2 m_lastNormalizedLocalPointInPanel = Vector2.zero;
 
-        public event Action<Vector2> PointerPressed;
-        public event Action<Vector2> PointerReleased;
-        public event Action<Vector2> PointerMoved;
-        public event Action<Vector2> PointerExited;
-        public event Action<Vector2> PointerEntered;
+        public event Action<PanelPointerEvent> PointerPressed;
+        public event Action<PanelPointerEvent> PointerReleased;
+        public event Action<PanelPointerEvent> PointerMoved;
+        public event Action<PanelPointerEvent> PointerExited;
+        public event Action<PanelPointerEvent> PointerEntered;
 
         private IRivePanel RivePanel
         {
@@ -134,7 +134,7 @@ namespace Rive.Components
             }
         }
 
-        private void ProcessEvent(PointerEventData eventData, Action<Vector2> pointerHandler)
+        private void ProcessEvent(PointerEventData eventData, Action<PanelPointerEvent> pointerHandler)
         {
             if (pointerHandler == null)
             {
@@ -159,7 +159,8 @@ namespace Rive.Components
                 normalizedLocalPointInPanel = m_lastNormalizedLocalPointInPanel;
             }
 
-            pointerHandler?.Invoke(normalizedLocalPointInPanel);
+            int pointerId = eventData.pointerId;
+            pointerHandler?.Invoke(new PanelPointerEvent(normalizedLocalPointInPanel, pointerId));
 
         }
 

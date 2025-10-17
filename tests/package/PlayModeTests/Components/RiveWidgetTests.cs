@@ -711,13 +711,13 @@ namespace Rive.Tests
                     switch (scenario.PointerEvent)
                     {
                         case HitTestScenario.PointerEventType.PointerDown:
-                            result = m_widget.OnPointerDown(scenario.HitTestPoint);
+                            result = m_widget.OnPointerDown(scenario.HitTestPoint, 0);
                             break;
                         case HitTestScenario.PointerEventType.PointerUp:
-                            result = m_widget.OnPointerUp(scenario.HitTestPoint);
+                            result = m_widget.OnPointerUp(scenario.HitTestPoint, 0);
                             break;
                         case HitTestScenario.PointerEventType.PointerMove:
-                            result = m_widget.OnPointerMove(scenario.HitTestPoint);
+                            result = m_widget.OnPointerMove(scenario.HitTestPoint, 0);
                             break;
                         case HitTestScenario.PointerEventType.HitTest:
                             result = m_widget.HitTest(scenario.HitTestPoint);
@@ -1035,6 +1035,199 @@ namespace Rive.Tests
                 "OnWidgetStatusChanged should be triggered even when subscribed in OnEnable");
 
             UnityEngine.Object.Destroy(subscriberObject);
+        }
+
+        // MULTI-TOUCH TESTS
+
+        /// <summary>
+        /// This test verifies that multiple pointers can be used to trigger different targets at the same time.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator MultiTouch_TargetDownFlags_UpdatePerPointer()
+        {
+            const string ArtboardName = "Main";
+            const int ExpectedTargetCount = 5;
+            const float TapYNormalized = 0.5f; // center row across columns
+            const int PointerIdA = 1;
+            const int PointerIdB = 2;
+            const int PointerIdC = 3;
+
+            // Load the multitouch test file
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            m_widget.Fit = Fit.Contain;
+            m_widget.Load(riveAsset, artboardName: ArtboardName, stateMachineName: null);
+            RivePanelTestUtils.MakeWidgetFillPanel(m_widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080)); // Artboard is square, so we set the panel to the same size to make calculations easier
+            yield return null;
+
+            bool IsTargetDown(ViewModelInstance vmi, int targetIndex)
+            {
+                var property = vmi.GetProperty<ViewModelInstanceBooleanProperty>($"Target {targetIndex}/Down");
+                return property != null && property.Value;
+            }
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModel instance should be bound");
+
+            // A bit of context, there are 5 red columns in the artboard stacked horizontally.
+            // When any one of the columns is tapped, the column turns green and the 'Down' property of the matching target in that column is set to true.
+
+            // These are the normalized x points at the center of each column in the artboard. 
+            float[] columnCentersNormalizedX = new float[] { 0.10f, 0.30f, 0.50f, 0.70f, 0.90f };
+
+            // We check which target goes down when we tap each column center.
+            int[] targetIndexByColumnCenter = new int[columnCentersNormalizedX.Length];
+            for (int columnCenterIndex = 0; columnCenterIndex < columnCentersNormalizedX.Length; columnCenterIndex++)
+            {
+                Vector2 tapPoint = new Vector2(columnCentersNormalizedX[columnCenterIndex], TapYNormalized);
+                m_widget.OnPointerDown(tapPoint, 0);
+                yield return null;
+
+                int detectedTargetIndex = -1;
+                for (int targetIndex = 1; targetIndex <= ExpectedTargetCount; targetIndex++)
+                {
+                    if (IsTargetDown(viewModelInstance, targetIndex))
+                    {
+                        detectedTargetIndex = targetIndex;
+                        break;
+                    }
+                }
+                Assert.Greater(detectedTargetIndex, 0, $"No target registered Down for column center {columnCenterIndex}");
+                targetIndexByColumnCenter[columnCenterIndex] = detectedTargetIndex;
+
+                // Release and ensure all targets return to Up
+                m_widget.OnPointerUp(tapPoint, 0);
+                yield return null;
+                for (int targetIndex = 1; targetIndex <= ExpectedTargetCount; targetIndex++)
+                {
+                    Assert.IsFalse(IsTargetDown(viewModelInstance, targetIndex), "All targets should be up after release");
+                }
+            }
+
+            const int LeftColumnIndex = 0; // first column
+            const int MiddleColumnIndex = 2;
+            const int RightColumnIndex = 4;  // last column
+
+            // Press two different targets with two separate pointers concurrently
+            Vector2 leftPressPoint = new Vector2(columnCentersNormalizedX[LeftColumnIndex], TapYNormalized);
+            Vector2 rightPressPoint = new Vector2(columnCentersNormalizedX[RightColumnIndex], TapYNormalized);
+            m_widget.OnPointerDown(leftPressPoint, PointerIdA);
+            m_widget.OnPointerDown(rightPressPoint, PointerIdB);
+            yield return null;
+
+            Assert.IsTrue(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[LeftColumnIndex]), "Left target (Target 1) should be down");
+            Assert.IsTrue(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[RightColumnIndex]), "Right target (Target 5) should be down");
+
+            // Also press the middle column to verify three simultaneous touches
+            int middleColumnIndex = MiddleColumnIndex;
+            Vector2 middlePressPoint = new Vector2(columnCentersNormalizedX[middleColumnIndex], TapYNormalized);
+            m_widget.OnPointerDown(middlePressPoint, PointerIdC);
+            yield return null;
+
+            Assert.IsTrue(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[middleColumnIndex]), "Middle target (Target 3) should be down");
+            Assert.IsTrue(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[LeftColumnIndex]), "Left target (Target 1) should remain down");
+            Assert.IsTrue(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[RightColumnIndex]), "Right target (Target 5) should remain down");
+
+            // Release the middle pointer only; left and right targets should remain down
+            m_widget.OnPointerUp(middlePressPoint, PointerIdC);
+            yield return null;
+            Assert.IsFalse(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[middleColumnIndex]), "Middle target (Target 3) should be up after release");
+            Assert.IsTrue(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[LeftColumnIndex]), "Left target (Target 1) should still be down after middle released");
+            Assert.IsTrue(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[RightColumnIndex]), "Right target (Target 5) should still be down after middle released");
+
+            // Then release the left pointer only; right target should remain down
+            m_widget.OnPointerUp(leftPressPoint, PointerIdA);
+            yield return null;
+            Assert.IsFalse(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[LeftColumnIndex]), "Left target (Target 1) should be up after release");
+            Assert.IsTrue(IsTargetDown(viewModelInstance, targetIndexByColumnCenter[RightColumnIndex]), "Right target (Target 5) should still be down");
+
+            // Finally, release the right pointer; all should be up
+            m_widget.OnPointerUp(rightPressPoint, PointerIdB);
+            yield return null;
+            for (int targetIndex = 1; targetIndex <= ExpectedTargetCount; targetIndex++)
+            {
+                Assert.IsFalse(IsTargetDown(viewModelInstance, targetIndex), "All targets should be up at end");
+            }
+        }
+
+        /// <summary>
+        /// This test verifies that when a pointer is moved while pressing a target, the target that was pressed is reassigned to the new column. It also verifies that the other targets are not affected by moves from other pointers.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator MultiTouch_PointerMove_ReassignsTarget_WithoutAffectingOthers()
+        {
+            const string ArtboardName = "Main";
+            const int ExpectedTargetCount = 5;
+            const float TapYNormalized = 0.5f;
+            const int PointerIdA = 11; // first finger
+            const int PointerIdB = 22; // second finger
+
+            // Load asset
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            m_widget.Fit = Fit.Contain;
+            m_widget.Load(riveAsset, artboardName: ArtboardName, stateMachineName: null);
+            RivePanelTestUtils.MakeWidgetFillPanel(m_widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            yield return null;
+
+            bool IsTargetDown(ViewModelInstance vmi, int targetIndex)
+            {
+                var property = vmi.GetProperty<ViewModelInstanceBooleanProperty>($"Target {targetIndex}/Down");
+                return property != null && property.Value;
+            }
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModel instance should be bound");
+
+            float[] columnCentersNormalizedX = new float[] { 0.10f, 0.30f, 0.50f, 0.70f, 0.90f };
+            const int LeftColumnIndex = 0;
+            const int MiddleColumnIndex = 2;
+            const int RightColumnIndex = 4;
+
+            Vector2 leftPoint = new Vector2(columnCentersNormalizedX[LeftColumnIndex], TapYNormalized);
+            Vector2 middlePoint = new Vector2(columnCentersNormalizedX[MiddleColumnIndex], TapYNormalized);
+            Vector2 rightPoint = new Vector2(columnCentersNormalizedX[RightColumnIndex], TapYNormalized);
+
+            // Press on left with A
+            m_widget.OnPointerDown(leftPoint, PointerIdA);
+            yield return null;
+            Assert.IsTrue(IsTargetDown(viewModelInstance, 1), "Left (Target 1) should be down after A press");
+            for (int t = 2; t <= ExpectedTargetCount; t++)
+            {
+                Assert.IsFalse(IsTargetDown(viewModelInstance, t));
+            }
+
+            // Press on right with B; A still holding left
+            m_widget.OnPointerDown(rightPoint, PointerIdB);
+            yield return null;
+            Assert.IsTrue(IsTargetDown(viewModelInstance, 1), "Left (Target 1) should remain down after B press");
+            Assert.IsTrue(IsTargetDown(viewModelInstance, 5), "Right (Target 5) should be down after B press");
+
+            // Move A from left to middle without lifting
+            m_widget.OnPointerMove(middlePoint, PointerIdA);
+            yield return null;
+            Assert.IsFalse(IsTargetDown(viewModelInstance, 1), "Left (Target 1) should clear after A moves off it");
+            Assert.IsTrue(IsTargetDown(viewModelInstance, 3), "Middle (Target 3) should be down after A moves");
+            Assert.IsTrue(IsTargetDown(viewModelInstance, 5), "Right (Target 5) should remain down (B unchanged)");
+
+            // Finally, release both
+            m_widget.OnPointerUp(middlePoint, PointerIdA);
+            m_widget.OnPointerUp(rightPoint, PointerIdB);
+            yield return null;
+            for (int t = 1; t <= ExpectedTargetCount; t++)
+            {
+                Assert.IsFalse(IsTargetDown(viewModelInstance, t));
+            }
         }
 
 

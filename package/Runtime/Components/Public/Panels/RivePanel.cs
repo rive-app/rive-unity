@@ -26,6 +26,14 @@ namespace Rive.Components
     public sealed class RivePanel : MonoBehaviour, IRivePanel
     {
         /// <summary>
+        /// Controls whether the panel processes multiple pointers concurrently or collapses all input to a single pointer (legacy behavior).
+        /// </summary>
+        public enum MultiTouchSupport
+        {
+            Disabled = 0,
+            Enabled = 1
+        }
+        /// <summary>
         /// The mode for updating the panel.
         /// </summary>
         public enum PanelUpdateMode
@@ -76,6 +84,10 @@ namespace Rive.Components
         [Tooltip("Determines whether the panel will be rendered in the Edit mode.")]
         [SerializeField] private bool m_disableEditorPreview = false;
 
+        [InspectorField(RivePanelInspectorSections.Advanced, "Multitouch Support")]
+        [Tooltip("When Disabled, the panel collapses all input to a single pointer for legacy behavior. When Enabled, multiple pointers are tracked independently.")]
+        [SerializeField] private MultiTouchSupport m_multiTouchSupport = MultiTouchSupport.Enabled;
+
 
         private List<IRiveWidget> m_sortedWidgets = new List<IRiveWidget>();
         private Dictionary<WidgetBehaviour, WidgetMetadata> widgetMetadata = new Dictionary<WidgetBehaviour, WidgetMetadata>();
@@ -87,13 +99,13 @@ namespace Rive.Components
         private List<IRiveWidget> m_raycastResults = new List<IRiveWidget>();
         private Coroutine m_sortWidgetsCoroutine;
 
-        private readonly Action<IRiveWidget, Vector2> m_pointerDownHandler = (widget, localPoint) => widget.OnPointerDown(localPoint);
-        private readonly Action<IRiveWidget, Vector2> m_pointerUpHandler = (widget, localPoint) => widget.OnPointerUp(localPoint);
-        private readonly Action<IRiveWidget, Vector2> m_pointerMoveHandler = (widget, localPoint) => widget.OnPointerMove(localPoint);
+        private readonly Action<IRiveWidget, Vector2, PanelPointerEvent> m_pointerDownHandler = (widget, localPoint, evt) => widget.OnPointerDown(localPoint, evt.PointerId);
+        private readonly Action<IRiveWidget, Vector2, PanelPointerEvent> m_pointerUpHandler = (widget, localPoint, evt) => widget.OnPointerUp(localPoint, evt.PointerId);
+        private readonly Action<IRiveWidget, Vector2, PanelPointerEvent> m_pointerMoveHandler = (widget, localPoint, evt) => widget.OnPointerMove(localPoint, evt.PointerId);
 
-        private readonly Action<IRiveWidget, Vector2> m_pointerExitHandler = (widget, localPoint) => widget.OnPointerExit(localPoint);
+        private readonly Action<IRiveWidget, Vector2, PanelPointerEvent> m_pointerExitHandler = (widget, localPoint, evt) => widget.OnPointerExit(localPoint, evt.PointerId);
 
-        private readonly Action<IRiveWidget, Vector2> m_pointerEnterHandler = (widget, localPoint) => widget.OnPointerEnter(localPoint);
+        private readonly Action<IRiveWidget, Vector2, PanelPointerEvent> m_pointerEnterHandler = (widget, localPoint, evt) => widget.OnPointerEnter(localPoint, evt.PointerId);
 
 
         private static int DefaultEventHandlersPoolCapacity => 1;
@@ -248,6 +260,15 @@ namespace Rive.Components
                 }
                 return RenderTargetStrategy.GetPanelOffset(this);
             }
+        }
+
+        /// <summary>
+        /// Whether the panel supports multiple touches. When disabled, the panel collapses all input to a single pointer for legacy behavior. When enabled, multiple pointers are tracked independently.
+        /// </summary>
+        public MultiTouchSupport MultiTouch
+        {
+            get => m_multiTouchSupport;
+            set => m_multiTouchSupport = value;
         }
 
         public event Action<IRiveWidget> OnWidgetAdded;
@@ -892,35 +913,35 @@ namespace Rive.Components
         // Input
 
 
-        private void HandlePointerDown(Vector2 normalizedPointInPanel)
+        private void HandlePointerDown(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(normalizedPointInPanel, m_pointerDownHandler);
+            ProcessPointerEvent(evt, m_pointerDownHandler);
         }
 
-        private void HandlePointerUp(Vector2 normalizedPointInPanel)
+        private void HandlePointerUp(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(normalizedPointInPanel, m_pointerUpHandler);
+            ProcessPointerEvent(evt, m_pointerUpHandler);
         }
 
-        private void HandlePointerMove(Vector2 normalizedPointInPanel)
+        private void HandlePointerMove(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(normalizedPointInPanel, m_pointerMoveHandler);
+            ProcessPointerEvent(evt, m_pointerMoveHandler);
         }
 
-        private void HandlePointerExit(Vector2 normalizedPointInPanel)
+        private void HandlePointerExit(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(normalizedPointInPanel, m_pointerExitHandler);
+            ProcessPointerEvent(evt, m_pointerExitHandler);
         }
 
-        private void HandlePointerEnter(Vector2 normalizedPointInPanel)
+        private void HandlePointerEnter(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(normalizedPointInPanel, m_pointerEnterHandler);
+            ProcessPointerEvent(evt, m_pointerEnterHandler);
         }
 
-        private void ProcessPointerEvent(Vector2 normalizedPointInPanel, Action<IRiveWidget, Vector2> handler)
+        private void ProcessPointerEvent(PanelPointerEvent evt, Action<IRiveWidget, Vector2, PanelPointerEvent> handler)
         {
             m_raycastResults.Clear();
-            PanelRaycaster.RaycastAll(this, normalizedPointInPanel, m_raycastResults);
+            PanelRaycaster.RaycastAll(this, evt.Position, m_raycastResults);
 
             for (int i = m_raycastResults.Count - 1; i >= 0; i--)
             {
@@ -934,10 +955,16 @@ namespace Rive.Components
                 Vector2 normalizedWidgetPoint;
 
                 PanelRaycaster.TryGetNormalizedPointInWidget(
-                                    this, normalizedPointInPanel, widget, out normalizedWidgetPoint);
+                                    this, evt.Position, widget, out normalizedWidgetPoint);
 
 
-                handler(widget, normalizedWidgetPoint);
+                // Preserve legacy single-pointer behavior when multitouch is disabled by
+                // collapsing all pointer ids to 0.
+                var effectiveEvent = m_multiTouchSupport == MultiTouchSupport.Enabled
+                    ? evt
+                    : new PanelPointerEvent(evt.Position, 0);
+
+                handler(widget, normalizedWidgetPoint, effectiveEvent);
 
             }
         }

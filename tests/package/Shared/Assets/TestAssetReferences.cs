@@ -41,6 +41,7 @@ namespace Rive.Tests.Utils
                 public const string riv_artboard_db_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/artboard_db_test.riv";
 
                 public const string riv_db_list_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/db_list_test.riv";
+                public const string riv_multitouch_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/multitouch-test.riv";
 
                 public const string textasset_roboDude = "Packages/app.rive.rive-unity.tests/Shared/Assets/robo_dude.bytes";
 

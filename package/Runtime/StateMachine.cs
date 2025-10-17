@@ -156,33 +156,33 @@ namespace Rive
         /// <summary>
         /// Move the pointer to the given position
         /// </summary>
-        public HitResult PointerMove(Vector2 position)
+        public HitResult PointerMove(Vector2 position, int pointerId = 0)
         {
-            return (HitResult)pointerMoveStateMachineWithHit(m_nativeStateMachine, position.x, position.y);
+            return (HitResult)pointerMoveStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
         }
 
         /// <summary>
         /// Press the pointer at the given position
         /// </summary>
-        public HitResult PointerDown(Vector2 position)
+        public HitResult PointerDown(Vector2 position, int pointerId = 0)
         {
-            return (HitResult)pointerDownStateMachineWithHit(m_nativeStateMachine, position.x, position.y);
+            return (HitResult)pointerDownStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
         }
 
         /// <summary>
         /// Release the pointer at the given position
         /// </summary>
-        public HitResult PointerUp(Vector2 position)
+        public HitResult PointerUp(Vector2 position, int pointerId = 0)
         {
-            return (HitResult)pointerUpStateMachineWithHit(m_nativeStateMachine, position.x, position.y);
+            return (HitResult)pointerUpStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
         }
 
         /// <summary>
         /// Exit the pointer at the given position
         /// </summary>
-        public HitResult PointerExit(Vector2 position)
+        public HitResult PointerExit(Vector2 position, int pointerId = 0)
         {
-            return (HitResult)pointerExitStateMachineWithHit(m_nativeStateMachine, position.x, position.y);
+            return (HitResult)pointerExitStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
         }
 
         /// <summary>
@@ -285,16 +285,16 @@ namespace Rive
 
 
         [DllImport(NativeLibrary.name)]
-        internal static extern byte pointerMoveStateMachineWithHit(IntPtr smi, float x, float y);
+        internal static extern byte pointerMoveStateMachineWithHit(IntPtr smi, float x, float y, int pointerId);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern byte pointerDownStateMachineWithHit(IntPtr smi, float x, float y);
+        internal static extern byte pointerDownStateMachineWithHit(IntPtr smi, float x, float y, int pointerId);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern byte pointerUpStateMachineWithHit(IntPtr smi, float x, float y);
+        internal static extern byte pointerUpStateMachineWithHit(IntPtr smi, float x, float y, int pointerId);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern byte pointerExitStateMachineWithHit(IntPtr smi, float x, float y);
+        internal static extern byte pointerExitStateMachineWithHit(IntPtr smi, float x, float y, int pointerId);
 
         [DllImport(NativeLibrary.name)]
         internal static extern bool hitTestStateMachine(IntPtr stateMachine, float x, float y);

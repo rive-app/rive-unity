@@ -77,6 +77,61 @@ namespace Rive.Tests
             Assert.IsInstanceOf<SimpleRenderTargetStrategy>(m_panel.RenderTargetStrategy, $"Default RenderTargetStrategy should be of type {nameof(SimpleRenderTargetStrategy)}");
         }
 
+        [UnityTest]
+        public IEnumerator MultitouchMode_Disabled_CollapsesIds_ToZero()
+        {
+            // Arrange panel with default input provider
+            var panel = RivePanelTestUtils.CreatePanel("MTPanel");
+            var mockWidget = RivePanelTestUtils.CreateWidget<MockRiveWidget>();
+            panel.AddToHierarchy(mockWidget);
+            RivePanelTestUtils.MakeWidgetFillPanel(mockWidget);
+
+            // Explicitly set Disabled to ensure legacy behavior
+            panel.MultiTouch = RivePanel.MultiTouchSupport.Disabled;
+
+            // Simulate two different pointer ids via local provider
+            var provider = new MockInputProvider();
+            panel.RegisterInputProvider(provider);
+            yield return null;
+
+            Vector2 center = new Vector2(0.5f, 0.5f);
+            provider.SimulatePointerDown(center, 123);
+            provider.SimulatePointerDown(center, 456);
+            yield return null;
+
+            // We expect both calls to reach the widget but with id collapsed to 0
+            Assert.AreEqual(2, mockWidget.PointerDownCalledCount);
+            Assert.AreEqual(2, mockWidget.PointerDownIds.Count);
+            Assert.IsTrue(mockWidget.PointerDownIds.TrueForAll(id => id == 0));
+
+            panel.UnregisterInputProvider(provider);
+        }
+
+        [UnityTest]
+        public IEnumerator MultitouchMode_Enabled_PreservesDistinctIds()
+        {
+            var panel = RivePanelTestUtils.CreatePanel("MTPanelEnabled");
+            var mockWidget = RivePanelTestUtils.CreateWidget<MockRiveWidget>();
+            panel.AddToHierarchy(mockWidget);
+            RivePanelTestUtils.MakeWidgetFillPanel(mockWidget);
+
+            panel.MultiTouch = RivePanel.MultiTouchSupport.Enabled;
+
+            var provider = new MockInputProvider();
+            panel.RegisterInputProvider(provider);
+            yield return null;
+
+            Vector2 center = new Vector2(0.5f, 0.5f);
+            provider.SimulatePointerDown(center, 123);
+            provider.SimulatePointerDown(center, 456);
+            yield return null;
+
+            Assert.AreEqual(2, mockWidget.PointerDownCalledCount);
+            CollectionAssert.AreEquivalent(new[] { 123, 456 }, mockWidget.PointerDownIds);
+
+            panel.UnregisterInputProvider(provider);
+        }
+
 
         [Test]
         public void ChangingRenderTargetStrategy_HandlesRegistrationCorrectly()
@@ -767,6 +822,9 @@ namespace Rive.Tests
         public int PointerDownCalledCount { get; private set; }
         public int PointerUpCalledCount { get; private set; }
         public int PointerMoveCalledCount { get; private set; }
+        public List<int> PointerDownIds { get; } = new List<int>();
+        public List<int> PointerUpIds { get; } = new List<int>();
+        public List<int> PointerMoveIds { get; } = new List<int>();
 
         public override IRenderObject RenderObject => m_renderObject;
 
@@ -790,23 +848,26 @@ namespace Rive.Tests
 
         }
 
-        public override bool OnPointerDown(Vector2 normalizedPoint)
+        public override bool OnPointerDown(Vector2 normalizedPoint, int pointerId)
         {
             PointerDownCalledCount++;
+            PointerDownIds.Add(pointerId);
 
             return true;
         }
 
-        public override bool OnPointerUp(Vector2 normalizedPoint)
+        public override bool OnPointerUp(Vector2 normalizedPoint, int pointerId)
         {
             PointerUpCalledCount++;
+            PointerUpIds.Add(pointerId);
 
             return true;
         }
 
-        public override bool OnPointerMove(Vector2 normalizedPoint)
+        public override bool OnPointerMove(Vector2 normalizedPoint, int pointerId)
         {
             PointerMoveCalledCount++;
+            PointerMoveIds.Add(pointerId);
 
             return true;
         }
@@ -878,17 +939,24 @@ namespace Rive.Tests
 
     public class MockInputProvider : IPanelInputProvider
     {
-        public event System.Action<Vector2> PointerPressed;
-        public event System.Action<Vector2> PointerReleased;
-        public event System.Action<Vector2> PointerMoved;
-        public event Action<Vector2> PointerExited;
-        public event Action<Vector2> PointerEntered;
+        public event System.Action<PanelPointerEvent> PointerPressed;
+        public event System.Action<PanelPointerEvent> PointerReleased;
+        public event System.Action<PanelPointerEvent> PointerMoved;
+        public event Action<PanelPointerEvent> PointerExited;
+        public event Action<PanelPointerEvent> PointerEntered;
 
-        public void SimulatePointerDown(Vector2 point) => PointerPressed?.Invoke(point);
-        public void SimulatePointerUp(Vector2 point) => PointerReleased?.Invoke(point);
-        public void SimulatePointerMove(Vector2 point) => PointerMoved?.Invoke(point);
-        public void SimulatePointerExit(Vector2 point) => PointerExited?.Invoke(point);
-        public void SimulatePointerEnter(Vector2 point) => PointerEntered?.Invoke(point);
+        private static PanelPointerEvent MakeEvent(Vector2 point) => new PanelPointerEvent(point, 0);
+        private static PanelPointerEvent MakeEvent(Vector2 point, int pointerId) => new PanelPointerEvent(point, pointerId);
+
+        public void SimulatePointerDown(Vector2 point) => PointerPressed?.Invoke(MakeEvent(point));
+        public void SimulatePointerUp(Vector2 point) => PointerReleased?.Invoke(MakeEvent(point));
+        public void SimulatePointerMove(Vector2 point) => PointerMoved?.Invoke(MakeEvent(point));
+        public void SimulatePointerExit(Vector2 point) => PointerExited?.Invoke(MakeEvent(point));
+        public void SimulatePointerEnter(Vector2 point) => PointerEntered?.Invoke(MakeEvent(point));
+
+        public void SimulatePointerDown(Vector2 point, int pointerId) => PointerPressed?.Invoke(MakeEvent(point, pointerId));
+        public void SimulatePointerUp(Vector2 point, int pointerId) => PointerReleased?.Invoke(MakeEvent(point, pointerId));
+        public void SimulatePointerMove(Vector2 point, int pointerId) => PointerMoved?.Invoke(MakeEvent(point, pointerId));
     }
 
 

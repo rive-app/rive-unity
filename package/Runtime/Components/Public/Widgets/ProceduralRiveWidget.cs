@@ -86,9 +86,9 @@ namespace Rive.Components
             return m_proceduralDrawing.HitTest(normalizedPointInRect, RectTransform.rect);
         }
 
-        public override bool OnPointerDown(Vector2 normalizedPointInRect)
+        public override bool OnPointerDown(Vector2 normalizedPointInRect, int pointerId)
         {
-            base.OnPointerDown(normalizedPointInRect);
+            base.OnPointerDown(normalizedPointInRect, pointerId);
 
             if (m_proceduralDrawing == null)
             {
@@ -98,9 +98,9 @@ namespace Rive.Components
             return m_proceduralDrawing.HandlePointerDown(normalizedPointInRect, RectTransform.rect);
         }
 
-        public override bool OnPointerMove(Vector2 normalizedPointInRect)
+        public override bool OnPointerMove(Vector2 normalizedPointInRect, int pointerId)
         {
-            base.OnPointerMove(normalizedPointInRect);
+            base.OnPointerMove(normalizedPointInRect, pointerId);
 
             if (m_proceduralDrawing == null)
             {
@@ -110,9 +110,9 @@ namespace Rive.Components
             return m_proceduralDrawing.HandlePointerMove(normalizedPointInRect, RectTransform.rect);
         }
 
-        public override bool OnPointerUp(Vector2 normalizedPointInRect)
+        public override bool OnPointerUp(Vector2 normalizedPointInRect, int pointerId)
         {
-            base.OnPointerUp(normalizedPointInRect);
+            base.OnPointerUp(normalizedPointInRect, pointerId);
 
             if (m_proceduralDrawing == null)
             {
@@ -122,9 +122,9 @@ namespace Rive.Components
             return m_proceduralDrawing.HandlePointerUp(normalizedPointInRect, RectTransform.rect);
         }
 
-        public override bool OnPointerExit(Vector2 normalizedPointInRect)
+        public override bool OnPointerExit(Vector2 normalizedPointInRect, int pointerId)
         {
-            base.OnPointerExit(normalizedPointInRect);
+            base.OnPointerExit(normalizedPointInRect, pointerId);
 
             if (m_proceduralDrawing == null)
             {

@@ -582,7 +582,7 @@ namespace Rive.Components
 
 
 
-        public override bool OnPointerDown(Vector2 normalizedPointInRect)
+        public override bool OnPointerDown(Vector2 normalizedPointInRect, int pointerId)
         {
             if (StateMachine == null)
             {
@@ -594,7 +594,7 @@ namespace Rive.Components
                 return false;
             }
 
-            HitResult hitResult = StateMachine.PointerDown(rivePoint);
+            HitResult hitResult = StateMachine.PointerDown(rivePoint, pointerId);
 
             return hitResult != HitResult.None;
         }
@@ -603,7 +603,8 @@ namespace Rive.Components
         /// Called when a pointer is released on the widget.
         /// </summary>
         /// <param name="normalizedPointInRect">The normalized point of the pointer release in the widget's rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
-        public override bool OnPointerUp(Vector2 normalizedPointInRect)
+        /// <param name="pointerId">The unique id for the active pointer/touch.</param>
+        public override bool OnPointerUp(Vector2 normalizedPointInRect, int pointerId)
         {
             if (StateMachine == null)
             {
@@ -615,7 +616,7 @@ namespace Rive.Components
                 return false;
             }
 
-            HitResult hitResult = StateMachine.PointerUp(rivePoint);
+            HitResult hitResult = StateMachine.PointerUp(rivePoint, pointerId);
 
             return hitResult != HitResult.None;
 
@@ -625,7 +626,8 @@ namespace Rive.Components
         /// Called when a pointer is moved on the widget.
         /// </summary>
         /// <param name="normalizedPointInRect">The normalized point of the pointer position in the widget's rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
-        public override bool OnPointerMove(Vector2 normalizedPointInRect)
+        /// <param name="pointerId">The unique id for the active pointer/touch.</param>
+        public override bool OnPointerMove(Vector2 normalizedPointInRect, int pointerId)
         {
             if (StateMachine == null)
             {
@@ -638,13 +640,13 @@ namespace Rive.Components
                 return false;
             }
 
-            HitResult hitResult = StateMachine.PointerMove(rivePoint);
+            HitResult hitResult = StateMachine.PointerMove(rivePoint, pointerId);
 
             return hitResult != HitResult.None;
 
         }
 
-        public override bool OnPointerExit(Vector2 normalizedPointInRect)
+        public override bool OnPointerExit(Vector2 normalizedPointInRect, int pointerId)
         {
             if (StateMachine == null)
             {
@@ -656,13 +658,13 @@ namespace Rive.Components
             {
                 return false;
             }
-            HitResult hitResult = StateMachine.PointerExit(rivePoint);
+            HitResult hitResult = StateMachine.PointerExit(rivePoint, pointerId);
 
             return hitResult != HitResult.None;
 
         }
 
-        public override bool OnPointerEnter(Vector2 normalizedPointInRect)
+        public override bool OnPointerEnter(Vector2 normalizedPointInRect, int pointerId)
         {
             if (StateMachine == null)
             {
@@ -676,7 +678,7 @@ namespace Rive.Components
             }
 
             // There's no specific StateMachine.PointerEnter method, so we use PointerMove instead to inform rive of the current pointer position.
-            HitResult hitResult = StateMachine.PointerMove(rivePoint);
+            HitResult hitResult = StateMachine.PointerMove(rivePoint, pointerId);
 
             return hitResult != HitResult.None;
 

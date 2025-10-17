@@ -90,9 +90,9 @@ namespace Rive.Tests
             m_widget.Load(m_mockDrawing);
             Vector2 testPoint = new Vector2(0.5f, 0.5f);
 
-            m_widget.OnPointerDown(testPoint);
-            m_widget.OnPointerMove(testPoint);
-            m_widget.OnPointerUp(testPoint);
+            m_widget.OnPointerDown(testPoint, 0);
+            m_widget.OnPointerMove(testPoint, 0);
+            m_widget.OnPointerUp(testPoint, 0);
 
             Assert.AreEqual(1, m_mockDrawing.PointerDownCallCount);
             Assert.AreEqual(1, m_mockDrawing.PointerMoveCallCount);

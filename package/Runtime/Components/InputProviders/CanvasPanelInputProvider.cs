@@ -31,11 +31,11 @@ namespace Rive.Components
             }
         }
 
-        public event Action<Vector2> PointerPressed;
-        public event Action<Vector2> PointerReleased;
-        public event Action<Vector2> PointerMoved;
-        public event Action<Vector2> PointerExited;
-        public event Action<Vector2> PointerEntered;
+        public event Action<PanelPointerEvent> PointerPressed;
+        public event Action<PanelPointerEvent> PointerReleased;
+        public event Action<PanelPointerEvent> PointerMoved;
+        public event Action<PanelPointerEvent> PointerExited;
+        public event Action<PanelPointerEvent> PointerEntered;
 
         void OnValidate()
         {
@@ -108,7 +108,7 @@ namespace Rive.Components
         }
 
 
-        private void ProcessPointerEvent(PointerEventData eventData, Action<Vector2> pointerHandler)
+        private void ProcessPointerEvent(PointerEventData eventData, Action<PanelPointerEvent> pointerHandler)
         {
             if (pointerHandler == null)
             {
@@ -126,7 +126,8 @@ namespace Rive.Components
                 return;
             }
 
-            pointerHandler(canvasNormalizedPoint);
+            int pointerId = eventData.pointerId;
+            pointerHandler(new PanelPointerEvent(canvasNormalizedPoint, pointerId));
         }
 
         public void OnPointerDown(PointerEventData eventData)

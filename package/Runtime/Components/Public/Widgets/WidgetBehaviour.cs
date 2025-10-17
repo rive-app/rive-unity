@@ -320,8 +320,9 @@ namespace Rive.Components
         /// Called when a pointer is pressed on the widget.
         /// </summary>
         /// <param name="normalizedPointInRect">The normalized point of the pointer press in the widget's rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
+        /// <param name="pointerId">The unique id for the active pointer/touch.</param>
         /// <returns>Returns <c>true</c> if the pointer press hits an interactive element; otherwise, <c>false</c>.</returns>
-        public virtual bool OnPointerDown(Vector2 normalizedPointInRect)
+        public virtual bool OnPointerDown(Vector2 normalizedPointInRect, int pointerId)
         {
             return false;
         }
@@ -330,8 +331,9 @@ namespace Rive.Components
         /// Called when a pointer is released on the widget.
         /// </summary>
         /// <param name="normalizedPointInRect">The normalized point of the pointer release in the widget's rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
+        /// <param name="pointerId">The unique id for the active pointer/touch.</param>
         /// <returns>Returns <c>true</c> if the pointer release hits an interactive element; otherwise, <c>false</c>.</returns>
-        public virtual bool OnPointerUp(Vector2 normalizedPointInRect)
+        public virtual bool OnPointerUp(Vector2 normalizedPointInRect, int pointerId)
         {
             return false;
         }
@@ -340,8 +342,9 @@ namespace Rive.Components
         /// Called when a pointer is moved on the widget.
         /// </summary>
         /// <param name="normalizedPointInRect">The normalized point of the pointer position in the widget's rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
+        /// <param name="pointerId">The unique id for the active pointer/touch.</param>
         /// <returns>Returns <c>true</c> if the pointer move hits an interactive element; otherwise, <c>false</c>.</returns>
-        public virtual bool OnPointerMove(Vector2 normalizedPointInRect)
+        public virtual bool OnPointerMove(Vector2 normalizedPointInRect, int pointerId)
         {
             return false;
         }
@@ -350,8 +353,9 @@ namespace Rive.Components
         /// Called when a pointer exits the widget.
         /// </summary>
         /// <param name="normalizedPointInRect"> The normalized point of the pointer exit in the widget's rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
+        /// <param name="pointerId">The unique id for the active pointer/touch.</param>
         /// <returns> Returns <c>true</c> if the pointer exit hits an interactive element; otherwise, <c>false</c>.</returns>
-        public virtual bool OnPointerExit(Vector2 normalizedPointInRect)
+        public virtual bool OnPointerExit(Vector2 normalizedPointInRect, int pointerId)
         {
             return false;
         }
@@ -359,9 +363,10 @@ namespace Rive.Components
         /// <summary>
         /// Called when a pointer enters the widget.
         /// </summary>
-        /// <param name="normalizedPointInRect"></param>
+        /// <param name="normalizedPointInRect">The normalized point of the pointer enter in the widget's rectangle. The coordinates are in the range [0,1] where (0,0) is the bottom-left corner and (1,1) is the top-right corner.</param>
+        /// <param name="pointerId">The unique id for the active pointer/touch.</param>
         /// <returns> Returns <c>true</c> if the pointer enter hits an interactive element; otherwise, <c>false</c>.</returns>
-        public virtual bool OnPointerEnter(Vector2 normalizedPointInRect)
+        public virtual bool OnPointerEnter(Vector2 normalizedPointInRect, int pointerId)
         {
             return false;
         }
