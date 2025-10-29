@@ -9,7 +9,7 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceImageProperty : ViewModelInstancePrimitiveProperty
     {
-        private ImageOutOfBandAsset m_lastAssignedImageAsset = null;
+
 
         public ViewModelInstanceImageProperty(IntPtr instanceValuePtr, ViewModelInstance instance) : base(instanceValuePtr, instance)
         {
@@ -27,12 +27,12 @@ namespace Rive
         /// <summary>
         /// Raised when the image property is changed in the Rive graphic.
         /// </summary>
-        public event Action<ImageOutOfBandAsset> OnValueChanged
+        public event Action OnValueChanged
         {
             add => AddPropertyCallback(value, ref m_onValueChanged);
             remove => RemovePropertyCallback(value, ref m_onValueChanged);
         }
-        private Action<ImageOutOfBandAsset> m_onValueChanged;
+        private Action m_onValueChanged;
 
         /// <summary>
         /// Sets the image asset for the property.
@@ -49,11 +49,7 @@ namespace Rive
 
             bool wasSuccess = setViewModelInstanceImageValue(InstancePropertyPtr, imageAsset == null ? IntPtr.Zero : imageAsset.NativeAsset);
 
-            if (wasSuccess)
-            {
-                m_lastAssignedImageAsset = imageAsset;
-            }
-            else
+            if (!wasSuccess)
             {
                 DebugLogger.Instance.LogWarning("Failed to set image asset.");
             }
@@ -62,7 +58,7 @@ namespace Rive
 
         internal override void RaiseChangedEvent()
         {
-            m_onValueChanged?.Invoke(m_lastAssignedImageAsset);
+            m_onValueChanged?.Invoke();
         }
 
         internal override void ClearAllCallbacks()

@@ -9,7 +9,7 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceArtboardProperty : ViewModelInstancePrimitiveProperty
     {
-        private BindableArtboard m_lastAssignedArtboard = null;
+
 
         public ViewModelInstanceArtboardProperty(IntPtr instanceValuePtr, ViewModelInstance instance) : base(instanceValuePtr, instance)
         {
@@ -29,12 +29,12 @@ namespace Rive
         /// <summary>
         /// Raised when the artboard property is changed in the Rive graphic.
         /// </summary>
-        public event Action<BindableArtboard> OnValueChanged
+        public event Action OnValueChanged
         {
             add => AddPropertyCallback(value, ref m_onValueChanged);
             remove => RemovePropertyCallback(value, ref m_onValueChanged);
         }
-        private Action<BindableArtboard> m_onValueChanged;
+        private Action m_onValueChanged;
 
         /// <summary>
         /// Sets the artboard for the property.
@@ -51,11 +51,7 @@ namespace Rive
 
             bool wasSuccess = setViewModelInstanceArtboardValue(InstancePropertyPtr, artboard?.NativeBindableArtboard ?? IntPtr.Zero);
 
-            if (wasSuccess)
-            {
-                m_lastAssignedArtboard = artboard;
-            }
-            else
+            if (!wasSuccess)
             {
                 DebugLogger.Instance.LogError("Failed to set artboard.");
             }
@@ -63,7 +59,7 @@ namespace Rive
 
         internal override void RaiseChangedEvent()
         {
-            m_onValueChanged?.Invoke(m_lastAssignedArtboard);
+            m_onValueChanged?.Invoke();
         }
 
         internal override void ClearAllCallbacks()

@@ -1023,12 +1023,10 @@ namespace Rive.Tests
             {
 
                 bool callbackTriggered = false;
-                ImageOutOfBandAsset receivedImage = null;
 
-                imageProp.OnValueChanged += (image) =>
+                imageProp.OnValueChanged += () =>
                 {
                     callbackTriggered = true;
-                    receivedImage = image;
                 };
 
                 // Test setting image
@@ -1036,17 +1034,13 @@ namespace Rive.Tests
                 viewModelInstance.HandleCallbacks();
 
                 Assert.IsTrue(callbackTriggered, "Callback should be triggered when image is set");
-                Assert.AreSame(testImage1, receivedImage, "Callback should receive the correct image");
 
                 // Test setting different image
                 callbackTriggered = false;
-                receivedImage = null;
-
                 imageProp.Value = testImage2;
                 viewModelInstance.HandleCallbacks();
 
                 Assert.IsTrue(callbackTriggered, "Callback should be triggered when image is changed");
-                Assert.AreSame(testImage2, receivedImage, "Callback should receive the new image");
 
                 // Test setting null to clear image
                 callbackTriggered = false;
@@ -1055,8 +1049,6 @@ namespace Rive.Tests
                 viewModelInstance.HandleCallbacks();
 
                 Assert.IsTrue(callbackTriggered, "Callback should still be triggered when image is set to null");
-
-                Assert.IsNull(receivedImage, "Received image should be null when setting image to null");
 
                 Assert.IsFalse(mockLogger.LoggedErrors.Count > 0 || mockLogger.LoggedWarnings.Count > 0,
                     "Should not log error when trying to set image to null");
@@ -1134,19 +1126,15 @@ namespace Rive.Tests
 
             bool callback1Triggered = false;
             bool callback2Triggered = false;
-            BindableArtboard receivedArtboard1 = null;
-            BindableArtboard receivedArtboard2 = null;
 
-            artboardProp1.OnValueChanged += (artboard) =>
+            artboardProp1.OnValueChanged += () =>
             {
                 callback1Triggered = true;
-                receivedArtboard1 = artboard;
             };
 
-            artboardProp2.OnValueChanged += (artboard) =>
+            artboardProp2.OnValueChanged += () =>
             {
                 callback2Triggered = true;
-                receivedArtboard2 = artboard;
             };
 
             // Test setting artboards
@@ -1157,8 +1145,6 @@ namespace Rive.Tests
 
             Assert.IsTrue(callback1Triggered, "Callback should be triggered when artboard_1 is set");
             Assert.IsTrue(callback2Triggered, "Callback should be triggered when artboard_2 is set");
-            Assert.AreSame(blueArtboard1, receivedArtboard1, "Callback should receive the correct artboard for artboard_1");
-            Assert.AreSame(redArtboard2, receivedArtboard2, "Callback should receive the correct artboard for artboard_2");
             mockLogger.Clear();
 
             // Test setting to null
@@ -1167,7 +1153,6 @@ namespace Rive.Tests
             viewModelInstance.HandleCallbacks();
 
             Assert.IsTrue(callback1Triggered, "Callback should be triggered when artboard is set to null");
-            Assert.IsNull(receivedArtboard1, "Received artboard should be null when setting artboard_1 to null");
 
             Assert.IsFalse(mockLogger.LoggedErrors.Count > 0 || mockLogger.LoggedWarnings.Count > 0,
                 "Should not log error when setting artboard_1 to null");
@@ -1211,12 +1196,10 @@ namespace Rive.Tests
             Assert.IsNotNull(eventsArtboard, "Sample artboard should exist in external artboard file");
 
             bool callbackTriggered = false;
-            BindableArtboard receivedArtboard = null;
 
-            artboardProp1.OnValueChanged += (artboard) =>
+            artboardProp1.OnValueChanged += () =>
             {
                 callbackTriggered = true;
-                receivedArtboard = artboard;
             };
 
             // Test setting artboard from external file
@@ -1224,7 +1207,6 @@ namespace Rive.Tests
             viewModelInstance.HandleCallbacks();
 
             Assert.IsTrue(callbackTriggered, "Callback should be triggered when artboard is set to external artboard");
-            Assert.AreSame(eventsArtboard, receivedArtboard, "Callback should receive the correct external artboard");
 
         }
 
