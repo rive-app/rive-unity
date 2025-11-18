@@ -8,13 +8,13 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/RiveCanvasPanel.unity
     guid: 4e64171e460ac41fda97c87000359ab1
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/AtlasRenderTargetScene.unity
     guid: f1850308205574998a85b7e88da612e4
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/PooledRenderTargetScene.unity
     guid: a80130be14fa34dc3b6ddfd6557c1c74
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/RiveTextureRenderer.unity
     guid: 0b9ba353e0d4047f3a29e893d88b9050
   m_configObjects:
