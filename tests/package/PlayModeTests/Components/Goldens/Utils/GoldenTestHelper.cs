@@ -211,7 +211,11 @@ namespace Rive.Tests.Utils
             }
         }
 
-        public IEnumerator AssertWithRenderTexture(string testId, RenderTexture renderTexture, ImageComparisonSettings imageComparisonSettings = null)
+        public IEnumerator AssertWithRenderTexture(string testId,
+                                                  RenderTexture renderTexture,
+                                                  ImageComparisonSettings imageComparisonSettings = null,
+                                                  bool applyColorCorrection = true,
+                                                  Material colorCorrectionMaterial = null)
         {
             yield return LoadGoldenImageIfNeeded(testId);
 
@@ -225,10 +229,30 @@ namespace Rive.Tests.Utils
                     yield break;
                 }
 
-                var texture = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGBA32, false);
-                RenderTexture.active = renderTexture;
+                // Optionally color-correct into a temp RT before readback
+                RenderTexture sourceRT = renderTexture;
+                RenderTexture correctionRT = null;
+                if (applyColorCorrection)
+                {
+                    var mat = colorCorrectionMaterial ?? TryGetDefaultColorCorrectionMaterial();
+                    if (mat != null)
+                    {
+                        correctionRT = RenderTexture.GetTemporary(renderTexture.width, renderTexture.height, 0, RenderTextureFormat.ARGB32);
+                        Graphics.Blit(renderTexture, correctionRT, mat);
+                        sourceRT = correctionRT;
+                    }
+                }
+
+                var texture = new Texture2D(sourceRT.width, sourceRT.height, TextureFormat.RGBA32, false);
+                RenderTexture.active = sourceRT;
                 texture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
                 texture.Apply();
+                RenderTexture.active = null;
+
+                if (correctionRT != null)
+                {
+                    RenderTexture.ReleaseTemporary(correctionRT);
+                }
 
                 texture = ResizeIfNeeded(texture);
                 m_capturedImages[testId] = texture;
@@ -249,7 +273,24 @@ namespace Rive.Tests.Utils
 
             // Create a temporary RenderTexture with same dimensions as golden
             var tempRT = new RenderTexture(goldenImage.width, goldenImage.height, 0, RenderTextureFormat.ARGB32);
-            Graphics.Blit(renderTexture, tempRT);
+
+            // Optionally color-correct on blit
+            if (applyColorCorrection)
+            {
+                var mat = colorCorrectionMaterial ?? TryGetDefaultColorCorrectionMaterial();
+                if (mat != null)
+                {
+                    Graphics.Blit(renderTexture, tempRT, mat);
+                }
+                else
+                {
+                    Graphics.Blit(renderTexture, tempRT);
+                }
+            }
+            else
+            {
+                Graphics.Blit(renderTexture, tempRT);
+            }
 
             // Create Texture2D and read pixels
             var texture2D = new Texture2D(goldenImage.width, goldenImage.height, TextureFormat.RGBA32, false);
@@ -327,6 +368,27 @@ namespace Rive.Tests.Utils
             RenderTexture.ReleaseTemporary(tempRT);
 
             return rgba32Texture;
+        }
+
+        /// <summary>
+        /// Returns a default color correction material that converts from Gamma to linear space when needed.
+        /// In Linear color space projects, this applies a decode so comparisons are stable; in Gamma, no correction.
+        /// </summary>
+        private Material TryGetDefaultColorCorrectionMaterial()
+        {
+            if (QualitySettings.activeColorSpace != ColorSpace.Linear)
+            {
+                return null;
+            }
+            // Use Rive's decode material if available (build-safe via Resources in runtime lib)
+            try
+            {
+                return Rive.TextureHelper.GammaToLinearUIMaterial;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public void Cleanup()

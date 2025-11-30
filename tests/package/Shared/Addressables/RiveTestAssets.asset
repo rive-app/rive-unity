@@ -432,6 +432,71 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ad8c88d49a6c0414b9234ef5af83087f
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/MaterialRegistry.asset
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8f80bcebb848e4195becef645310de8a
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/cute_robot.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0c9c3ffc3b9cd4c84902316ccbfc5e1c
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Canvas_CustomDefaultMaterial_WorksAcrossPipelines.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: eac5f8c53238145c5a74cf0211264dfb
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Unlit_URP.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 81d125e3392b64bb685bfe0b871543c4
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Unlit_URP_Alpha.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 84695aa13931b4e5a9ac64012a02b9d7
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_BiRP_Alpha_Gamma.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8dcee924e2e704a4b9d3485e70ee752c
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_BiRP_Alpha_Linear.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f8c232e7eaf8744a8bc4595f48e0aef7
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_BiRP_Linear.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7846bd277c1c640ae9ef92b087fdf85d
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_BiRP_Gamma.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ec575c3a03a1a432db52137045db5fa3
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Unlit_BiRP_Alpha.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 61f251b8647e940a7b9acfe7c0ada4a1
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Unlit_BiRP.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6629a5faf0c814dc88453d6a71e72567
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_URP.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dcb0487aea99a47b9bf73279c1322fa0
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_URP_Alpha.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: b7ab8ec4605cd415985bb2f170839da3, type: 2}
   m_SchemaSet:

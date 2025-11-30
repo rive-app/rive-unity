@@ -45,7 +45,7 @@ namespace Rive.EditorTools
             string operatingSystem = SystemInfo.operatingSystem;
             string graphicsDevice = SystemInfo.graphicsDeviceName + " (" + SystemInfo.graphicsDeviceType + ")";
 
-            string riveVersion = GetPackageVersion(PackageInfo.PACKAGE_NAME);
+            string riveVersion = GetPackageVersion(Rive.EditorTools.PackageInfo.PACKAGE_NAME);
 
             return
                 "Rive Unity Support Info\n" +
@@ -57,7 +57,7 @@ namespace Rive.EditorTools
                 $"Render Pipeline: {renderPipeline}\n" +
                 $"OS: {operatingSystem}\n" +
                 $"GPU: {graphicsDevice}\n" +
-                $"Rive Plugin: {PackageInfo.PACKAGE_NAME} {riveVersion}\n";
+                $"Rive Plugin: {Rive.EditorTools.PackageInfo.PACKAGE_NAME} {riveVersion}\n";
         }
 
         private static string GetRenderPipelineDescription()
