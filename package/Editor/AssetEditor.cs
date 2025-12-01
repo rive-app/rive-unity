@@ -446,13 +446,36 @@ namespace Rive
 
             if (rt != null)
             {
-                RenderTexture.active = rt;
+                RenderTexture sourceForRead = rt;
+                RenderTexture temp = null;
+
+                // Static preview: use the runtime decode material (Rive/UI/Default) in Linear color space.
+                // This decodes gamma to linear, which works correctly with ReadPixels→Texture2D path.
+                // We DON'T use the pass-through shader here because the blit+ReadPixels seems to cause issues, and leads to nothing rendering for the static preview.
+                // TODO: Remove this once we have a proper way to display the texture in Linear color space.
+                if (Rive.TextureHelper.ProjectNeedsColorSpaceFix)
+                {
+                    var mat = Rive.TextureHelper.GammaToLinearUIMaterial;
+                    if (mat != null)
+                    {
+                        temp = RenderTexture.GetTemporary(rt.width, rt.height, 0, RenderTextureFormat.ARGB32);
+                        Graphics.Blit(rt, temp, mat);
+                        sourceForRead = temp;
+                    }
+                }
+
+                RenderTexture.active = sourceForRead;
 
                 Texture2D tex = new Texture2D(width, height);
                 tex.ReadPixels(rect, 0, 0);
                 tex.Apply(true);
 
                 RenderTexture.active = prev;
+                if (temp != null)
+                {
+                    RenderTexture.ReleaseTemporary(temp);
+                }
+                RenderTexture.ReleaseTemporary(rt);
                 return tex;
             }
             return null;
@@ -522,7 +545,7 @@ namespace Rive
                 rt = temp;
             }
 
-            RenderTexture.ReleaseTemporary(rt);
+            // Caller releases the temporary RT
             return rt;
         }
 
@@ -532,13 +555,33 @@ namespace Rive
             {
                 RenderTexture rt = Render(rect);
 
-                UnityEditor.EditorGUI.DrawPreviewTexture(
-                    FlipY()
-                        ? new Rect(rect.x, rect.y + rect.height, rect.width, -rect.height)
-                        : rect,
-                    rt
-                );
+                var drawRect = FlipY()
+                    ? new Rect(rect.x, rect.y + rect.height, rect.width, -rect.height)
+                    : rect;
+
+                // Live preview: use a simple pass-through shader in Linear color space.
+                // Rive outputs gamma values, and it looks like EditorGUI.DrawPreviewTexture expects sRGB input.
+                // We DON'T use the decode material here because it would decode to linear, causing burnt/dark colors.
+                // The pass-through shader (Hidden/Rive/Editor/SRGBEncodePreview) just returns the texture unchanged.
+                // TODO: Remove this once we have a proper way to display the texture in Linear color space.
+                var mat = (Rive.TextureHelper.ProjectNeedsColorSpaceFix ? GetEncodePreviewMaterial() : null);
+                UnityEditor.EditorGUI.DrawPreviewTexture(drawRect, rt, mat);
+                RenderTexture.ReleaseTemporary(rt);
             }
+        }
+
+        private static Material s_encodePreviewMaterial;
+        private static Material GetEncodePreviewMaterial()
+        {
+            if (s_encodePreviewMaterial != null) return s_encodePreviewMaterial;
+            var shader = Shader.Find("Hidden/Rive/Editor/SRGBEncodePreview");
+            if (shader == null) return null;
+            s_encodePreviewMaterial = new Material(shader)
+            {
+                name = "Rive_Editor_SRGBEncodePreview",
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            return s_encodePreviewMaterial;
         }
 
         private void UnloadPreview()

@@ -153,6 +153,27 @@ namespace Rive.Components
 
 #endif
 
+        // Perform one-time conversion of default pipeline materials when the component is first added or Reset is invoked.
+        void Reset()
+        {
+#if UNITY_EDITOR
+
+            if (m_objectRenderer == null)
+            {
+                m_objectRenderer = GetComponent<UnityEngine.Renderer>();
+
+                if (m_objectRenderer == null)
+                {
+                    return;
+                }
+            }
+          
+            MaterialConversionUtility.EnsureRiveMaterialsOnRenderer(m_objectRenderer);
+#endif
+        }
+
+
+
 
         /// <summary>
         /// Returns the Renderer component that is used to render the Rive graphic.
@@ -304,11 +325,6 @@ namespace Rive.Components
         private void Start()
         {
             LogInputErrorWarningsIfNeeded();
-
-
-
-
-
         }
 
 

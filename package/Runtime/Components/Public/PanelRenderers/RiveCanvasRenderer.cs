@@ -1,5 +1,6 @@
 using Rive.EditorTools;
 using Rive.Utils;
+using Rive;
 using UnityEngine;
 
 namespace Rive.Components
@@ -248,10 +249,19 @@ namespace Rive.Components
 
         private void UpdateCustomMaterial()
         {
-            if (DisplayImage != null)
+            if (DisplayImage == null)
             {
-                DisplayImage.material = m_customMaterial;
+                return;
             }
+
+            Material materialToApply = m_customMaterial;
+
+            if (materialToApply == null && Application.isPlaying && TextureHelper.ProjectNeedsColorSpaceFix)
+            {
+                materialToApply = TextureHelper.GammaToLinearUIMaterial;
+            }
+
+            DisplayImage.material = materialToApply;
         }
 
 

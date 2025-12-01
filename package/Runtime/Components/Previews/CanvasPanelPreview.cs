@@ -99,6 +99,23 @@ namespace Rive.Components
                 previewTexture = rt != null ? rt : GetDefaultTexture();
             }
 
+            // Ensure correct color in Linear space by using the decode UI material
+            if (Rive.TextureHelper.ProjectNeedsColorSpaceFix)
+            {
+                var decodeMat = Rive.TextureHelper.GammaToLinearUIMaterial;
+                if (decodeMat != null && m_displayImage.material != decodeMat)
+                {
+                    m_displayImage.material = decodeMat;
+                }
+            }
+            else
+            {
+                if (m_displayImage.material != null)
+                {
+                    m_displayImage.material = null;
+                }
+            }
+
             if (previewTexture != m_lastPreviewTexture || m_displayImage.mainTexture != previewTexture)
             {
                 m_displayImage.UpdateEditorPreview(previewTexture);

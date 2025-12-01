@@ -1,21 +1,24 @@
 {
-    "name": "app.rive.rive-unity",
-    "version": "0.0.0",
-    "displayName": "Rive",
-    "description": "Create and ship interactive animations to any platform",
-    "unity": "2020.1",
-    "unityRelease": "0a10",
-    "documentationUrl": "https://rive.app/community/doc/getting-started/docQycIiNOv4",
-    "changelogUrl": "https://github.com/rive-app/rive-unity/tags",
-    "licensesUrl": "https://github.com/rive-app/rive-unity/license",
-    "keywords": [
-        "Vector",
-        "Graphics",
-        "Animation"
-    ],
-    "author": {
-        "name": "Rive Team",
-        "email": "hello@rive.app",
-        "url": "https://rive.app"
-    }
+  "name": "app.rive.rive-unity",
+  "version": "0.0.0",
+  "displayName": "Rive",
+  "description": "Create and ship interactive animations to any platform",
+  "unity": "2021.3",
+  "unityRelease": "0a10",
+  "documentationUrl": "https://rive.app/community/doc/getting-started/docQycIiNOv4",
+  "changelogUrl": "https://github.com/rive-app/rive-unity/tags",
+  "licensesUrl": "https://github.com/rive-app/rive-unity/license",
+  "keywords": [
+    "Vector",
+    "Graphics",
+    "Animation"
+  ],
+  "author": {
+    "name": "Rive Team",
+    "email": "hello@rive.app",
+    "url": "https://rive.app"
+  },
+  "dependencies": {
+    "com.unity.shadergraph": "14.0.11"
+  }
 }

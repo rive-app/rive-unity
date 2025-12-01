@@ -1238,7 +1238,8 @@ namespace Rive.Tests
                     yield return m_goldenHelper.AssertWithRenderTexture(
                       goldenId,
                       croppedRT,
-                      imageComparisonSettings
+                      imageComparisonSettings,
+                      applyColorCorrection: false // We've already applied color correction to the render texture, so we don't need to apply it again.
                     );
                     RenderTexture.ReleaseTemporary(croppedRT);
 
@@ -1928,6 +1929,284 @@ namespace Rive.Tests
             UnityEngine.Object.Destroy(canvasGO);
         }
 
+        // -------- Color space and pipeline material testing --------
+
+        private static string ColorSpaceSuffix()
+        {
+            return QualitySettings.activeColorSpace == ColorSpace.Linear ? "Linear" : "Gamma";
+        }
+
+        private static RenderTexture MakeRT(int w = 512, int h = 512)
+        {
+            var rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32) { name = "GoldenCaptureRT" };
+            rt.Create();
+            return rt;
+        }
+
+        private IEnumerator LoadMaterialRegistryCoroutine(System.Action<Rive.Tests.Utils.MaterialRegistry> onLoaded)
+        {
+            const string address = "Packages/app.rive.rive-unity.tests/Shared/Assets/MaterialRegistry.asset";
+            Rive.Tests.Utils.MaterialRegistry registry = null;
+            bool failed = false;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Tests.Utils.MaterialRegistry>(
+                address,
+                asset => registry = asset,
+                () => failed = true
+            );
+            Assert.IsFalse(failed, $"MaterialRegistry Addressable not found. Ensure Addressables includes '{address}'.");
+            onLoaded?.Invoke(registry);
+        }
+
+
+
+        private IEnumerator WorldspaceMaterialGolden(Material worldspaceMat,
+                                                    string goldenId,
+                                                    string riveAssetPath = null,
+                                                    Vector2? panelDimensions = null)
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                prefab =>
+                {
+                    var go = UnityEngine.Object.Instantiate(prefab);
+                    panel = go.GetComponent<RivePanel>();
+                    panel.SetDimensions(panelDimensions ?? new Vector2(512, 512));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}"));
+
+            // If a custom rive asset was provided, load it into the panel's widget.
+            if (!string.IsNullOrEmpty(riveAssetPath))
+            {
+                Rive.Asset riveAsset = null;
+                yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                    riveAssetPath,
+                    asset => riveAsset = asset,
+                    () => Assert.Fail($"Failed to load rive asset at {riveAssetPath}")
+                );
+
+                Assert.IsNotNull(riveAsset, $"Rive asset at path {riveAssetPath} could not be loaded.");
+                var widget = panel.GetComponentInChildren<RiveWidget>();
+                Assert.IsNotNull(widget, "Expected RiveWidget in panel prefab.");
+
+                widget.Load(riveAsset);
+            }
+
+            var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            quad.transform.position = new Vector3(0, 0, 2.0f);
+            var mr = quad.GetComponent<MeshRenderer>();
+            mr.sharedMaterial = new Material(worldspaceMat);
+
+            var rtr = quad.AddComponent<Rive.Components.RiveTextureRenderer>();
+            rtr.SetPanel(panel);
+
+            var cam = new GameObject("WorldspaceCaptureCam").AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.Color;
+            cam.backgroundColor = UnityEngine.Color.black;
+            cam.orthographic = true;
+            cam.orthographicSize = 0.5f;
+
+            cam.transform.position = new Vector3(0, 0, 0);
+
+
+
+            // Check if there's already a directional light in the scene and use that otherwise, create a new one.
+            // If we don't do this, the scene might be blown out because there are multiple lights
+            var existingLight = UnityEngine.Object.FindObjectOfType<Light>();
+            if (existingLight == null || existingLight.type != LightType.Directional)
+            {
+                var lightGO = new GameObject("Directional Light");
+                var light = lightGO.AddComponent<Light>();
+                light.type = LightType.Directional;
+                light.intensity = 0.7f;
+            }
+
+            var capture = MakeRT(512, 512);
+            cam.targetTexture = capture;
+
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            yield return m_goldenHelper.AssertWithRenderTexture(goldenId, capture, applyColorCorrection: false);
+
+            DestroyObj(quad);
+            DestroyObj(cam.gameObject);
+            DestroyObj(panel.gameObject);
+            capture.Release();
+            DestroyObj(capture);
+        }
+
+
+        [UnityTest]
+        public IEnumerator Worldspace_RiveTextureRenderer_Lit_ColorSpace_Correct()
+        {
+            Rive.Tests.Utils.MaterialRegistry reg = null;
+            yield return LoadMaterialRegistryCoroutine(r => reg = r);
+            Assert.IsNotNull(reg, "MaterialRegistry not loaded.");
+            var litShader = reg.GetLitShaderForCurrentRP();
+            Assert.IsNotNull(litShader, "Lit shader for current pipeline not found.");
+            var riveLit = new Material(litShader);
+
+            string goldenId;
+#if RIVE_USING_HDRP
+            goldenId = $"Worldspace_RiveTextureRenderer_Lit_HDRP";
+#elif RIVE_USING_URP
+            goldenId = $"Worldspace_RiveTextureRenderer_Lit_URP";
+#else
+            // Built in RP seems to have stronger color differences between gamma and linear, so we do two different goldens here based on color space.
+            goldenId = $"Worldspace_RiveTextureRenderer_Lit_BiRP_{ColorSpaceSuffix()}";
+#endif
+
+            Assert.IsNotNull(riveLit, "Lit material not found in MaterialRegistry for current pipeline.");
+            yield return WorldspaceMaterialGolden(riveLit, goldenId);
+        }
+
+        /// <summary>
+        /// Ensures that the alpha channel is correctly rendered in lit worldspace materials.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Worldspace_RiveTextureRenderer_Lit_ColorSpace_Alpha_Correct()
+        {
+            Rive.Tests.Utils.MaterialRegistry reg = null;
+            yield return LoadMaterialRegistryCoroutine(r => reg = r);
+            Assert.IsNotNull(reg, "MaterialRegistry not loaded.");
+            var litShader = reg.GetLitShaderForCurrentRP();
+            Assert.IsNotNull(litShader, "Lit shader for current pipeline not found.");
+            var riveLit = new Material(litShader);
+
+            string goldenId;
+#if RIVE_USING_HDRP
+            goldenId = $"Worldspace_RiveTextureRenderer_Lit_HDRP_Alpha";
+#elif RIVE_USING_URP
+            goldenId = $"Worldspace_RiveTextureRenderer_Lit_URP_Alpha";
+#else
+            goldenId = $"Worldspace_RiveTextureRenderer_Lit_BiRP_Alpha_{ColorSpaceSuffix()}";
+#endif
+
+
+            yield return WorldspaceMaterialGolden(riveLit, goldenId, TestAssetReferences.riv_cute_robot, new Vector2(512, 512));
+        }
+
+        [UnityTest]
+        public IEnumerator Worldspace_RiveTextureRenderer_Unlit_ColorSpace_Correct()
+        {
+            Rive.Tests.Utils.MaterialRegistry reg = null;
+            yield return LoadMaterialRegistryCoroutine(r => reg = r);
+            Assert.IsNotNull(reg, "MaterialRegistry not loaded.");
+            var unlitShader = reg.GetUnlitShaderForCurrentRP();
+            Assert.IsNotNull(unlitShader, "Unlit shader for current pipeline not found.");
+            var riveUnlit = new Material(unlitShader);
+
+            string goldenId;
+#if RIVE_USING_HDRP
+            goldenId = $"Worldspace_RiveTextureRenderer_Unlit_HDRP";
+#elif RIVE_USING_URP
+            goldenId = $"Worldspace_RiveTextureRenderer_Unlit_URP";
+#else
+            goldenId = $"Worldspace_RiveTextureRenderer_Unlit_BiRP";
+#endif
+
+            Assert.IsNotNull(riveUnlit, "Unlit material not found in MaterialRegistry for current pipeline.");
+            yield return WorldspaceMaterialGolden(riveUnlit, goldenId);
+        }
+
+        /// <summary>
+        /// Ensures that the alpha channel is correctly rendered in unlit worldspace materials.
+        /// </summary>
+        /// <returns></returns>
+        [UnityTest]
+        public IEnumerator Worldspace_RiveTextureRenderer_Unlit_ColorSpace_Alpha_Correct()
+        {
+            Rive.Tests.Utils.MaterialRegistry reg = null;
+            yield return LoadMaterialRegistryCoroutine(r => reg = r);
+            Assert.IsNotNull(reg, "MaterialRegistry not loaded.");
+            var unlitShader = reg.GetUnlitShaderForCurrentRP();
+            Assert.IsNotNull(unlitShader, "Unlit shader for current pipeline not found.");
+            var riveUnlit = new Material(unlitShader);
+
+            string goldenId;
+#if RIVE_USING_HDRP
+            goldenId = $"Worldspace_RiveTextureRenderer_Unlit_HDRP_Alpha";
+#elif RIVE_USING_URP
+            goldenId = $"Worldspace_RiveTextureRenderer_Unlit_URP_Alpha";
+#else
+            goldenId = $"Worldspace_RiveTextureRenderer_Unlit_BiRP_Alpha";
+#endif
+
+            yield return WorldspaceMaterialGolden(riveUnlit, goldenId, TestAssetReferences.riv_cute_robot, new Vector2(512, 512));
+        }
+
+        /// <summary>
+        /// Tests that the custom material used by RiveCanvasRenderer in a Canvas setup produces correct output across color spaces.
+        /// </summary>
+        /// <returns></returns>
+        [UnityTest]
+        public IEnumerator Canvas_DefaultMaterial_ColorSpace_Correct()
+        {
+            // We expect the same output across pipelines for the UI path so we don't vary by RP here.
+            var canvasGO = new GameObject("Canvas_ColorSpace");
+            var cam = new GameObject("UICam_ColorSpace").AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.Color;
+            cam.backgroundColor = UnityEngine.Color.black;
+            cam.orthographic = true;
+            cam.transform.position = new Vector3(0, 0, -10f);
+
+            var canvas = canvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = cam;
+
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                TestPrefabReferences.RivePanelWithSingleWidget,
+                prefab =>
+                {
+                    var go = UnityEngine.Object.Instantiate(prefab);
+                    panel = go.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(1920, 1080));
+                },
+                () => Assert.Fail("Failed to load panel prefab"));
+
+
+            string riveAssetPath = TestAssetReferences.riv_ratingAnimationWithEvents;
+
+            Rive.Asset riveAsset = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                asset => riveAsset = asset,
+                () => Assert.Fail($"Failed to load rive asset at {riveAssetPath}")
+            );
+
+            Assert.IsNotNull(riveAsset, $"Rive asset at path {riveAssetPath} could not be loaded.");
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            Assert.IsNotNull(widget, "Expected RiveWidget in panel prefab.");
+
+            widget.Load(riveAsset);
+
+            var uiRenderer = panel.gameObject.AddComponent<Rive.Components.RiveCanvasRenderer>();
+            uiRenderer.PointerInputMode = Rive.Components.PointerInputMode.DisablePointerInput;
+            uiRenderer.MatchCanvasResolution = false;
+            uiRenderer.CustomMaterial = null;
+
+            panel.transform.SetParent(canvasGO.transform, false);
+
+            var capture = MakeRT(1280, 720);
+            cam.targetTexture = capture;
+
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            var goldenId = "Canvas_CustomDefaultMaterial_WorksAcrossPipelines";
+            yield return m_goldenHelper.AssertWithRenderTexture(goldenId, capture, applyColorCorrection: false);
+
+            DestroyObj(panel.gameObject);
+            DestroyObj(canvasGO);
+            DestroyObj(cam.gameObject);
+            capture.Release();
+            DestroyObj(capture);
+        }
+
+
         private void DestroyObj(UnityEngine.Object obj)
         {
             if (obj != null)
@@ -2091,7 +2370,9 @@ namespace Rive.Tests
 
         }
     }
+
 }
+
 
 
 #endif

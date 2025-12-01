@@ -8,7 +8,7 @@ using Rive.Tests.Utils;
 using UnityEngine.SceneManagement;
 using UnityEditor.SceneManagement;
 
-namespace Rive.Tests.Editor
+namespace Rive.Tests.EditorTests
 {
     public class MenuItemsTests
     {
