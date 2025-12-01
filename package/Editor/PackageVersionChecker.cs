@@ -24,7 +24,7 @@ namespace Rive.EditorTools
             // Check if the Rive package was updated
             foreach (var changedPackage in args.changedTo)
             {
-                if (changedPackage.name == PackageInfo.PACKAGE_NAME)
+                if (changedPackage.name == Rive.EditorTools.PackageInfo.PACKAGE_NAME)
                 {
                     ShowRestartDialog(changedPackage.version);
                     break;
@@ -42,7 +42,7 @@ namespace Rive.EditorTools
             );
 
             DebugLogger.Instance.LogWarning(
-                $"[{PackageInfo.PACKAGE_NAME}] Package updated to {newVersion}. " +
+                $"[{Rive.EditorTools.PackageInfo.PACKAGE_NAME}] Package updated to {newVersion}. " +
                 "Please restart the Unity Editor to make sure the new version is fully loaded. If you skip this step, you might run into issues, and riv files may not work properly."
             );
         }

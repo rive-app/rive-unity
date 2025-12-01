@@ -9,7 +9,7 @@ using UnityEditor.UIElements;
 using System;
 
 
-namespace Rive.Tests.Editor
+namespace Rive.Tests.EditorTests
 {
 
     public class RiveBaseEditorTests

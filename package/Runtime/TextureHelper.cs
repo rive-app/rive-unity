@@ -1,3 +1,4 @@
+using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -11,6 +12,50 @@ namespace Rive
         /// work with Rive's Renderer.
         /// </summary>
         public static GraphicsFormat Format => GraphicsFormat.R8G8B8A8_UNorm;
+
+        private static Material s_gammaToLinearUIMaterial;
+
+        const string GAMMA_TO_LINEAR_UI_SHADER_NAME = "Rive/UI/Default";
+
+        /// <summary>
+        /// Lazily creates and returns a material that decodes gamma content to linear
+        /// Used to display Rive's RenderTexture correctly in Linear color space without relying on sRGB RenderTextures (which are unreliable on some backends).
+        /// </summary>
+        internal static Material GammaToLinearUIMaterial
+        {
+            get
+            {
+                if (s_gammaToLinearUIMaterial == null)
+                {
+                    var shader = Shader.Find(GAMMA_TO_LINEAR_UI_SHADER_NAME);
+                    if (shader != null)
+                    {
+                        s_gammaToLinearUIMaterial = new Material(shader)
+                        {
+                            name = "Rive_UI_Default",
+                            hideFlags = HideFlags.HideAndDontSave
+                        };
+                    }
+                    else
+                    {
+                        DebugLogger.Instance.LogError($"Shader '{GAMMA_TO_LINEAR_UI_SHADER_NAME}' not found.");
+                    }
+                }
+
+                return s_gammaToLinearUIMaterial;
+            }
+        }
+
+        /// <summary>
+        /// Whether we should decode Gamma content to linear when displaying Rive RenderTextures.
+        /// </summary>
+        internal static bool ProjectNeedsColorSpaceFix
+        {
+            get
+            {
+                return QualitySettings.activeColorSpace == ColorSpace.Linear;
+            }
+        }
 
         /// <summary>
         ///  Returns a RenderTexture descriptor guaranteed to be compatible with
