@@ -42,6 +42,7 @@ namespace Rive.Tests.Utils
 
                 public const string riv_db_list_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/db_list_test.riv";
                 public const string riv_multitouch_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/multitouch-test.riv";
+                public const string riv_ping_pong_demo = "Packages/app.rive.rive-unity.tests/Shared/Assets/ping_pong_demo.riv";
 
                 public const string riv_cute_robot = "Packages/app.rive.rive-unity.tests/Shared/Assets/cute_robot.riv";
 

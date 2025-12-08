@@ -31,7 +31,7 @@ namespace Rive
         public static AudioEngine Make(int numChannels, int sampleRate)
         {
             var nativeEngine = makeAudioEngine((uint)numChannels, (uint)sampleRate);
-            if (nativeEngine == null)
+            if (nativeEngine == IntPtr.Zero)
             {
                 return null;
             }

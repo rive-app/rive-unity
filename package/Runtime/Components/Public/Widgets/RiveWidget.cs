@@ -191,6 +191,11 @@ namespace Rive.Components
         [SerializeField] private string m_viewModelInstanceName;
 
 
+        [Tooltip("Optional custom audio provider to use for audio playback. If not set, a shared global audio provider will be used.")]
+        [InspectorField(WidgetInspectorSections.Advanced)]
+        [SerializeField] private AudioProvider m_customAudioProvider = null;
+
+
         bool m_needsLayoutRecalculationFix = false;
 
 
@@ -422,7 +427,6 @@ namespace Rive.Components
             }
         }
 
-
         /// <summary>
         /// Event that is triggered when a Rive event is reported.
         /// </summary>
@@ -433,6 +437,62 @@ namespace Rive.Components
         private Asset m_fileLoadedFromAsset = null;
 
         private bool m_isDestroyed = false;
+
+        private static AudioProvider s_globalAudioProvider = null;
+
+        /// <summary>
+        /// The shared audio provider for all Rive widgets if the user has not assigned one to the widget.
+        /// </summary>
+        private static AudioProvider GlobalAudioProvider
+        {
+            get
+            {
+                if (!Application.isPlaying)
+                {
+                    return null;
+                }
+
+                if (s_globalAudioProvider == null)
+                {
+                    // Since the rpHandler already exists, we can store the global audio provider on it.
+                    MonoBehaviour rpHandler = RenderPipelineHelper.CurrentHandler as MonoBehaviour;
+                    GameObject globalAudioProviderObject = rpHandler == null ? new GameObject("GlobalAudioProvider") : rpHandler.gameObject;
+
+                    // If we spawned the gameobject because the rpHandler wasn't in the scene, we need to set it to not destroy on load.
+                    if (rpHandler == null)
+                    {
+                        DontDestroyOnLoad(globalAudioProviderObject);
+                    }
+
+                    s_globalAudioProvider = globalAudioProviderObject.AddComponent<AudioProvider>();
+                }
+
+                return s_globalAudioProvider;
+            }
+        }
+
+        /// <summary>
+        /// The AudioProvider currently used by this widget for audio playback.
+        /// This will be the custom provider if one has been assigned; otherwise, it will be the shared global provider.
+        /// On WebGL builds, this will always be null since AudioProvider is not supported on that platform.
+        /// </summary>
+        internal AudioProvider AudioProvider => m_customAudioProvider == null ? GlobalAudioProvider : m_customAudioProvider;
+
+        /// <summary>
+        /// An optional custom AudioProvider override for this widget.
+        /// When set to a non-null value, the widget will use this provider instead of the shared global provider.
+        /// When set to null, the widget will fall back to using the shared global provider.
+        /// </summary>
+        /// <remarks> On WebGL, custom AudioProviders are not supported. Audio will be routed through the system instead of Unity's AudioSource.</remarks>
+        public AudioProvider CustomAudioProvider
+        {
+            get => m_customAudioProvider;
+            set
+            {
+                m_customAudioProvider = value;
+                SetUpAudioIfNeeded(Controller?.Artboard);
+            }
+        }
 
 
         protected override void OnEnable()
@@ -705,6 +765,7 @@ namespace Rive.Components
 
             if (result.Success)
             {
+                SetUpAudioIfNeeded(Controller.Artboard);
                 HandleLoadComplete();
             }
             else
@@ -920,6 +981,34 @@ namespace Rive.Components
 
 
             }
+        }
+
+        private void SetUpAudioIfNeeded(Artboard artboard)
+        {
+            if (m_isDestroyed)
+            {
+                return;
+            }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+// WebGL doesn't support OnAudioFilterRead, so don't use the audio engine in this case. On WebGL, rive will use system audio instead, which bypasses Unity's audio system.
+return;
+#endif
+
+
+            if (artboard == null || !artboard.HasAudio)
+            {
+                return;
+            }
+
+            var provider = m_customAudioProvider ?? GlobalAudioProvider;
+
+            if (provider == null)
+            {
+                return;
+            }
+
+            artboard.SetAudioEngine(provider.AudioEngine);
         }
 
 

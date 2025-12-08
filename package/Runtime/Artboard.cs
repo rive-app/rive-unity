@@ -85,6 +85,17 @@ namespace Rive
         }
 
         /// <summary>
+        /// Returns true if the artboard has audio.
+        /// </summary>
+        public bool HasAudio
+        {
+            get
+            {
+                return artboardHasAudio(m_nativeArtboard);
+            }
+        }
+
+        /// <summary>
         /// Sets the value of a text run with the provided name.
         /// </summary>
         /// <param name="name">The name of the text run.</param>
@@ -473,6 +484,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern void setArtboardAudioEngine(IntPtr artboard, IntPtr audioEngine);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern bool artboardHasAudio(IntPtr artboard);
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr artboardComponentNamed(IntPtr artboard, string name);

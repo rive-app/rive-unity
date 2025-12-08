@@ -494,6 +494,8 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: dcb0487aea99a47b9bf73279c1322fa0
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_URP_Alpha.png
+  - m_GUID: 808a2c5c4e8fe48389125f0b001ada63
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/ping_pong_demo.riv
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
