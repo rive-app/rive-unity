@@ -69,8 +69,10 @@ namespace Rive
             return new RenderTextureDescriptor(width, height, Format, 0)
             {
                 enableRandomWrite =
-                    UnityEngine.SystemInfo.graphicsDeviceType
-                    == UnityEngine.Rendering.GraphicsDeviceType.Direct3D11
+                    (UnityEngine.SystemInfo.graphicsDeviceType
+                    == UnityEngine.Rendering.GraphicsDeviceType.Direct3D11) ||
+                    (UnityEngine.SystemInfo.graphicsDeviceType
+                    == UnityEngine.Rendering.GraphicsDeviceType.Direct3D12)
             };
         }
 
@@ -85,6 +87,7 @@ namespace Rive
                 case GraphicsDeviceType.Metal:
                 case GraphicsDeviceType.Vulkan:
                 case GraphicsDeviceType.Direct3D11:
+                case GraphicsDeviceType.Direct3D12:
                     return true;
                 default:
                     return false;
