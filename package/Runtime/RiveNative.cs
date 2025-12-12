@@ -17,13 +17,8 @@ namespace Rive
         {
                 private delegate void LogDelegate(IntPtr message);
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-        [DllImport("__Internal")]
-        private static extern void RegisterPlugin();
-#endif
-
-#if (UNITY_IOS || UNITY_TVOS || UNITY_WEBGL || UNITY_SWITCH) && !UNITY_EDITOR
-        public const string name = "__Internal";
+#if (UNITY_IOS || UNITY_TVOS || UNITY_WEBGL || UNITY_SWITCH || UNITY_VISIONOS) && !UNITY_EDITOR
+                public const string name = "__Internal";
 #else
                 public const string name = "rive";
 #endif
@@ -31,13 +26,24 @@ namespace Rive
                 [DllImport(NativeLibrary.name)]
                 private static extern void setUnityLog(LogDelegate callback);
 
+                // Explicit registration entry point for platforms (like iOS/tvOS/visionOS/WebGL)
+                // where we can't rely solely on Unity calling UnityPluginLoad
+                [DllImport(NativeLibrary.name)]
+                private static extern void RiveRegisterRenderingPlugin();
+
                 [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
                 static void OnBeforeSceneLoadRuntimeMethod()
                 {
                         setUnityLog(UnityLog);
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-            RegisterPlugin();
+#if (UNITY_WEBGL || UNITY_VISIONOS || UNITY_IOS || UNITY_TVOS) && !UNITY_EDITOR
+                        try
+                        {
+                                RiveRegisterRenderingPlugin();
+                        }
+                        catch (Exception e) {
+                                DebugLogger.Instance.LogException(e);
+                        }
 #endif
                 }
 

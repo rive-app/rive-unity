@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: ab273cd06036747b4bcc739786b86860
+guid: c7554fca848c0497ba3f219fe523167b
 PluginImporter:
   externalObjects: {}
   serializedVersion: 2
@@ -20,11 +20,12 @@ PluginImporter:
         Exclude Editor: 1
         Exclude Linux64: 1
         Exclude OSXUniversal: 1
+        Exclude VisionOS: 0
         Exclude WebGL: 1
         Exclude Win: 1
         Exclude Win64: 1
         Exclude iOS: 1
-        Exclude tvOS: 0
+        Exclude tvOS: 1
   - first:
       Android: Android
     second:
@@ -50,25 +51,34 @@ PluginImporter:
     second:
       enabled: 0
       settings:
-        CPU: AnyCPU
+        CPU: None
   - first:
       Standalone: OSXUniversal
     second:
       enabled: 0
       settings:
-        CPU: AnyCPU
+        CPU: None
   - first:
       Standalone: Win
     second:
       enabled: 0
       settings:
-        CPU: AnyCPU
+        CPU: None
   - first:
       Standalone: Win64
     second:
       enabled: 0
       settings:
+        CPU: None
+  - first:
+      VisionOS: VisionOS
+    second:
+      enabled: 1
+      settings:
+        AddToEmbeddedBinaries: false
         CPU: AnyCPU
+        CompileFlags: 
+        FrameworkDependencies: ImageIO;
   - first:
       iPhone: iOS
     second:
@@ -81,12 +91,11 @@ PluginImporter:
   - first:
       tvOS: tvOS
     second:
-      enabled: 1
+      enabled: 0
       settings:
-        AddToEmbeddedBinaries: false
         CPU: AnyCPU
         CompileFlags: 
-        FrameworkDependencies: ImageIO;
+        FrameworkDependencies: 
   userData: 
   assetBundleName: 
   assetBundleVariant: 
