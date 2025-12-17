@@ -1,3 +1,5 @@
+using System;
+
 namespace Rive.Components
 {
     /// <summary>
@@ -20,6 +22,7 @@ namespace Rive.Components
         /// <summary>   
         /// All hits will pass through the RiveWidget, regardless of whether a Rive listener was hit. Rive listeners will still receive hits.
         /// </summary>
+        [Obsolete("Transparent hit testing is deprecated, please use Translucent instead.")]
         Transparent = 2,
 
         /// <summary>

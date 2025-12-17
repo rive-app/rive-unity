@@ -671,6 +671,7 @@ namespace Rive.Tests
             Assert.AreEqual(1, frontWidget.PointerDownCalledCount, "Front widget should receive events when Opaque");
             Assert.AreEqual(0, backWidget.PointerDownCalledCount, "Back widget should be blocked when front is Opaque");
 
+#pragma warning disable CS0618 // Transparent hit testing is deprecated but kept for backward compatibility
             // Test 2: Front widget Transparent allows back widget to receive events
             frontWidget.HitTestBehavior = HitTestBehavior.Transparent;
             backWidget.HitTestBehavior = HitTestBehavior.Opaque;
@@ -680,6 +681,7 @@ namespace Rive.Tests
             m_mockInputProvider.SimulatePointerMove(position);
 
             Assert.AreEqual(2, frontWidget.PointerDownCalledCount, "Front widget should still receive events when Transparent");
+#pragma warning restore CS0618
             Assert.AreEqual(1, backWidget.PointerDownCalledCount, "Back widget should receive events when front is Transparent");
 
             // Test 3: Front widget None receives no events

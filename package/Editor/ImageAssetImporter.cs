@@ -13,7 +13,7 @@ namespace Rive
         public static readonly string[] ImageExtensions = new[] { PNG, JPG, JPEG, WEBP };
     }
 
-    [ScriptedImporter(2, null, new string[] { ImageOobAssetExtensions.PNG, ImageOobAssetExtensions.JPG, ImageOobAssetExtensions.JPEG, ImageOobAssetExtensions.WEBP })]
+    [ScriptedImporter(2, new string[] { ImageOobAssetExtensions.WEBP }, new string[] { ImageOobAssetExtensions.PNG, ImageOobAssetExtensions.JPG, ImageOobAssetExtensions.JPEG, ImageOobAssetExtensions.WEBP })]
     public class ImageAssetImporter : ScriptedImporter
     {
         public override void OnImportAsset(AssetImportContext ctx)

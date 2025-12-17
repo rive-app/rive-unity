@@ -158,7 +158,7 @@ namespace Rive.Components
                  "\n" +
                  "- Translucent only blocks hits on listeners.\n" +
                  "\n" +
-                 "- Transparent allows hits to pass through while still detecting listeners.\n" +
+                 "- Transparent (deprecated) allows hits to pass through while still detecting listeners.\n" +
                  "\n" +
                  "- None disables hit testing completely.")]
         [InspectorField(WidgetInspectorSections.Input)]

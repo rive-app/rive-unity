@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using Rive.Utils;
 using UnityEditor;
 using UnityEngine;
@@ -17,11 +19,16 @@ namespace Rive
         }
 
         private PreviewMode previewMode = PreviewMode.Contain;
-        public override Texture2D RenderStaticPreview(string assetPath, Object[] subAssets, int width, int height)
+        public override Texture2D RenderStaticPreview(string assetPath, UnityEngine.Object[] subAssets, int width, int height)
         {
             var asset = (ImageOutOfBandAsset)target;
 
             if (asset == null || asset.Bytes == null || asset.Bytes.Length == 0)
+            {
+                return null;
+            }
+            // WebP images are not currently supported for previews because they are not natively supported by the Unity engine, custom support will be added in the future.
+            if (IsWebp(assetPath))
             {
                 return null;
             }
@@ -36,8 +43,8 @@ namespace Rive
             Texture2D resizedTexture = ResizeTexture(originalTexture, newSize.x, newSize.y);
             Texture2D previewTexture = CreatePreviewTexture(resizedTexture, width, height);
 
-            Object.DestroyImmediate(originalTexture);
-            Object.DestroyImmediate(resizedTexture);
+            UnityEngine.Object.DestroyImmediate(originalTexture);
+            UnityEngine.Object.DestroyImmediate(resizedTexture);
 
             return previewTexture;
         }
@@ -49,11 +56,10 @@ namespace Rive
             {
                 return texture;
             }
-            else
-            {
-                DebugLogger.Instance.LogWarning("Failed to load image preview for ImageOutOfBandAsset");
-                return null;
-            }
+
+            DebugLogger.Instance.LogWarning("Failed to load image preview for ImageOutOfBandAsset");
+
+            return null;
         }
 
         private Vector2Int CalculateNewSize(int originalWidth, int originalHeight, int targetWidth, int targetHeight)
@@ -137,6 +143,16 @@ namespace Rive
             previewTexture.Apply();
 
             return previewTexture;
+        }
+
+        private bool IsWebp(string assetPath)
+        {
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return false;
+            }
+
+            return string.Equals(System.IO.Path.GetExtension(assetPath), ".webp", StringComparison.OrdinalIgnoreCase);
         }
 
     }
