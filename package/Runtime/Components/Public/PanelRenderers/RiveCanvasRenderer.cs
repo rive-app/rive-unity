@@ -5,6 +5,9 @@ using UnityEngine;
 
 namespace Rive.Components
 {
+#if UNITY_EDITOR
+    [HelpURL(InspectorDocLinks.RiveCanvasRenderer)]
+#endif
     [AddComponentMenu("Rive/Rive Canvas Renderer")]
     [HideComponents(hideFlags: HideFlags.HideInInspector, typeof(CanvasRendererRawImage), typeof(CanvasPanelInputProvider))]
     [RequireComponent(typeof(CanvasRendererRawImage), typeof(IRivePanel))]

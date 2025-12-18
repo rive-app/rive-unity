@@ -12,6 +12,9 @@ namespace Rive.Components
     /// <summary>
     /// RivePanels are responsible for displaying and updating a collection of RiveWidgets. The panel represents a viewport within which the widgets are displayed and rendered to a single Render Target.
     /// </summary>
+#if UNITY_EDITOR
+    [HelpURL(InspectorDocLinks.RivePanel)]
+#endif
     [AddComponentMenu("Rive/Rive Panel")]
     [DisallowMultipleComponent]
     [InspectorSection(RivePanelInspectorSections.Advanced, "Advanced", order: 1, style: SectionStyle.Foldout)]
@@ -73,7 +76,9 @@ namespace Rive.Components
 
         private IRenderTargetStrategy m_renderTargetStrategy;
 
-        [InspectorField(RivePanelInspectorSections.Advanced, "Custom Render Target Strategy")]
+#if UNITY_EDITOR
+        [InspectorField(RivePanelInspectorSections.Advanced, "Custom Render Target Strategy", helpUrl: InspectorDocLinks.RenderTargetStrategies)]
+#endif
         [Tooltip("The RenderTargetStrategy to use for rendering the panel. By default, each panel renders to a single RenderTexture that matches the panel's RectTransform dimensions. However, you can pass in a different strategy to render to a pool of RenderTextures or to a single RenderTexture that is shared between multiple panels.")]
         [SerializeField] private RenderTargetStrategy m_customRenderTargetStrategy;
 

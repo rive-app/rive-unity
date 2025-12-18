@@ -29,6 +29,21 @@ namespace Rive
         /// </summary>
         public const string CLASS_FIELD = "rive-inspector__field";
 
+        /// <summary>
+        /// Container that wraps a field and its optional help button.
+        /// </summary>
+        public const string CLASS_FIELD_CONTAINER = "rive-inspector__field-container";
+
+        /// <summary>
+        /// Class name applied to the primary field element inside a container.
+        /// </summary>
+        public const string CLASS_FIELD_CONTENT = "rive-inspector__field-content";
+
+        /// <summary>
+        /// Class name applied to the help/info buttons.
+        /// </summary>
+        public const string CLASS_FIELD_HELP_BUTTON = "rive-inspector__field-help-button";
+
 
         private static StyleSheet s_StyleSheet;
 

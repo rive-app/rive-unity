@@ -18,6 +18,36 @@
     min-width: 117px;
 }
 
+.rive-inspector__field-container {
+    flex-direction: row;
+    align-items: center;
+}
+
+.rive-inspector__field-content {
+    flex: 1 1 auto;
+}
+
+.rive-inspector__field-help-button {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    margin-left: 4px;
+    flex-shrink: 0;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+}
+
+.rive-inspector__field-help-button > Image {
+    width: 14px;
+    height: 14px;
+}
+
+.rive-inspector__field-help-button:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
 .rive-inspector__section-label {
     -unity-font-style: bold;
     margin-bottom: 4px;

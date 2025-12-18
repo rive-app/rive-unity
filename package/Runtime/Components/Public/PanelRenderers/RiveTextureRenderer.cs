@@ -10,6 +10,9 @@ namespace Rive.Components
     /// <summary>
     /// Renders a RivePanel to a texture. This component should be attached to a GameObject that has a Renderer component.
     /// </summary>
+#if UNITY_EDITOR
+    [HelpURL(InspectorDocLinks.RiveTextureRenderer)]
+#endif
     [AddComponentMenu("Rive/Rive Texture Renderer")]
 #if UNITY_EDITOR
     [InspectorSection(InspectorSections.RendererSettings, "Renderer Settings", startExpanded: true)]

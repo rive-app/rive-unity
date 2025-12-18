@@ -263,12 +263,26 @@ namespace Rive.EditorTools
             element.name = uniqueId;
 
             HandleValueChangedIfNeeded(field, element);
-            HandleConditionalVisibilityIfNeeded(field, element, serializedObject.FindProperty(field.Name));
 
+            VisualElement fieldRoot = element;
+            if (attr != null && attr.HasHelpUrl)
+            {
+                var fieldContainer = new VisualElement();
+                fieldContainer.AddToClassList(StyleHelper.CLASS_FIELD_CONTAINER);
+                fieldContainer.style.flexDirection = FlexDirection.Row;
+                fieldContainer.style.alignItems = Align.Center;
+
+                element.AddToClassList(StyleHelper.CLASS_FIELD_CONTENT);
+                fieldContainer.Add(element);
+                fieldContainer.Add(CreateHelpButton(attr.HelpUrl, displayName));
+                fieldRoot = fieldContainer;
+            }
+
+            HandleConditionalVisibilityIfNeeded(field, fieldRoot, property);
 
             element.Bind(serializedObject);
-            element.AddToClassList(StyleHelper.CLASS_FIELD);
-            container.Add(element);
+            fieldRoot.AddToClassList(StyleHelper.CLASS_FIELD);
+            container.Add(fieldRoot);
         }
 
         private void HandleValueChangedIfNeeded(FieldInfo field, VisualElement element)
@@ -367,6 +381,38 @@ namespace Rive.EditorTools
         }
 
         private IVisualElementScheduledItem scheduledUpdate;
+
+        private Button CreateHelpButton(string helpUrl, string displayName)
+        {
+            var button = new Button(() =>
+            {
+                if (!string.IsNullOrEmpty(helpUrl))
+                {
+                    Application.OpenURL(helpUrl);
+                }
+            });
+
+            button.tooltip = "Open documentation for this field";
+            button.focusable = false;
+            button.AddToClassList(StyleHelper.CLASS_FIELD_HELP_BUTTON);
+
+            var iconContent = EditorGUIUtility.IconContent("_Help");
+            if (iconContent?.image != null)
+            {
+                var icon = new Image
+                {
+                    image = iconContent.image,
+                    scaleMode = ScaleMode.ScaleToFit
+                };
+                button.Add(icon);
+            }
+            else
+            {
+                button.text = "?";
+            }
+
+            return button;
+        }
 
         private void OnDestroy()
         {

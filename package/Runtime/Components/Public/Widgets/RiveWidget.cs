@@ -4,8 +4,8 @@ using System.Collections.Generic;
 #if UNITY_EDITOR
 using System.Linq;
 #endif
-using Rive.Components.Utilities;
 using Rive.EditorTools;
+using Rive.Components.Utilities;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Events;
@@ -15,10 +15,13 @@ namespace Rive.Components
     /// <summary>
     /// This component is used to display a Rive file within a Rive Panel.
     /// </summary>
+#if UNITY_EDITOR
+    [HelpURL(InspectorDocLinks.RiveWidget)]
     [InspectorSection(WidgetInspectorSections.FileSettings, "File Settings")]
     [InspectorSection(WidgetInspectorSections.Display, "Display")]
     [InspectorSection(WidgetInspectorSections.Input, "Input")]
     [InspectorSection(WidgetInspectorSections.Data, "Data")]
+#endif
     [AddComponentMenu("Rive/Rive Widget")]
     public sealed class RiveWidget : WidgetBehaviour
     {
@@ -74,7 +77,7 @@ namespace Rive.Components
 
 #if UNITY_EDITOR
         [OnValueChanged(nameof(OnAssetChangedInEditor))]
-        [InspectorField(WidgetInspectorSections.FileSettings)]
+        [InspectorField(WidgetInspectorSections.FileSettings, helpUrl: InspectorDocLinks.AddingRiveAssets)]
 #endif
         [Tooltip("The Rive file (.riv) to load.")]
         [SerializeField] private Asset m_asset;
@@ -83,7 +86,7 @@ namespace Rive.Components
 
 #if UNITY_EDITOR
         [HideIf(nameof(ShouldHideArtboardNameAndStateMachineName))]
-        [InspectorField(WidgetInspectorSections.FileSettings)]
+        [InspectorField(WidgetInspectorSections.FileSettings, helpUrl: InspectorDocLinks.Artboards)]
         [Tooltip("The name of the artboard to load.")]
         [OnValueChanged(nameof(OnArtboardChangedInEditor))]
         [Dropdown(nameof(GetDisplayArtboardNames), trackChanges: true)]
@@ -92,7 +95,7 @@ namespace Rive.Components
 
 #if UNITY_EDITOR
         [HideIf(nameof(ShouldHideArtboardNameAndStateMachineName))]
-        [InspectorField(WidgetInspectorSections.FileSettings)]
+        [InspectorField(WidgetInspectorSections.FileSettings, helpUrl: InspectorDocLinks.StateMachines)]
         [OnValueChanged(nameof(OnStateMachineChangedInEditor))]
         [Dropdown(nameof(GetDisplayStateMachineNames), trackChanges: true)]
 #endif
@@ -102,14 +105,14 @@ namespace Rive.Components
 
 
 #if UNITY_EDITOR
-        [InspectorField(WidgetInspectorSections.Display)]
+        [InspectorField(WidgetInspectorSections.Display, helpUrl: InspectorDocLinks.FitAndAlignment)]
         [OnValueChanged(nameof(OnFitChangedInEditor))]
 #endif
         [Tooltip("The fit mode to use when drawing the artboard.")]
         [SerializeField] private Fit m_fit = Fit.Contain;
 
 #if UNITY_EDITOR
-        [InspectorField(WidgetInspectorSections.Display)]
+        [InspectorField(WidgetInspectorSections.Display, helpUrl: InspectorDocLinks.FitAndAlignment)]
         [HideIf(nameof(ShouldHideAlignment))]
         [OnValueChanged(nameof(OnAlignmentChangedInEditor))]
         [Tooltip("The alignment to use when drawing the artboard.")]
@@ -119,7 +122,7 @@ namespace Rive.Components
 
 #if UNITY_EDITOR
         [ShowIf(nameof(ShouldShowLayoutOptions))]
-        [InspectorField(WidgetInspectorSections.Display)]
+        [InspectorField(WidgetInspectorSections.Display, helpUrl: InspectorDocLinks.LayoutScaleFactor)]
         [OnValueChanged(nameof(OnScaleFactorChangedInEditor))]
 #endif
         [Tooltip("The scale factor to use when drawing the artboard when using the Layout fit mode. Increase this value to make the artboard appear larger.")]
@@ -127,7 +130,7 @@ namespace Rive.Components
 
 #if UNITY_EDITOR
         [ShowIf(nameof(ShouldShowLayoutOptions))]
-        [InspectorField(WidgetInspectorSections.Display)]
+        [InspectorField(WidgetInspectorSections.Display, helpUrl: InspectorDocLinks.LayoutScalingModes)]
         [OnValueChanged(nameof(OnLayoutScalingModeChangedInEditor))]
 #endif
         [Tooltip("The layout scaling mode to use when drawing the artboard.")]
@@ -151,6 +154,7 @@ namespace Rive.Components
         [SerializeField] private float m_referenceDPI = 150f;
 
 
+#if UNITY_EDITOR
 
         [Tooltip("Controls how hit testing is handled:\n" +
                  "\n" +
@@ -161,12 +165,14 @@ namespace Rive.Components
                  "- Transparent (deprecated) allows hits to pass through while still detecting listeners.\n" +
                  "\n" +
                  "- None disables hit testing completely.")]
-        [InspectorField(WidgetInspectorSections.Input)]
+        [InspectorField(WidgetInspectorSections.Input, helpUrl: InspectorDocLinks.HitTesting)]
+#endif
         [SerializeField] private HitTestBehavior m_hitTestBehavior = HitTestBehavior.Opaque;
 
-
+#if UNITY_EDITOR
         [Tooltip("Determines whether ReportedEvents are pooled or not. If disabled, a new event is created each time an event is reported.")]
         [InspectorField(WidgetInspectorSections.Advanced)]
+#endif
         [SerializeField] private EventPoolingMode m_eventPoolingMode = EventPoolingMode.Enabled;
 
         [Tooltip("Controls the playback speed of the graphic. A value of 1 is normal speed, 2 is double speed, 0.5 is half speed")]
@@ -175,7 +181,7 @@ namespace Rive.Components
 
 #if UNITY_EDITOR
         [Tooltip("Determines how the widget should handle binding to a ViewModel instance.")]
-        [InspectorField(WidgetInspectorSections.Data)]
+        [InspectorField(WidgetInspectorSections.Data, helpUrl: InspectorDocLinks.UnityDataBindingOverview)]
         [OnValueChanged(nameof(OnDataBindingModeChangedInEditor))]
 #endif
         [SerializeField] private DataBindingMode m_dataBindingMode = DataBindingMode.AutoBindDefault;

@@ -32,6 +32,9 @@ namespace Rive
         /// <summary>View Model.</summary>
         ViewModel = 8,
 
+        /// <summary>Symbol List Index.</summary>
+        ListIndex = 10,
+
         /// <summary>Image.</summary>
         AssetImage = 11,
 

@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using Rive.Utils;
 using UnityEditor;
 using UnityEditor.PackageManager;
@@ -13,7 +11,6 @@ namespace Rive.EditorTools
     [InitializeOnLoad]
     internal class PackageVersionChecker
     {
-
         static PackageVersionChecker()
         {
             Events.registeredPackages += OnPackagesRegistered;
@@ -21,15 +18,24 @@ namespace Rive.EditorTools
 
         private static void OnPackagesRegistered(PackageRegistrationEventArgs args)
         {
-            // Check if the Rive package was updated
-            foreach (var changedPackage in args.changedTo)
+            var updatedPackage = FindByName(args.changedTo);
+            if (updatedPackage != null)
             {
-                if (changedPackage.name == Rive.EditorTools.PackageInfo.PACKAGE_NAME)
+                ShowRestartDialog(updatedPackage.version);
+            }
+        }
+
+        private static UnityEditor.PackageManager.PackageInfo FindByName(System.Collections.Generic.IEnumerable<UnityEditor.PackageManager.PackageInfo> packages)
+        {
+            foreach (var package in packages)
+            {
+                if (package != null && package.name == Rive.EditorTools.PackageInfo.PACKAGE_NAME)
                 {
-                    ShowRestartDialog(changedPackage.version);
-                    break;
+                    return package;
                 }
             }
+
+            return null;
         }
 
         private static void ShowRestartDialog(string newVersion)
@@ -46,6 +52,7 @@ namespace Rive.EditorTools
                 "Please restart the Unity Editor to make sure the new version is fully loaded. If you skip this step, you might run into issues, and riv files may not work properly."
             );
         }
+
     }
 
 }

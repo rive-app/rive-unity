@@ -23,19 +23,32 @@ namespace Rive.EditorTools
         public int Order { get; private set; }
 
         /// <summary>
+        /// Optional URL to open when the help/info button is clicked in the inspector.
+        /// </summary>
+        public string HelpUrl { get; private set; }
+
+        /// <summary>
+        /// Convenience flag to check if a help URL was supplied.
+        /// </summary>
+        public bool HasHelpUrl => !string.IsNullOrEmpty(HelpUrl);
+
+        /// <summary>
         /// Creates a new field attribute for the inspector.
         /// </summary>
         /// <param name="sectionId">Section ID this field belongs to. If null, displays outside sections</param>
         /// <param name="displayName">Display name shown in UI. If null, uses field name</param>
         /// <param name="order">Order relative to other fields. Lower numbers appear first</param>
+        /// <param name="helpUrl">Optional URL opened when the info button is clicked</param>
         public InspectorFieldAttribute(
             string sectionId = null,
             string displayName = null,
-            int order = 0)
+            int order = 0,
+            string helpUrl = null)
         {
             SectionId = sectionId;
             DisplayName = displayName;
             Order = order;
+            HelpUrl = helpUrl;
         }
     }
 }
