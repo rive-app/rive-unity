@@ -163,7 +163,11 @@ namespace Rive.EditorTools
         [InitializeOnLoadMethod]
         static void OnLoad()
         {
+#if UNITY_6000_3_OR_NEWER
+            DragAndDrop.AddDropHandlerV2(OnSceneDrop);
+#else
             DragAndDrop.AddDropHandler(OnSceneDrop);
+#endif
             DragAndDrop.AddDropHandler(OnHierarchyDrop);
         }
 
