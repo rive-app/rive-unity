@@ -88,7 +88,7 @@ namespace Rive.EditorTools
             scroll.style.marginTop = 6;
             root.Add(scroll);
 
-            var logo = AssetDatabase.LoadAssetAtPath<Texture2D>("Packages/app.rive.rive-unity/Editor/Images/welcome-banner.jpg");
+            var logo = AssetDatabase.LoadAssetAtPath<Texture2D>("Packages/app.rive.rive-unity/Editor/Images/welcome-banner.png");
             if (logo != null)
             {
                 var logoContainer = new VisualElement();

@@ -641,7 +641,7 @@ namespace Rive.Components
         {
             if (s_defaultTexture == null)
             {
-                string iconPath = "Packages/app.rive.rive-unity/Editor/Images/rive-preview-image.jpg";
+                string iconPath = "Packages/app.rive.rive-unity/Editor/Images/rive-preview-image.png";
                 s_defaultTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(iconPath);
 
                 if (s_defaultTexture == null)
