@@ -212,10 +212,13 @@ namespace Rive.Components.Utilities
 
         private void CleanUpBeforeLoad()
         {
-            m_artboard = null;
+            m_stateMachine?.Dispose();
             m_stateMachine = null;
 
+            m_artboard?.Dispose();
+            m_artboard = null;
 
+            // File ownership/lifecycle is managed by the caller (e.g., RiveWidget), so do not dispose it here.
             m_file = null;
 
         }

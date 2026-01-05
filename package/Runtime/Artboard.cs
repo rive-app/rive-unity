@@ -8,7 +8,7 @@ namespace Rive
     /// <summary>
     /// Represents a Rive Artboard with a File. An Artboard contains StateMachines and Animations.
     /// </summary>
-    public class Artboard
+    public class Artboard : IDisposable
     {
         private readonly IntPtr m_nativeArtboard;
         private string m_artboardName;
@@ -16,11 +16,17 @@ namespace Rive
         private ViewModel m_defaultViewModel;
 
         private WeakReference<File> m_file;
+        private bool m_isDisposed = false;
 
         internal IntPtr NativeArtboard
         {
             get { return m_nativeArtboard; }
         }
+
+        /// <summary>
+        /// Returns true if the artboard has been disposed.
+        /// </summary>
+        public bool IsDisposed { get => m_isDisposed; }
 
         /// <summary>
         /// Constructor for the Artboard class.
@@ -33,9 +39,30 @@ namespace Rive
             m_file = new WeakReference<File>(file);
         }
 
+        /// <summary>
+        /// Dispose of the Artboard and release native resources.
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!m_isDisposed)
+            {
+                if (m_nativeArtboard != IntPtr.Zero)
+                {
+                    unrefArtboard(m_nativeArtboard);
+                }
+                m_isDisposed = true;
+            }
+        }
+
         ~Artboard()
         {
-            unrefArtboard(m_nativeArtboard);
+            Dispose(false);
         }
 
         public Vector2 LocalCoordinate(

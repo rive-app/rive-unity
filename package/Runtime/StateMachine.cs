@@ -9,23 +9,50 @@ namespace Rive
     /// <summary>
     /// Represents a Rive StateMachine from an Artboard. A StateMachine contains Inputs.
     /// </summary>
-    public class StateMachine
+    public class StateMachine : IDisposable
     {
         private readonly IntPtr m_nativeStateMachine;
         private ViewModelInstance m_currentViewModelInstance;
 
         private string m_stateMachineName;
+        private bool m_isDisposed = false;
 
         internal IntPtr NativeStateMachine => m_nativeStateMachine;
+
+        /// <summary>
+        /// Returns true if the state machine has been disposed.
+        /// </summary>
+        public bool IsDisposed { get => m_isDisposed; }
 
         internal StateMachine(IntPtr nativeStateMachine)
         {
             m_nativeStateMachine = nativeStateMachine;
         }
 
+        /// <summary>
+        /// Dispose of the StateMachine and release native resources.
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!m_isDisposed)
+            {
+                if (m_nativeStateMachine != IntPtr.Zero)
+                {
+                    unrefStateMachine(m_nativeStateMachine);
+                }
+                m_isDisposed = true;
+            }
+        }
+
         ~StateMachine()
         {
-            unrefStateMachine(m_nativeStateMachine);
+            Dispose(false);
         }
 
         public string Name
