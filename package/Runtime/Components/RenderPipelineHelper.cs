@@ -15,13 +15,24 @@ namespace Rive.Components
         public static IRenderPipelineHandler CurrentHandler => s_currentHandler;
 
         /// <summary>
+        /// Checks if the handler reference is valid, accounting for Unity's object lifecycle (when using Unity as a Library)
+        /// This is necessary because s_currentHandler is typed as an interface, which bypasses
+        /// Unity's custom == operator that detects destroyed objects.
+        /// </summary>
+        private static bool IsHandlerValid => s_currentHandler is Object obj && obj != null;
+
+
+        /// <summary>
         /// Gets or creates a render pipeline handler for the current render pipeline.
         /// </summary>
         /// <returns> The current render pipeline handler. </returns>
         public static IRenderPipelineHandler GetOrCreateHandler()
         {
-            if (s_currentHandler == null)
+            if (!IsHandlerValid)
             {
+
+                s_currentHandler = null;
+
 #if RIVE_USING_URP
                 s_currentHandler = SpawnHandlerObject<URP.UniversalRenderPipelineHandler>("[Rive] URP Handler");
 #elif RIVE_USING_HDRP
@@ -33,7 +44,7 @@ namespace Rive.Components
 
             }
 
-            if (s_currentHandler == null)
+            if (!IsHandlerValid)
             {
                 DebugLogger.Instance.LogError("No render pipeline handler found.");
             }
@@ -61,6 +72,7 @@ namespace Rive.Components
         // We need to account for Domain Reload in the editor being disabled, so we reset the current handler when the domain reloads.
         // If we don't do this, Rive Widgets won't render after domain reload and will show a white screen instead.
         // More info: https://docs.unity3d.com/6000.0/Documentation/Manual/domain-reloading.html
+        // Note: This does NOT help with Unity as a Library reloads. IsHandlerValid handles that case.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Init()
         {
