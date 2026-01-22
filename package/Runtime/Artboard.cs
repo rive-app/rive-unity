@@ -184,6 +184,14 @@ namespace Rive
             set => setArtboardHeight(m_nativeArtboard, value);
         }
 
+        /// <summary>
+        /// Returns true if the artboard has changed since the last draw.
+        /// </summary>
+        public bool DidChange()
+        {
+            return artboardDidChange(m_nativeArtboard);
+        }
+
         /// Returns the number of StateMachines stored in the artboard.
         public uint StateMachineCount
         {
@@ -470,6 +478,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern float getArtboardHeight(IntPtr artboard);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern bool artboardDidChange(IntPtr artboard);
 
 
 

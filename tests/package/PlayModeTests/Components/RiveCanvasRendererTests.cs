@@ -432,6 +432,8 @@ namespace Rive.Tests
         public Vector2 ScaleInRenderTexture => m_scaleInRenderTexture;
         public Vector2 OffsetInRenderTexture => m_offsetInRenderTexture;
 
+        public DrawOptimizationOptions DrawOptimization => DrawOptimizationOptions.AlwaysDraw;
+
         public void SetRenderTexture(RenderTexture texture) => m_renderTexture = texture;
         public void SetScaleInRenderTexture(Vector2 scale) => m_scaleInRenderTexture = scale;
         public void SetOffsetInRenderTexture(Vector2 offset) => m_offsetInRenderTexture = offset;

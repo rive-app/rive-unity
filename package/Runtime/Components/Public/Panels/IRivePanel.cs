@@ -45,6 +45,11 @@ namespace Rive.Components
         /// </summary>
         Vector2 OffsetInRenderTexture { get; }
 
+        /// <summary>
+        /// Controls how often this panel's render target should be updated.
+        /// </summary>
+        DrawOptimizationOptions DrawOptimization { get; }
+
 
 
         /// <summary>

@@ -209,6 +209,19 @@ namespace Rive.Components
 
         private void RedrawAtlas()
         {
+            // Atlas uses a single render queue for multiple panels. If any panel requests AlwaysDraw,
+            // we should disable dirt-checking and render every frame.
+            bool shouldDisableArtboardDirtCheck = false;
+            foreach (var panel in m_rivePanelData.Keys)
+            {
+                if (panel != null && panel.DrawOptimization == DrawOptimizationOptions.AlwaysDraw)
+                {
+                    shouldDisableArtboardDirtCheck = true;
+                    break;
+                }
+            }
+            m_renderer.SetArtboardDirtCheckEnabled(!shouldDisableArtboardDirtCheck);
+
             // Clear the render queue to avoid rendering leftover visuals from the previous render
             m_renderer.Clear();
 

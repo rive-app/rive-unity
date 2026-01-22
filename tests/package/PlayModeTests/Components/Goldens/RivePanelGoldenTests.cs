@@ -345,6 +345,17 @@ namespace Rive.Tests
         };
         }
 
+        private static IEnumerator WaitForPanelRenderSettled(RivePanel panel, int frames = 1)
+        {
+            // We use WaitForEndOfFrame to ensure the render pass has executed.
+            // Some flows (e.g. layout/RectTransform changes) might defer redraw to the next Tick/frame.
+            for (int i = 0; i < frames; i++)
+            {
+                yield return null;
+                yield return new WaitForEndOfFrame();
+            }
+        }
+
         [OneTimeSetUp]
         public void OneTimeSetup()
         {
@@ -385,6 +396,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.DrawOptimization = DrawOptimizationOptions.DrawWhenChanged;
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {testCase.PanelPrefabPath}")
             );
@@ -402,7 +414,33 @@ namespace Rive.Tests
                 yield return setupResult;
                 var panel = (RivePanel)setupResult.Current;
 
-                // Wait for end of frame to ensure rendering has occurred.
+                yield return WaitForPanelRenderSettled(panel, frames: 1);
+
+                Assert.IsNotNull(panel.RenderTexture, "RenderTexture should be created on first frame");
+                Assert.IsTrue(panel.RenderTexture.width > 0 && panel.RenderTexture.height > 0,
+                    "RenderTexture should have valid dimensions");
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    testCase.GoldenId,
+                    panel.RenderTexture
+                );
+
+                DestroyObj(panel.gameObject);
+                yield return null;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Panel_RendersOnFirstFrame_AlwaysDraw_MatchesGoldens()
+        {
+            foreach (var testCase in GetTestCases().Take(2))
+            {
+                var setupResult = SetupTestPanel(testCase);
+                yield return setupResult;
+                var panel = (RivePanel)setupResult.Current;
+
+                panel.DrawOptimization = DrawOptimizationOptions.AlwaysDraw;
+
                 yield return new WaitForEndOfFrame();
 
                 Assert.IsNotNull(panel.RenderTexture, "RenderTexture should be created on first frame");
@@ -446,6 +484,7 @@ namespace Rive.Tests
                 var setupResult = SetupTestPanel(testCase);
                 yield return setupResult;
                 var panel = (RivePanel)setupResult.Current;
+                panel.DrawOptimization = DrawOptimizationOptions.DrawWhenChanged;
 
                 yield return new WaitForEndOfFrame();
                 if (testCase.WaitCondition != null)
@@ -834,6 +873,7 @@ namespace Rive.Tests
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
                     panel.SetDimensions(new Vector2(800, 600));
+                    panel.DrawOptimization = DrawOptimizationOptions.DrawWhenChanged;
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
             );
@@ -883,6 +923,63 @@ namespace Rive.Tests
 
 
             // Cleanup
+            DestroyObj(panel.gameObject);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator RivePanel_RemoveAndAddWidget_AlwaysDraw_UpdatesRenderTexture()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                    panel.DrawOptimization = DrawOptimizationOptions.AlwaysDraw;
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_sophiaHud;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            widget.Load(riveAsset);
+
+            yield return WaitForPanelRenderSettled(panel, frames: 1);
+
+            bool hasInitialContent = CheckRenderTextureHasContent(panel.RenderTexture);
+            Assert.IsTrue(hasInitialContent, "Initial render texture should have visible content");
+
+            // Remove the widget from panel.
+            widget.transform.SetParent(null);
+            yield return WaitForPanelRenderSettled(panel, frames: 1);
+
+            Assert.IsFalse(panel.ContainsWidget(widget), "Widget should be unregistered after removal");
+
+            bool hasContentAfterRemove = CheckRenderTextureHasContent(panel.RenderTexture);
+            Assert.IsFalse(hasContentAfterRemove, "Render texture should be transparent after removing widget");
+
+            // Add the widget back to the panel.
+            widget.transform.SetParent(panel.transform);
+            yield return WaitForPanelRenderSettled(panel, frames: 1);
+
+            Assert.IsTrue(panel.ContainsWidget(widget), "Widget should be automatically re-registered when added back to panel");
+
+            bool hasContentAfterReAdd = CheckRenderTextureHasContent(panel.RenderTexture);
+            Assert.IsTrue(hasContentAfterReAdd, "Render texture should have visible content after re-adding widget");
+
             DestroyObj(panel.gameObject);
             yield return null;
         }

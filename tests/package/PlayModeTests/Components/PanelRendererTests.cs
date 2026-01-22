@@ -235,6 +235,8 @@ namespace Rive.Tests
 
         List<IPanelInputProvider> InputProviders { get; } = new List<IPanelInputProvider>();
 
+        public DrawOptimizationOptions DrawOptimization => DrawOptimizationOptions.AlwaysDraw;
+
         public void RegisterInputProvider(IPanelInputProvider inputProvider)
         {
             InputProviders.Add(inputProvider);

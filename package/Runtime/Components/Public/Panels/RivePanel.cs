@@ -89,6 +89,10 @@ namespace Rive.Components
         [Tooltip("Determines whether the panel will be rendered in the Edit mode.")]
         [SerializeField] private bool m_disableEditorPreview = false;
 
+        [InspectorField(RivePanelInspectorSections.Advanced)]
+        [Tooltip("Controls how often this panel's render target should be updated.\n\n- Always Draw: redraw every frame.\n- Draw When Changed: redraw only when the underlying artboards report changes, or when Unity triggers a redraw (layout/size/etc).")]
+        [SerializeField] private DrawOptimizationOptions m_drawOptimization = DrawOptimizationOptions.DrawWhenChanged;
+
         [InspectorField(RivePanelInspectorSections.Advanced, "Multitouch Support")]
         [Tooltip("When Disabled, the panel collapses all input to a single pointer for legacy behavior. When Enabled, multiple pointers are tracked independently.")]
         [SerializeField] private MultiTouchSupport m_multiTouchSupport = MultiTouchSupport.Enabled;
@@ -140,6 +144,15 @@ namespace Rive.Components
         /// Used to track if the panel is dirty outside of widget updates.
         /// </summary>
         private bool m_isDirty = false;
+
+        /// <summary>
+        /// Used to track if the panel needs to be redrawn due to a resize.
+        /// </summary>
+        private bool m_pendingResizeRedraw;
+        /// <summary>
+        /// Used to track the frame when the resize redraw was requested.
+        /// </summary>
+        private int m_resizeRedrawRequestedFrame = -1;
 
         /// <summary>
         /// Sets the panel dirty. This will cause the panel to be redrawn on the next frame.
@@ -228,6 +241,20 @@ namespace Rive.Components
             set
             {
                 m_disableEditorPreview = value;
+            }
+        }
+
+        public DrawOptimizationOptions DrawOptimization
+        {
+            get => m_drawOptimization;
+            set
+            {
+                if (m_drawOptimization == value)
+                {
+                    return;
+                }
+                m_drawOptimization = value;
+                SetDirty();
             }
         }
 
@@ -755,10 +782,15 @@ namespace Rive.Components
             }
 
 
-            RedrawIfNeeded();
-
+            // OnRectTransformDimensionsChange can fire mid-layout during GameView resizes or 
+            // canvas rebuilds. If we call RedrawIfNeeded() immediately, we may capture transient 
+            // widget sizes/positions before Unity's layout pass completes. With DrawWhenChanged 
+            // optimization, rendering with incorrect sizes can leave the texture blank (if artboards 
+            // have no dirt, we won't redraw again). Deferring the redraw until the Tick() method ensures all RectTransforms 
+            // have settled and are processed at the same time before redrawing.
+            m_pendingResizeRedraw = true;
+            m_resizeRedrawRequestedFrame = Time.frameCount;
         }
-
 
 
         private void RedrawIfNeeded()
@@ -827,7 +859,7 @@ namespace Rive.Components
         /// <param name="deltaTime"></param>
         public void Tick(float deltaTime)
         {
-            bool panelNeedsRedraw = false;
+            bool widgetNeedsRedraw = false;
 
             // We go through the widgets in reverse order to avoid issues with potentially removing widgets while iterating
             for (int i = m_sortedWidgets.Count - 1; i >= 0; i--)
@@ -837,16 +869,25 @@ namespace Rive.Components
                 {
                     bool currentWidgetNeedsRedraw = widget.Tick(deltaTime);
 
-                    if (!panelNeedsRedraw && currentWidgetNeedsRedraw)
+                    if (!widgetNeedsRedraw && currentWidgetNeedsRedraw)
                     {
-                        panelNeedsRedraw = true;
+                        widgetNeedsRedraw = true;
                     }
 
                 }
             }
 
-            if (panelNeedsRedraw || m_isDirty)
+
+            bool resizeRedrawDue = m_pendingResizeRedraw && Time.frameCount > m_resizeRedrawRequestedFrame;
+            bool shouldRedraw = widgetNeedsRedraw || m_isDirty || resizeRedrawDue;
+
+            if (shouldRedraw)
             {
+                if (resizeRedrawDue)
+                {
+                    m_pendingResizeRedraw = false;
+                }
+
                 m_isDirty = false;
                 RedrawIfNeeded();
             }

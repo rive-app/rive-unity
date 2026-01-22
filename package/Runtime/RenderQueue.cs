@@ -46,6 +46,16 @@ namespace Rive
             clearCommandBuffer(m_nativeRenderQueue, m_index);
         }
 
+        /// <summary>
+        /// Enables/disables checking whether any artboards referenced by this render queue have dirt (didChange)
+        /// to decide if a render should occur.
+        /// This is a render-queue level setting: if any artboard in the queue has dirt, the entire queue can redraw.
+        /// </summary>
+        internal void SetArtboardDirtCheckEnabled(bool enabled)
+        {
+            setRenderQueueArtboardDirtCheckEnabled(m_nativeRenderQueue, enabled);
+        }
+
 
         /// <summary>
         /// Draw the given artboard to the render queue.
@@ -318,6 +328,12 @@ namespace Rive
         internal static extern void clearCommandBuffer(
             IntPtr renderQueue,
             uint commandBufferIndex
+        );
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void setRenderQueueArtboardDirtCheckEnabled(
+            IntPtr renderQueue,
+            bool enabled
         );
 
 

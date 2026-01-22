@@ -215,6 +215,8 @@ namespace Rive.Components
                 return;
             }
 
+            m_renderer.SetArtboardDirtCheckEnabled(panel.DrawOptimization == DrawOptimizationOptions.DrawWhenChanged);
+
             bool wasRefreshed = RefreshRenderTexture(panel);
             m_renderer.Clear();
 

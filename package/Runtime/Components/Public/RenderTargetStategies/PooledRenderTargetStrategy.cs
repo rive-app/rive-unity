@@ -279,6 +279,7 @@ namespace Rive.Components
                 var renderer = info.Renderer;
                 var offset = info.Offset;
                 var scale = info.Scale;
+                renderer.SetArtboardDirtCheckEnabled(panel.DrawOptimization == DrawOptimizationOptions.DrawWhenChanged);
                 renderer.Clear();
 
                 // Calculate the panel's allocated space within the render texture
