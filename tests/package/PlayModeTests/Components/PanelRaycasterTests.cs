@@ -160,6 +160,39 @@ namespace Rive.Tests
             Assert.AreEqual(new Vector2(0.5f, 0.5f), normalizedWidgetPoint);
         }
 
+        /// <summary>
+        /// Pointer mapping/hit testing should not be affected by the panel RectTransform pivot.
+        /// </summary>
+        [TestCase(0f, 0f)]
+        [TestCase(1f, 1f)]
+        [TestCase(0f, 1f)]
+        [TestCase(1f, 0f)]
+        [TestCase(0.5f, 0.5f)]
+        public void TryGetNormalizedLocalPointInWidget_PanelPivotNotCentered_DoesNotAffectNormalizedPoint(
+            float panelPivotX,
+            float panelPivotY)
+        {
+            var widget = CreateMockRiveWidget();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+
+            // Change the panel pivot away from the default (0.5,0.5).
+            // This should NOT affect input mapping.
+            m_panel.WidgetContainer.pivot = new Vector2(panelPivotX, panelPivotY);
+
+            Vector2 normalizedWidgetPoint;
+            bool result = PanelRaycaster.TryGetNormalizedPointInWidget(
+                m_panel,
+                new Vector2(0.5f, 0.5f), // center of the panel in normalized coordinates
+                widget,
+                out normalizedWidgetPoint
+            );
+
+            Assert.IsTrue(result, "The center point should still be within a widget that fills the panel.");
+            Assert.That(normalizedWidgetPoint.x, Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(normalizedWidgetPoint.y, Is.EqualTo(0.5f).Within(0.0001f));
+        }
+
 
         [Test]
         public void TryGetNormalizedLocalPointInWidget_PointOutsideWidget_ReturnsFalse()

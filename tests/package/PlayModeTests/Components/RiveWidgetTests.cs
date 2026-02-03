@@ -234,15 +234,15 @@ namespace Rive.Tests
                        
                        // ScalingMode: ReferenceArtboardSize: Landscape
 
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.13f, 0.94f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.26f, 0.94f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 2
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.49f, 0.92f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 3
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.70f, 0.92f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 4
-                         new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.89f, 0.94f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 5
+                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.94f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 1
+                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.81f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 2
+                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.70f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 3
+                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.59f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 4
+                         new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.48f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 5
                        
                        // Test different scale factor values
                         new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.49f, 0.86f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize, layoutScaleFactor: 2f), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.14f, 0.96f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize, layoutScaleFactor: 0.5f), // Button 1
+                        new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.50f, 0.96f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize, layoutScaleFactor: 0.5f), // Button 1
 
 
                        // ScalingMode: ReferenceArtboardSize: Portrait
@@ -255,25 +255,25 @@ namespace Rive.Tests
 
 
                         // ScalingMode: ConstantPixelSize 
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.12f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.90f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 5
+                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.50f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 1
+                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.50f, 0.75f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 5
 
-                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.12f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.90f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 5
+                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.50f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 1
+                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.50f, 0.81f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 5
 
-                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.12f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.90f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 5
+                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.50f, 0.93f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 1
+                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.50f, 0.56f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 5
 
 
                          // ScalingMode: ConstantPhysicalSize 
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.12f, 0.94f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.90f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 5
+                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.50f, 0.94f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 1
+                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.50f, 0.84f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 5
 
-                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.12f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.90f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 5
+                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.50f, 0.98f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 1
+                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.50f, 0.88f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 5
 
-                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.11f, 0.88f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.89f, 0.89f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 5
+                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.50f, 0.89f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 1
+                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.50f, 0.25f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 5
 
                         // EXPECTED INVALID POINTS
                         new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.58f, 0.43f), expectedResult: false, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown),
@@ -725,7 +725,7 @@ namespace Rive.Tests
                     }
 
                     Assert.AreEqual(scenario.ExpectedResult, result,
-                        $"Hit test scenario failed for point {scenario.HitTestPoint} with fit {scenario.FitMode} and alignment {scenario.Alignment}. And assetPath {testData.addressableAssetPath}");
+                        $"Hit test scenario failed for point {scenario.HitTestPoint} with fit {scenario.FitMode} and alignment {scenario.Alignment}. And assetPath {testData.addressableAssetPath}. And scaling mode {scenario.LayoutScalingMode}. And scale factor {scenario.LayoutScaleFactor} and panel size {scenario.PanelSize}");
 
                 }
             }

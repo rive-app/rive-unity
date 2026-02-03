@@ -105,10 +105,19 @@ namespace Rive.Components
                 return false;
             }
 
-            // We convert normalized local point [0,1] to local point [-0.5, 0.5] relative to panel's size
+            var panelRect = panelRectTransform.rect;
+            if (panelRect.width <= 0f || panelRect.height <= 0f)
+            {
+                return false;
+            }
+
+            // We need to turn the normalized point (0..1) into a local point on the panel.
+            // Unity’s RectTransform coordinates are based on the pivot, not always the center.
+            // So when the pivot changes, the rect’s xMin/yMin shift too. If we ignore that, input gets offset.
+            // Using xMin/yMin + (normalized * size) lets us rebuild the original local point again, so everything stays lined up.
             Vector2 panelLocalPoint = new Vector2(
-                (normalizedPointInPanel.x - 0.5f) * panelRectTransform.rect.width,
-                (normalizedPointInPanel.y - 0.5f) * panelRectTransform.rect.height
+                panelRect.xMin + (normalizedPointInPanel.x * panelRect.width),
+                panelRect.yMin + (normalizedPointInPanel.y * panelRect.height)
             );
 
             Vector3 worldPoint = panelRectTransform.TransformPoint(panelLocalPoint);
