@@ -1211,7 +1211,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator BindableArtboard_SameNameReturnsSameInstance()
+        public IEnumerator BindableArtboard_SameNameReturnsDifferentInstances()
         {
             string testAssetPath = TestAssetReferences.riv_artboard_db_test;
 
@@ -1223,25 +1223,40 @@ namespace Rive.Tests
             );
 
             File riveFile = LoadAndTrackFile(riveAsset);
+            var controlledViewModel = riveFile.GetViewModelByName("ControlledViewModel");
+            Assert.IsNotNull(controlledViewModel, "ControlledViewModel should exist in test file");
+            var controlledInstance = controlledViewModel.CreateInstance();
+            Assert.IsNotNull(controlledInstance, "Expected to create ControlledViewModel instance");
 
-            // Test that calling BindableArtboard with the same name returns the same C# instance
+            // The core runtime creates a new BindableArtboard (and underlying ArtboardInstance)
+            // each time. We should mirror that behavior and not cache by name.
             string artboardName = "ArtboardBlue";
             var bindableArtboard1 = riveFile.BindableArtboard(artboardName);
             var bindableArtboard2 = riveFile.BindableArtboard(artboardName);
             var bindableArtboard3 = riveFile.BindableArtboard(artboardName);
+            var bindableArtboardWithInstance1 = riveFile.BindableArtboard(artboardName, controlledInstance);
+            var bindableArtboardWithInstance2 = riveFile.BindableArtboard(artboardName, controlledInstance);
 
             Assert.IsNotNull(bindableArtboard1, $"BindableArtboard '{artboardName}' should exist");
             Assert.IsNotNull(bindableArtboard2, $"BindableArtboard '{artboardName}' should exist on second call");
             Assert.IsNotNull(bindableArtboard3, $"BindableArtboard '{artboardName}' should exist on third call");
+            Assert.IsNotNull(bindableArtboardWithInstance1,
+                $"BindableArtboard '{artboardName}' with instance should exist on first call");
+            Assert.IsNotNull(bindableArtboardWithInstance2,
+                $"BindableArtboard '{artboardName}' with instance should exist on second call");
 
             Assert.AreEqual(artboardName, bindableArtboard1.Name,
                 $"BindableArtboard Name should match '{artboardName}'");
 
-            // Verify all calls return the same instance
-            Assert.AreSame(bindableArtboard1, bindableArtboard2,
-                $"Multiple calls to BindableArtboard('{artboardName}') should return the same instance");
-            Assert.AreSame(bindableArtboard2, bindableArtboard3,
-                $"Multiple calls to BindableArtboard('{artboardName}') should return the same instance");
+            // Verify all calls return different instances
+            Assert.AreNotSame(bindableArtboard1, bindableArtboard2,
+                $"Multiple calls to BindableArtboard('{artboardName}') should return different instances");
+            Assert.AreNotSame(bindableArtboard2, bindableArtboard3,
+                $"Multiple calls to BindableArtboard('{artboardName}') should return different instances");
+            Assert.AreNotSame(bindableArtboardWithInstance1, bindableArtboardWithInstance2,
+                $"Multiple calls to BindableArtboard('{artboardName}', viewModelInstance) should return different instances");
+            Assert.AreNotSame(bindableArtboard1, bindableArtboardWithInstance1,
+                $"BindableArtboard('{artboardName}') and BindableArtboard('{artboardName}', viewModelInstance) should return different instances");
 
             // Test that different names return different instances
             string differentArtboardName = "ArtboardRed";
@@ -1251,16 +1266,18 @@ namespace Rive.Tests
             Assert.AreNotSame(bindableArtboard1, differentBindableArtboard,
                 $"Different artboard names should return different instances");
 
-            // Test that calling the same different name multiple times also returns the same instance
+            // Test that calling the same different name multiple times also returns different instances
             var differentBindableArtboard2 = riveFile.BindableArtboard(differentArtboardName);
-            Assert.AreSame(differentBindableArtboard, differentBindableArtboard2,
-                $"Multiple calls to BindableArtboard('{differentArtboardName}') should return the same instance");
+            Assert.AreNotSame(differentBindableArtboard, differentBindableArtboard2,
+                $"Multiple calls to BindableArtboard('{differentArtboardName}') should return different instances");
 
             mockLogger.Clear();
             var nullBindableArtboard = riveFile.BindableArtboard(null);
             Assert.IsNull(nullBindableArtboard, "BindableArtboard with null name should return null");
             Assert.IsTrue(mockLogger.LoggedErrors.Count > 0 || mockLogger.LoggedWarnings.Count > 0,
                 "Should log error when trying to get BindableArtboard with null name");
+
+            controlledInstance?.Dispose();
         }
 
 

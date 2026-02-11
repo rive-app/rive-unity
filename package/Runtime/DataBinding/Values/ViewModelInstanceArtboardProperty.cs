@@ -9,8 +9,6 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceArtboardProperty : ViewModelInstancePrimitiveProperty
     {
-
-
         public ViewModelInstanceArtboardProperty(IntPtr instanceValuePtr, ViewModelInstance instance) : base(instanceValuePtr, instance)
         {
         }
@@ -22,7 +20,7 @@ namespace Rive
         {
             set
             {
-                SetArtboard(value);
+                SetArtboardInternal(value);
             }
         }
 
@@ -39,17 +37,20 @@ namespace Rive
         /// <summary>
         /// Sets the artboard for the property.
         /// </summary>
-        /// <param name="artboard"> The artboard to set. </param>
-        private void SetArtboard(BindableArtboard artboard)
+        private void SetArtboardInternal(BindableArtboard artboard)
         {
-
             if (artboard != null && artboard.NativeBindableArtboard == IntPtr.Zero)
             {
                 DebugLogger.Instance.LogError("Trying to assign an invalid artboard.");
                 return;
             }
 
-            bool wasSuccess = setViewModelInstanceArtboardValue(InstancePropertyPtr, artboard?.NativeBindableArtboard ?? IntPtr.Zero);
+
+            bool wasSuccess = setViewModelInstanceArtboardValue(
+                InstancePropertyPtr,
+                artboard?.NativeBindableArtboard ?? IntPtr.Zero,
+                artboard?.ViewModelInstanceHandle ?? ViewModelInstanceSafeHandle.Null);
+
 
             if (!wasSuccess)
             {
@@ -69,6 +70,10 @@ namespace Rive
         }
 
         [DllImport(NativeLibrary.name)]
-        private static extern bool setViewModelInstanceArtboardValue(IntPtr instanceProperty, IntPtr artboard);
+        private static extern bool setViewModelInstanceArtboardValue(
+            IntPtr instanceProperty,
+            IntPtr artboard,
+            ViewModelInstanceSafeHandle viewModelInstance);
+
     }
 }

@@ -767,6 +767,10 @@ namespace Rive
     /// </summary>
     internal sealed class ViewModelInstanceSafeHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
+        // The P/Invoke marshaller throws ArgumentNullException if a SafeHandle argument is null.
+        // We use this reusable invalid handle to represent IntPtr.Zero for optional parameters.
+        internal static readonly ViewModelInstanceSafeHandle Null = new ViewModelInstanceSafeHandle();
+
         public ViewModelInstanceSafeHandle() : base(true)
         {
         }

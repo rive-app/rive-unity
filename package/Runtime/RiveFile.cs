@@ -35,7 +35,6 @@ namespace Rive
 
         private ViewModelEnumData[] m_viewModelEnums;
 
-        private Dictionary<string, WeakReference<BindableArtboard>> m_bindableArtboardCacheByName;
 
 
         internal IntPtr NativeFile
@@ -374,34 +373,25 @@ namespace Rive
         /// <summary>
         /// Returns a bindable artboard with the given name.
         /// </summary>
-        /// <param name="name">The name of the artboard to retrieve.</param>
+        /// <param name="name">The name of the artboard.</param>
         /// <returns>A BindableArtboard instance, or null if not found.</returns>
         public BindableArtboard BindableArtboard(string name)
+        {
+            return BindableArtboard(name, null);
+        }
+
+        /// <summary>
+        /// Returns a bindable artboard with the given name and bound ViewModel instance.
+        /// </summary>
+        /// <param name="name">The name of the artboard.</param>
+        /// <param name="viewModelInstance">The ViewModel instance to bind to the artboard.</param>
+        /// <returns>A BindableArtboard instance, or null if not found.</returns>
+        public BindableArtboard BindableArtboard(string name, ViewModelInstance viewModelInstance)
         {
             if (name == null)
             {
                 DebugLogger.Instance.LogError("Invalid name: " + name);
                 return null;
-            }
-
-            if (m_bindableArtboardCacheByName == null)
-            {
-                m_bindableArtboardCacheByName = new Dictionary<string, WeakReference<BindableArtboard>>();
-            }
-
-            // Check cache first
-
-            if (m_bindableArtboardCacheByName.TryGetValue(name, out WeakReference<BindableArtboard> weakRef))
-            {
-                if (weakRef.TryGetTarget(out BindableArtboard cachedArtboard))
-                {
-                    return cachedArtboard;
-                }
-                else
-                {
-                    // Weak reference is dead, remove it
-                    m_bindableArtboardCacheByName.Remove(name);
-                }
             }
 
             IntPtr ptr = NativeFileInterface.getFileBindableArtboardNamed(m_nativeFile, name);
@@ -411,9 +401,7 @@ namespace Rive
                 return null;
             }
 
-            var bindableArtboard = new BindableArtboard(ptr);
-            m_bindableArtboardCacheByName[name] = new WeakReference<BindableArtboard>(bindableArtboard);
-            return bindableArtboard;
+            return new BindableArtboard(ptr, viewModelInstance);
         }
 
 

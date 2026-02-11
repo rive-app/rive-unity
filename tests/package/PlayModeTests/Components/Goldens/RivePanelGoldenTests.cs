@@ -1651,6 +1651,141 @@ namespace Rive.Tests
 
 
         [UnityTest]
+        public IEnumerator RivePanel_Supports_ArtboardDataBinding_WithCustomVMInstance()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            // Load the artboard data binding test rive file
+            Asset artboardTestAsset = null;
+            string artboardTestPath = TestAssetReferences.riv_artboard_db_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                artboardTestPath,
+                (asset) => artboardTestAsset = asset,
+                () => Assert.Fail($"Failed to load artboard test asset at {artboardTestPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.Fit = Fit.Contain;
+
+            File artboardFile = null;
+            ViewModelInstance controlledInstance1 = null;
+            ViewModelInstance controlledInstance2 = null;
+
+            BindableArtboard controlledArtboard = null;
+
+            try
+            {
+                artboardFile = File.Load(artboardTestAsset);
+
+                widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+                widget.Load(artboardFile);
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+
+                var viewModelInstance = widget.StateMachine.ViewModelInstance;
+                Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+                var artboardProp1 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_1");
+                Assert.IsNotNull(artboardProp1, "Artboard property 'artboard_1' should exist");
+
+                // Create custom instances for the ControlledViewModel.
+                var controlledViewModel = artboardFile.GetViewModelByName("ControlledViewModel");
+                Assert.IsNotNull(controlledViewModel, "ControlledViewModel should exist in test file");
+
+                controlledInstance1 = controlledViewModel.CreateInstance();
+                Assert.IsNotNull(controlledInstance1, "Expected to create ControlledViewModel instance 1");
+                var text1 = controlledInstance1.GetStringProperty("text");
+                var color1 = controlledInstance1.GetColorProperty("color");
+                Assert.IsNotNull(text1, "Expected 'text' property on ControlledViewModel");
+                Assert.IsNotNull(color1, "Expected 'color' property on ControlledViewModel");
+                text1.Value = "Custom 1";
+                color1.Value = new UnityEngine.Color(1, 0, 0, 1); // Red
+
+                controlledInstance2 = controlledViewModel.CreateInstance();
+                Assert.IsNotNull(controlledInstance2, "Expected to create ControlledViewModel instance 2");
+                var text2 = controlledInstance2.GetStringProperty("text");
+                var color2 = controlledInstance2.GetColorProperty("color");
+                Assert.IsNotNull(text2, "Expected 'text' property on ControlledViewModel");
+                Assert.IsNotNull(color2, "Expected 'color' property on ControlledViewModel");
+                text2.Value = "Custom 2";
+                color2.Value = new UnityEngine.Color(0, 0, 1, 1); // Blue
+
+                controlledArtboard = artboardFile.BindableArtboard("ArtboardControlled");
+                var controlledArtboardWithInstance1 = artboardFile.BindableArtboard("ArtboardControlled", controlledInstance1);
+                var controlledArtboardWithInstance2 = artboardFile.BindableArtboard("ArtboardControlled", controlledInstance2);
+                Assert.IsNotNull(controlledArtboard, "ArtboardControlled should exist in file");
+                Assert.IsNotNull(controlledArtboardWithInstance1,
+                    "ArtboardControlled with custom instance 1 should exist in file");
+                Assert.IsNotNull(controlledArtboardWithInstance2,
+                    "ArtboardControlled with custom instance 2 should exist in file");
+
+                // <-- Case 1: Assign ArtboardControlled with no custom instance (default) -->
+                artboardProp1.Value = controlledArtboard;
+                yield return new WaitForEndOfFrame();
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ArtboardDataBinding_Controlled_DefaultInstance",
+                    panel.RenderTexture
+                );
+
+                yield return null;
+
+                // <-- Case 2: Assign ArtboardControlled with custom instance 1 -->
+                artboardProp1.Value = controlledArtboardWithInstance1;
+                yield return new WaitForEndOfFrame();
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ArtboardDataBinding_Controlled_CustomInstance1",
+                    panel.RenderTexture
+                );
+
+                yield return null;
+
+                // <-- Case 3: Assign ArtboardControlled with custom instance 2 -->
+                artboardProp1.Value = controlledArtboardWithInstance2;
+                yield return new WaitForEndOfFrame();
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ArtboardDataBinding_Controlled_CustomInstance2",
+                    panel.RenderTexture
+                );
+
+                yield return null;
+
+                // <-- Case 4: Assign ArtboardControlled with no custom instance again -->
+                // This will show the same visuals as Custom Instance 2 or the last assigned instance (this is how the c++ runtime treats it). Whether this is the expected behavior or not is TBD, but the important part for this test is that it doesn't cause a crash and we know what the behavior is for now.
+                artboardProp1.Value = controlledArtboard;
+                yield return new WaitForEndOfFrame();
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ArtboardDataBinding_Controlled_CustomInstance2",
+                    panel.RenderTexture
+                );
+
+                yield return null;
+
+                artboardFile?.Dispose();
+                controlledInstance1?.Dispose();
+                controlledInstance2?.Dispose();
+
+                controlledArtboard?.Dispose();
+            }
+            finally
+            {
+                DestroyObj(panel.gameObject);
+            }
+        }
+
+
+        [UnityTest]
         public IEnumerator DataBinding_ListProperty_InitialState_ShowsExpectedVisuals()
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
