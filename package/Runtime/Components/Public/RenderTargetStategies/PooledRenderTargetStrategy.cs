@@ -332,15 +332,16 @@ namespace Rive.Components
             m_panelsToRedraw.Add(panel);
 
         }
-        private void LateUpdate()
+        internal protected override void PrepareBatchedRender()
         {
-
             if (DrawTiming != DrawTimingOption.DrawBatched)
             {
                 return;
             }
-            // We wait till LateUpdate rather than the end of the current frame (e.g. WaitTillEndOfFrame) because using the latter can cause glitches in the rendering
-            // We want to batch the drawing of all panels only once instead of drawing them multiple times in the same frame
+            // We wait till LateUpdate (via Orchestrator) rather than the end of the current frame
+            // (e.g. WaitTillEndOfFrame) because using the latter can cause glitches in the rendering.
+            // We want to batch the drawing of all panels only once instead of drawing them multiple
+            // times in the same frame.
 
             if (m_panelsToRedraw.Count > 0)
             {

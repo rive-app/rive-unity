@@ -70,7 +70,7 @@ namespace Rive
                 return null;
             }
 
-            return ViewModelInstance.GetOrCreateFromPointer(instancePtr, this.RootInstance?.RiveFile);
+            return ViewModelInstance.GetOrCreateFromPointer(instancePtr, this.RootInstance?.RiveFile, this.RootInstance);
         }
 
 

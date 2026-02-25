@@ -811,6 +811,7 @@ namespace Rive.Tests
             float deltaTime = 0.016f; // Simulate 60fps
             m_panel.Tick(deltaTime);
 
+            yield return null;
             Assert.AreEqual(initialTickCount + 1, widget.TickCount,
                 "Widget should be ticked once after manual tick");
         }

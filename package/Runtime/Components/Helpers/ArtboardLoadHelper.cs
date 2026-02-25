@@ -191,7 +191,12 @@ namespace Rive.Components.Utilities
 
             m_stateMachine.Advance(deltaTime * speed);
 
-            m_stateMachine.ViewModelInstance?.HandleCallbacks();
+            // Legacy callback propagation behavior
+            if (RiveWidget.PropertyCallbackApproach == RiveWidget.DataBindingPropertyCallbackApproach.Propagation)
+            {
+                m_stateMachine.ViewModelInstance?.HandleCallbacks();
+            }
+
         }
 
 

@@ -559,17 +559,14 @@ namespace Rive.Components
 
         }
 
-
-        private void LateUpdate()
+        internal protected override void PrepareBatchedRender()
         {
-
-
             if (m_batchCommand == BatchCommandOption.None)
             {
                 return;
             }
 
-            // We wait till LateUpdate to redraw to ensure all render objects have been updated.
+            // We wait till LateUpdate (via Orchestrator) to redraw to ensure all render objects have been updated.
             // We also do this because the native rive code might not be ready on the initial frame until LateUpdate.
 
             if (m_batchCommand == BatchCommandOption.RepackAndRedraw)
@@ -583,8 +580,6 @@ namespace Rive.Components
             }
 
             m_batchCommand = BatchCommandOption.None;
-
-
         }
 
 

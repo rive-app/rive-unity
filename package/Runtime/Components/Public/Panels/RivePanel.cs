@@ -366,6 +366,7 @@ namespace Rive.Components
 
         void OnEnable()
         {
+            Orchestrator.Instance?.RegisterPanel(this);
 
             InitializeDefaultRenderTargetStrategyIfNeeded();
 
@@ -403,6 +404,7 @@ namespace Rive.Components
 
         void OnDisable()
         {
+            Orchestrator.Instance?.UnregisterPanel(this);
 
             UnsubscribeFromRenderTargetStrategyEvents();
 
@@ -839,25 +841,24 @@ namespace Rive.Components
                 OnRenderTargetUpdated?.Invoke();
             }
         }
-
-
-
-
-
-
-        void Update()
-        {
-            if (m_updateMode == PanelUpdateMode.Auto)
-            {
-                Tick(Time.deltaTime);
-            }
-        }
-
         /// <summary>
         /// Called every frame to update the widgets. This is where the widgets should update their visuals based on their state.
         /// </summary>
         /// <param name="deltaTime"></param>
         public void Tick(float deltaTime)
+        {
+            if (!isActiveAndEnabled)
+            {
+                return;
+            }
+
+            // Manual ticks execute immediately. Orchestrator is only notified so databinding
+            // callbacks can be triggered as expected.
+            TickImmediate(deltaTime);
+            Orchestrator.Instance?.NotifyManualTickOccurred(this);
+        }
+
+        internal void TickImmediate(float deltaTime)
         {
             bool widgetNeedsRedraw = false;
 

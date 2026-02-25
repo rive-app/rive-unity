@@ -26,8 +26,9 @@ namespace Rive.Components
 
 
 
-        private void OnEnable()
+        protected override void OnEnable()
         {
+            base.OnEnable();
             if (m_panel == null && !TryGetComponent(out m_panel))
             {
                 DebugLogger.Instance.LogError($"No {nameof(RivePanel)} component found on GameObject. {nameof(SimpleRenderTargetStrategy)} requires a {nameof(RivePanel)} component.");
@@ -246,9 +247,7 @@ namespace Rive.Components
             }
         }
 
-
-
-        void LateUpdate()
+        internal protected override void PrepareBatchedRender()
         {
             if (DrawTiming != DrawTimingOption.DrawBatched)
             {

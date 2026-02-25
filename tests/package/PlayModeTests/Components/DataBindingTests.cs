@@ -422,6 +422,9 @@ namespace Rive.Tests
         [TearDown]
         public void TearDown()
         {
+            // Make sure static callback mode does not leak between tests (espescially when domain reload is disabled in editor).
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+
             foreach (var file in m_loadedFiles)
             {
                 file.Dispose();
@@ -753,7 +756,7 @@ namespace Rive.Tests
 
                 stringProp.Value = expectedValue;
 
-                viewModelInstance.HandleCallbacks();
+                yield return null;
 
                 Assert.IsTrue(callbackTriggered,
                     $"Callback should have been triggered for property '{propName}' in {testAsset.addressableAssetPath}");
@@ -901,13 +904,192 @@ namespace Rive.Tests
 
                 triggerProp.Trigger();
 
-                viewModelInstance.HandleCallbacks();
+                yield return null;
 
                 Assert.IsTrue(callbackTriggered,
                     $"Trigger callback should have been triggered for property '{propName}' in {testAsset.addressableAssetPath}");
 
 
             }
+        }
+
+        [UnityTest]
+        public IEnumerator TriggerProperty_Orchestrator_AutoMode_FiresOncePerTrigger()
+        {
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
+
+            var triggerProp = viewModelInstance.GetTriggerProperty("onFormSubmit");
+            Assert.IsNotNull(triggerProp, "Trigger property should exist");
+
+            int callbackCount = 0;
+            triggerProp.OnTriggered += () => callbackCount++;
+
+            triggerProp.Trigger();
+
+            Assert.AreEqual(0, callbackCount, "Trigger callback should not fire before a manual panel tick.");
+
+            // Give orchestrator at least one full scheduling cycle plus an extra frame
+            // to catch accidental duplicate callback delivery.
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount, "Trigger callback should fire exactly once in Auto mode.");
+        }
+
+        [UnityTest]
+        public IEnumerator TriggerProperty_Orchestrator_ManualMode_FiresOncePerTriggerAfterTick()
+        {
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
+
+            var triggerProp = viewModelInstance.GetProperty<ViewModelInstanceTriggerProperty>("onFormSubmit");
+            if (triggerProp == null)
+            {
+                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Trigger).FirstOrDefault();
+                Assert.IsNotNull(fallback, "Expected at least one trigger property");
+                triggerProp = viewModelInstance.GetProperty<ViewModelInstanceTriggerProperty>(fallback.Name);
+            }
+            Assert.IsNotNull(triggerProp, "Trigger property should exist");
+
+            int callbackCount = 0;
+            triggerProp.OnTriggered += () => callbackCount++;
+
+            triggerProp.Trigger();
+
+            // In Manual mode, callback should not process until the panel is ticked.
+            yield return null;
+            Assert.AreEqual(0, callbackCount, "Trigger callback should not fire before a manual panel tick.");
+
+            m_panel.Tick(0.016f);
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount, "Trigger callback should fire exactly once after manual tick.");
+        }
+
+        [UnityTest]
+        public IEnumerator TriggerProperty_Propagation_AutoMode_FiresOncePerTrigger()
+        {
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Propagation;
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
+
+            var triggerProp = viewModelInstance.GetProperty<ViewModelInstanceTriggerProperty>("onFormSubmit");
+            if (triggerProp == null)
+            {
+                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Trigger).FirstOrDefault();
+                Assert.IsNotNull(fallback, "Expected at least one trigger property");
+                triggerProp = viewModelInstance.GetProperty<ViewModelInstanceTriggerProperty>(fallback.Name);
+            }
+            Assert.IsNotNull(triggerProp, "Trigger property should exist");
+
+            int callbackCount = 0;
+            triggerProp.OnTriggered += () => callbackCount++;
+
+            triggerProp.Trigger();
+
+            // Allow at least one full frame cycle plus one extra frame to catch duplicates.
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount, "Trigger callback should fire exactly once in Propagation mode.");
+        }
+
+        [UnityTest]
+        public IEnumerator NumberProperty_Orchestrator_AutoMode_FiresOncePerSet()
+        {
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
+
+            var numberProp = viewModelInstance.GetProperty<ViewModelInstanceNumberProperty>("age");
+            if (numberProp == null)
+            {
+                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Number).FirstOrDefault();
+                Assert.IsNotNull(fallback, "Expected at least one number property");
+                numberProp = viewModelInstance.GetProperty<ViewModelInstanceNumberProperty>(fallback.Name);
+            }
+            Assert.IsNotNull(numberProp, "Number property should exist");
+
+            int callbackCount = 0;
+            numberProp.OnValueChanged += (_) => callbackCount++;
+
+            // Set to a different value to force a change.
+            numberProp.Value = numberProp.Value + 1f;
+
+            // Give orchestrator at least one full scheduling cycle plus an extra frame
+            // to catch accidental duplicate callback delivery.
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount, "Number callback should fire exactly once for one value set in Auto mode.");
         }
 
         [UnityTest]
@@ -1031,14 +1213,14 @@ namespace Rive.Tests
 
                 // Test setting image
                 imageProp.Value = testImage1;
-                viewModelInstance.HandleCallbacks();
+                yield return null;
 
                 Assert.IsTrue(callbackTriggered, "Callback should be triggered when image is set");
 
                 // Test setting different image
                 callbackTriggered = false;
                 imageProp.Value = testImage2;
-                viewModelInstance.HandleCallbacks();
+                yield return null;
 
                 Assert.IsTrue(callbackTriggered, "Callback should be triggered when image is changed");
 
@@ -1046,7 +1228,7 @@ namespace Rive.Tests
                 callbackTriggered = false;
 
                 imageProp.Value = null;
-                viewModelInstance.HandleCallbacks();
+                yield return null;
 
                 Assert.IsTrue(callbackTriggered, "Callback should still be triggered when image is set to null");
 
@@ -1141,7 +1323,7 @@ namespace Rive.Tests
             artboardProp1.Value = blueArtboard1;
             artboardProp2.Value = redArtboard2;
 
-            viewModelInstance.HandleCallbacks();
+            yield return null;
 
             Assert.IsTrue(callback1Triggered, "Callback should be triggered when artboard_1 is set");
             Assert.IsTrue(callback2Triggered, "Callback should be triggered when artboard_2 is set");
@@ -1150,7 +1332,7 @@ namespace Rive.Tests
             // Test setting to null
             callback1Triggered = false;
             artboardProp1.Value = null;
-            viewModelInstance.HandleCallbacks();
+            yield return null;
 
             Assert.IsTrue(callback1Triggered, "Callback should be triggered when artboard is set to null");
 
@@ -1204,7 +1386,7 @@ namespace Rive.Tests
 
             // Test setting artboard from external file
             artboardProp1.Value = eventsArtboard;
-            viewModelInstance.HandleCallbacks();
+            yield return null;
 
             Assert.IsTrue(callbackTriggered, "Callback should be triggered when artboard is set to external artboard");
 
@@ -1719,13 +1901,13 @@ namespace Rive.Tests
             // Test adding instance triggers callback
             var newInstance = itemViewModel.CreateInstance();
             listProperty.Add(newInstance);
-            boundViewModelInstance.HandleCallbacks();
+            yield return null;
 
             Assert.AreEqual(1, changeCallbackCount, "OnChanged should be triggered when adding instance");
 
             // Test removing instance triggers callback
             listProperty.Remove(newInstance);
-            boundViewModelInstance.HandleCallbacks();
+            yield return null;
 
             Assert.AreEqual(2, changeCallbackCount, "OnChanged should be triggered when removing instance");
 
@@ -1733,7 +1915,7 @@ namespace Rive.Tests
             if (listProperty.Count > 0)
             {
                 listProperty.RemoveAt(0);
-                boundViewModelInstance.HandleCallbacks();
+                yield return null;
 
                 Assert.AreEqual(3, changeCallbackCount, "OnChanged should be triggered when removing by index");
             }
@@ -1742,7 +1924,7 @@ namespace Rive.Tests
             if (listProperty.Count >= 2)
             {
                 listProperty.Swap(0, 1);
-                boundViewModelInstance.HandleCallbacks();
+                yield return null;
 
                 Assert.AreEqual(4, changeCallbackCount, "OnChanged should be triggered when swapping instances");
             }
@@ -1805,7 +1987,7 @@ namespace Rive.Tests
             textProperty.Value = initialValue;
 
             // Process callbacks for the standalone instance
-            newInstance.HandleCallbacks();
+            yield return null;
 
             Assert.AreEqual(1, callbackCount, "Callback should be triggered for standalone instance");
             Assert.AreEqual(initialValue, lastCallbackValue, "Callback should receive correct initial value");
@@ -1825,7 +2007,7 @@ namespace Rive.Tests
             textProperty.Value = updatedValue;
 
             // Process callbacks - this should work for instances in the list
-            boundViewModelInstance.HandleCallbacks();
+            yield return null;
 
             Assert.AreEqual(1, callbackCount,
                 "Callback should be triggered for instance property after adding to list");
@@ -1848,7 +2030,7 @@ namespace Rive.Tests
             retrievedTextProperty.Value = finalValue;
 
             // Process callbacks through the retrieved instance
-            boundViewModelInstance.HandleCallbacks();
+            yield return null;
 
             Assert.AreEqual(1, callbackCount,
                 "Callback should be triggered when changing property through retrieved instance");
@@ -1869,7 +2051,7 @@ namespace Rive.Tests
             // Remove the instance from the list with removeInstance and verify that callbacks are not triggered
             listProperty.Remove(newInstance);
 
-            boundViewModelInstance.HandleCallbacks();
+            yield return null;
             Assert.AreEqual(0, callbackCount,
                 "Callback should not be triggered when removing instance from list");
 
@@ -1885,11 +2067,564 @@ namespace Rive.Tests
             // Remove by index
             listProperty.RemoveAt(listProperty.Count - 1);
 
-            boundViewModelInstance.HandleCallbacks();
+            yield return null;
 
             Assert.AreEqual(0, callbackCount,
                 "Callback should not be triggered when removing instance by index");
 
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_InstancePropertyCallbacks_TriggeredAfterGettingItem()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
+
+            var listProperty = boundViewModelInstance.GetListProperty("items");
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            // The default instance in this asset should come with at least 1 pre-populated item.
+            Assert.IsTrue(listProperty.Count >= 1, "Default list instance should have at least 1 item");
+
+            var itemInstance = listProperty.GetInstanceAt(0);
+            Assert.IsNotNull(itemInstance, "Should be able to retrieve first item from list");
+
+            var textProperty = itemInstance.GetStringProperty("text");
+            if (textProperty == null)
+            {
+                Assert.Fail("No text property found in list item view model for callback testing");
+                yield break;
+            }
+
+            int callbackCount = 0;
+            string lastCallbackValue = null;
+
+            textProperty.OnValueChanged += (value) =>
+            {
+                callbackCount++;
+                lastCallbackValue = value;
+            };
+
+            string updatedValue = "Updated Value After Getting Item";
+            textProperty.Value = updatedValue;
+
+
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount,
+                "Callback should be triggered for list item instance property after getting item from list");
+            Assert.AreEqual(updatedValue, lastCallbackValue,
+                "Callback should receive correct updated value after getting item from list");
+        }
+
+        [UnityTest]
+        public IEnumerator HandleCallbacks_ProcessesListItemProperty_WhenRetrievedFromList()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var rootInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(rootInstance, "ViewModelInstance should exist");
+
+            var listProperty = rootInstance.GetListProperty("items");
+            if (listProperty == null || listProperty.Count < 1)
+            {
+                Assert.Fail("No list items available in test asset");
+                yield break;
+            }
+
+            var itemInstance = listProperty.GetInstanceAt(0);
+            Assert.IsNotNull(itemInstance, "Should be able to retrieve list item instance");
+
+            var textProperty = itemInstance.GetStringProperty("text");
+            Assert.IsNotNull(textProperty, "Text property should exist on list item instance");
+
+            int callbackCount = 0;
+            string lastCallbackValue = null;
+            textProperty.OnValueChanged += (v) =>
+            {
+                callbackCount++;
+                lastCallbackValue = v;
+            };
+
+            string updatedValue = "Legacy HandleCallbacks - Retrieved Item";
+            textProperty.Value = updatedValue;
+
+            // In the legacy path, root processes its own subscribed properties and traverses children.
+            rootInstance.HandleCallbacks();
+
+            Assert.AreEqual(1, callbackCount, "Callback should be invoked via root HandleCallbacks traversal");
+            Assert.AreEqual(updatedValue, lastCallbackValue, "Callback should receive the updated value");
+        }
+
+        [UnityTest]
+        public IEnumerator HandleCallbacks_DoesNotProcessUnparentedInstanceProperty()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var rootInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(rootInstance, "ViewModelInstance should exist");
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            // Standalone instance not added to a list and not parented to root.
+            var standaloneInstance = itemViewModel.CreateInstance();
+            Assert.IsNotNull(standaloneInstance, "Should be able to create standalone instance");
+
+            var textProperty = standaloneInstance.GetStringProperty("text");
+            Assert.IsNotNull(textProperty, "Text property should exist on standalone instance");
+
+            int callbackCount = 0;
+            textProperty.OnValueChanged += (_) => callbackCount++;
+
+            textProperty.Value = "Legacy HandleCallbacks - Unparented Instance";
+
+            // Root traversal should not reach an unrelated instance.
+            rootInstance.HandleCallbacks();
+            Assert.AreEqual(0, callbackCount, "Root HandleCallbacks should not invoke callbacks for an unparented instance");
+
+            // But calling HandleCallbacks on the standalone instance should still work.
+            standaloneInstance.HandleCallbacks();
+            Assert.AreEqual(1, callbackCount, "Standalone instance HandleCallbacks should invoke its own callbacks");
+        }
+
+        [UnityTest]
+        public IEnumerator PanelTick_ManualMode_ProcessesCallbacksAfterTick()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+            // Disable auto ticking so callbacks won't be triggered unless we explicitly tick.
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+
+
+            var rootInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(rootInstance, "ViewModelInstance should exist");
+
+            var listProperty = rootInstance.GetListProperty("items");
+            if (listProperty == null || listProperty.Count < 1)
+            {
+                Assert.Fail("No list items available in test asset");
+                yield break;
+            }
+
+            var itemInstance = listProperty.GetInstanceAt(0);
+            Assert.IsNotNull(itemInstance, "Should be able to retrieve list item instance");
+
+            var textProperty = itemInstance.GetStringProperty("text");
+            Assert.IsNotNull(textProperty, "Text property should exist on list item instance");
+
+            int callbackCount = 0;
+            textProperty.OnValueChanged += (_) => callbackCount++;
+
+            textProperty.Value = "Manual Tick Callback Test";
+
+            // Wait a few frames without ticking; callback should not fire.
+            yield return null;
+            yield return null;
+            Assert.AreEqual(0, callbackCount, "Callback should not be triggered while panel is not ticked in Manual mode");
+
+            // Manually tick the panel. Tick() is queued and executed by the Orchestrator.
+            m_panel.Tick(0.016f);
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount, "Callback should be triggered after manual panel tick");
+        }
+
+        [UnityTest]
+        public IEnumerator Orchestrator_ProcessesUnparentedInstanceProperties()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            // We create an instance that is NOT parented/contained by the bound root instance.
+            var standaloneInstance = itemViewModel.CreateInstance();
+            Assert.IsNotNull(standaloneInstance, "Should be able to create standalone instance");
+
+            var textProperty = standaloneInstance.GetStringProperty("text");
+            if (textProperty == null)
+            {
+                Assert.Fail("No text property found in item view model for callback testing");
+                yield break;
+            }
+
+            int callbackCount = 0;
+            string lastCallbackValue = null;
+
+            textProperty.OnValueChanged += (value) =>
+            {
+                callbackCount++;
+                lastCallbackValue = value;
+            };
+
+            string updatedValue = "Updated Value On Unparented Instance";
+            textProperty.Value = updatedValue;
+
+            yield return null; // PumpAll is called by the main loop every frame by the Orchestrator
+
+            Assert.AreEqual(1, callbackCount,
+                "Callback should be processed even when instance is not parented to the bound root");
+            Assert.AreEqual(updatedValue, lastCallbackValue,
+                "Callback should receive correct value for unparented instance");
+        }
+
+        [UnityTest]
+        public IEnumerator Orchestrator_ProcessesListItemCallbacks_WithoutParentTraversal()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
+
+            var listProperty = boundViewModelInstance.GetListProperty("items");
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            Assert.GreaterOrEqual(listProperty.Count, 1, "Default list instance should have at least 1 item");
+
+            var itemInstance = listProperty.GetInstanceAt(0);
+            Assert.IsNotNull(itemInstance, "Should be able to retrieve first item from list");
+
+            var textProperty = itemInstance.GetStringProperty("text");
+            if (textProperty == null)
+            {
+                Assert.Fail("No text property found in list item view model for callback testing");
+                yield break;
+            }
+
+            int callbackCount = 0;
+            textProperty.OnValueChanged += (_) => callbackCount++;
+
+            textProperty.Value = "Updated Value On List Item";
+
+            yield return null; // PumpAll is called by the main loop every frame by the Orchestrator
+
+            Assert.AreEqual(1, callbackCount,
+                "List item callback should be processed via PumpAll without relying on parent/child traversal");
+        }
+
+        [UnityTest]
+        public IEnumerator PropertyCallbacks_Propagation_DoesNotProcessUnparentedInstanceProperties()
+        {
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Propagation;
+
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            // Create an instance that is NOT parented/contained by the bound root instance.
+            var standaloneInstance = itemViewModel.CreateInstance();
+            Assert.IsNotNull(standaloneInstance, "Should be able to create standalone instance");
+
+            var textProperty = standaloneInstance.GetStringProperty("text");
+            if (textProperty == null)
+            {
+                Assert.Fail("No text property found in item view model for callback testing");
+                yield break;
+            }
+
+            int callbackCount = 0;
+            textProperty.OnValueChanged += _ => callbackCount++;
+
+            textProperty.Value = "Updated Value On Unparented Instance";
+
+            // Propagation mode does not have a centralized orchestrator, and this instance is not part of the root traversal.
+            yield return null;
+            Assert.AreEqual(0, callbackCount, "Propagation mode should not process callbacks for an unparented instance automatically.");
+
+            // Manual legacy call should process it.
+            standaloneInstance.HandleCallbacks();
+            Assert.AreEqual(1, callbackCount, "Calling HandleCallbacks() on the standalone instance should process the callback in Propagation mode.");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_RemoveAt_WithDuplicateInstance_DoesNotDetachCallbacksUntilLastOccurrenceRemoved()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
+
+            var listProperty = boundViewModelInstance.GetListProperty("items");
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            var duplicatedInstance = itemViewModel.CreateInstance();
+            Assert.IsNotNull(duplicatedInstance, "Should be able to create new list item instance");
+
+            var textProperty = duplicatedInstance.GetStringProperty("text");
+            if (textProperty == null)
+            {
+                Assert.Fail("No text property found in list item view model for callback testing");
+                yield break;
+            }
+
+            int callbackCount = 0;
+            string lastCallbackValue = null;
+
+            textProperty.OnValueChanged += (value) =>
+            {
+                callbackCount++;
+                lastCallbackValue = value;
+            };
+
+            // Add the same instance twice.
+            listProperty.Add(duplicatedInstance);
+            listProperty.Add(duplicatedInstance);
+
+            int secondOfTwoIndex = listProperty.Count - 1;
+            int firstOfTwoIndex = listProperty.Count - 2;
+            Assert.GreaterOrEqual(firstOfTwoIndex, 0, "List should contain the duplicated instance twice");
+            Assert.AreSame(duplicatedInstance, listProperty.GetInstanceAt(firstOfTwoIndex), "First duplicated entry should match the instance");
+            Assert.AreSame(duplicatedInstance, listProperty.GetInstanceAt(secondOfTwoIndex), "Second duplicated entry should match the instance");
+
+            // Remove only one occurrence (by index). Callbacks should still be processed via root HandleCallbacks,
+            // since the instance is still present in the list once.
+            listProperty.RemoveAt(firstOfTwoIndex);
+
+            callbackCount = 0;
+            lastCallbackValue = null;
+
+            string valueAfterRemovingOne = "Value After Removing One Occurrence";
+            textProperty.Value = valueAfterRemovingOne;
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount,
+                "Callback should still be triggered after removing only one duplicate occurrence by index");
+            Assert.AreEqual(valueAfterRemovingOne, lastCallbackValue,
+                "Callback should receive correct value after removing one duplicate occurrence");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_RemoveAt_LastOccurrence_DoesNotPreventCallbacks_WhenStillSubscribed()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
+
+            var listProperty = boundViewModelInstance.GetListProperty("items");
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            var instance = itemViewModel.CreateInstance();
+            Assert.IsNotNull(instance, "Should be able to create new list item instance");
+
+            var textProperty = instance.GetStringProperty("text");
+            if (textProperty == null)
+            {
+                Assert.Fail("No text property found in list item view model for callback testing");
+                yield break;
+            }
+
+            int callbackCount = 0;
+            textProperty.OnValueChanged += (_) => callbackCount++;
+
+            listProperty.Add(instance);
+            int index = listProperty.Count - 1;
+            Assert.AreSame(instance, listProperty.GetInstanceAt(index), "Added instance should be retrievable from list");
+
+            // Remove the only occurrence. This must not prevent callbacks from firing if we're still subscribed,
+            // since callbacks are pumped by the global hub rather than by parent/child traversal.
+            listProperty.RemoveAt(index);
+
+            callbackCount = 0;
+            textProperty.Value = "Value After Removing Last Occurrence";
+            yield return null; // PumpAll is called by the main loop every frame by the Orchestrator
+
+            Assert.AreEqual(1, callbackCount,
+                "Callback should still be triggered when subscribed, even after removing the last occurrence from the list");
+        }
+
+        [UnityTest]
+        public IEnumerator Orchestrator_WhenUnsubscribed_DoesNotInvokeCallback()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
+
+            var listProperty = boundViewModelInstance.GetListProperty("items");
+            if (listProperty == null || listProperty.Count < 1)
+            {
+                Assert.Fail("No list items available in test asset");
+                yield break;
+            }
+
+            var itemInstance = listProperty.GetInstanceAt(0);
+            Assert.IsNotNull(itemInstance, "Should be able to retrieve list item instance");
+
+            var textProperty = itemInstance.GetStringProperty("text");
+            Assert.IsNotNull(textProperty, "Text property should exist on list item instance");
+
+            int callbackCount = 0;
+            Action<string> handler = (_) => callbackCount++;
+
+            textProperty.OnValueChanged += handler;
+            textProperty.OnValueChanged -= handler;
+
+            textProperty.Value = "Value After Unsubscribe";
+            yield return null; // PumpAll is called by the main loop every frame by the Orchestrator
+
+            Assert.AreEqual(0, callbackCount, "Callback should not be invoked after unsubscribing");
         }
 
         [UnityTest]
@@ -1989,7 +2724,7 @@ namespace Rive.Tests
                 stringProp.Value = expectedValue;
 
                 // Process callbacks
-                viewModelInstance.HandleCallbacks();
+                yield return null;
 
                 Assert.AreEqual(1, callbackCount1,
                     $"First callback should have been triggered once for property '{propName}' in {testAsset.addressableAssetPath}");
@@ -2089,7 +2824,7 @@ namespace Rive.Tests
                     stringProp.Value = stringValue + " Updated";
 
                     // Process callbacks
-                    nestedViewModel.HandleCallbacks();
+                    yield return null; // PumpAll is called by the main loop every frame by the Orchestrator
 
                     // Assert callback was triggered
                     Assert.IsTrue(callbackTriggered,
@@ -2145,7 +2880,7 @@ namespace Rive.Tests
 
                 // Set value and process callbacks
                 stringProp.Value = "First Update";
-                viewModelInstance.HandleCallbacks();
+                yield return null;
 
                 Assert.AreEqual(1, callbackCount,
                     $"Callback should have been triggered once for property '{propName}' in {testAsset.addressableAssetPath}");
@@ -2155,7 +2890,7 @@ namespace Rive.Tests
 
                 // Set value again and process callbacks
                 stringProp.Value = "Second Update";
-                viewModelInstance.HandleCallbacks();
+                yield return null;
 
                 // Assert callback was not triggered again
                 Assert.AreEqual(1, callbackCount,
@@ -2421,10 +3156,8 @@ namespace Rive.Tests
                 sharedStringProp.Value = newValue;
 
                 // Process callbacks for ALL widgets. This is equivalent to Advance() happening on all widgets.
-                // In a real scenario, this would be called in the main loop of the widget.
-                firstViewModelInstance.HandleCallbacks();
-                secondViewModelInstance.HandleCallbacks();
-                thirdViewModelInstance.HandleCallbacks();
+
+                yield return null;
 
                 // Verify callback only fired once despite being in three widgets
                 Assert.AreEqual(1, callbackCount,
@@ -2451,7 +3184,7 @@ namespace Rive.Tests
                 callbackCount = 0; // Reset counter
                 thirdProp.Value = "Changed from third widget";
 
-                thirdViewModelInstance.HandleCallbacks();
+                yield return null;
 
                 // Verify callback fired exactly once
                 Assert.AreEqual(1, callbackCount, "Callback should fire exactly once when changed from third widget");
@@ -2465,7 +3198,7 @@ namespace Rive.Tests
                 firstProp.Value = "Changed from first widget";
 
                 // Only process callbacks on first widget
-                firstViewModelInstance.HandleCallbacks();
+                yield return null;
 
                 // Verify callback fired exactly once
                 Assert.AreEqual(1, callbackCount, "Callback should fire exactly once when changed from first widget");
@@ -2621,7 +3354,7 @@ namespace Rive.Tests
                 }
 
                 // Process callbacks once
-                viewModelInstance.HandleCallbacks();
+                yield return null;
 
                 // Verify all callbacks were triggered exactly once
                 foreach (var prop in testProps)

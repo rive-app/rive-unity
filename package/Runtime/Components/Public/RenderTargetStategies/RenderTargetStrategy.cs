@@ -151,6 +151,34 @@ namespace Rive.Components
 
         public event Action<IRivePanel> OnPanelUnregistered;
 
+        /// <summary>
+        /// Called once per frame (via Orchestrator) after ticking panels.
+        /// Override this to handle any batched render requests.
+        /// </summary>
+        internal protected virtual void PrepareBatchedRender()
+        {
+        }
+
+        internal void PrepareRenderFromOrchestrator()
+        {
+            if (m_isDestroyed || !isActiveAndEnabled)
+            {
+                return;
+            }
+
+            PrepareBatchedRender();
+        }
+
+        protected virtual void OnEnable()
+        {
+            Orchestrator.RegisterRenderTargetStrategy(this);
+        }
+
+        protected virtual void OnDisable()
+        {
+            Orchestrator.UnregisterRenderTargetStrategy(this);
+        }
+
 
         internal static void DrawPanelWithRenderer(Renderer renderer, IRivePanel panel, RenderTargetInfo targetInfo, RenderTargetSpaceOccupancy renderTargetSpaceOccupancy)
         {
@@ -459,6 +487,7 @@ namespace Rive.Components
         protected virtual void OnDestroy()
         {
             m_isDestroyed = true;
+            Orchestrator.UnregisterRenderTargetStrategy(this);
         }
 
         public abstract void DrawPanel(IRivePanel panel);

@@ -41,6 +41,38 @@ namespace Rive.Components
         }
 
         /// <summary>
+        /// Controls how viewmodel instance property callbacks are fired.
+        /// </summary>
+        public enum DataBindingPropertyCallbackApproach
+        {
+            /// <summary>
+            /// Legacy behavior. Callbacks are handled by propagating from the root ViewModelInstance
+            /// after advancing a specific state machine (per-widget).
+            /// </summary>
+            Propagation = 0,
+
+            /// <summary>
+            /// Orchestrator behavior. Callbacks are triggered after
+            /// all panels/widgets have ticked.
+            /// </summary>
+            Orchestrator = 1,
+        }
+
+        /// <summary>
+        /// Temporary fallback hatch for callback handling. Defaults to <see cref="DataBindingPropertyCallbackApproach.Orchestrator"/>.
+        /// </summary>
+        public static DataBindingPropertyCallbackApproach PropertyCallbackApproach { get; set; } = DataBindingPropertyCallbackApproach.Orchestrator;
+
+#if UNITY_EDITOR
+        // Account for Editor Domain Reload being disabled (static state persists across play sessions).
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticState()
+        {
+            PropertyCallbackApproach = DataBindingPropertyCallbackApproach.Orchestrator;
+        }
+#endif
+
+        /// <summary>
         /// Determines how the widget should handle binding to a ViewModel instance.
         /// </summary>
         public enum DataBindingMode
