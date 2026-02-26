@@ -165,10 +165,11 @@ namespace Rive.EditorTools
         {
 #if UNITY_6000_3_OR_NEWER
             DragAndDrop.AddDropHandlerV2(OnSceneDrop);
+            DragAndDrop.AddDropHandlerV2(OnHierarchyDropV2);
 #else
             DragAndDrop.AddDropHandler(OnSceneDrop);
-#endif
             DragAndDrop.AddDropHandler(OnHierarchyDrop);
+#endif
         }
 
         private static bool ValidateRiveAssetDrag()
@@ -341,13 +342,12 @@ namespace Rive.EditorTools
             Undo.CollapseUndoOperations(undoGroupIndex);
         }
 
-        private static DragAndDropVisualMode OnHierarchyDrop(int dropTargetInstanceID, HierarchyDropFlags dropMode, Transform parentForDraggedObjects, bool perform)
+        private static DragAndDropVisualMode HandleHierarchyDrop(GameObject parentObject, bool perform)
         {
             if (!ValidateRiveAssetDrag())
             {
                 // If we don't do this, it breaks regular drag and drop in the hierarchy
                 // e.g. dragging a game object into another game object stops working
-
                 return DragAndDropVisualMode.None;
             }
 
@@ -358,14 +358,26 @@ namespace Rive.EditorTools
                 if (riveAsset == null)
                     return DragAndDropVisualMode.Rejected;
 
-                GameObject parentObject = EditorUtility.InstanceIDToObject(dropTargetInstanceID) as GameObject;
-
                 Transform parentTransform = parentObject != null ? parentObject.transform : null;
                 HandleAssetDrop(riveAsset, parentTransform);
             }
 
             return DragAndDropVisualMode.Move;
         }
+
+#if UNITY_6000_3_OR_NEWER
+        private static DragAndDropVisualMode OnHierarchyDropV2(EntityId dropTargetEntityId, HierarchyDropFlags dropMode, Transform parentForDraggedObjects, bool perform)
+        {
+            GameObject parentObject = EditorUtility.EntityIdToObject(dropTargetEntityId) as GameObject;
+            return HandleHierarchyDrop(parentObject, perform);
+        }
+#else
+        private static DragAndDropVisualMode OnHierarchyDrop(int dropTargetInstanceID, HierarchyDropFlags dropMode, Transform parentForDraggedObjects, bool perform)
+        {
+            GameObject parentObject = EditorUtility.InstanceIDToObject(dropTargetInstanceID) as GameObject;
+            return HandleHierarchyDrop(parentObject, perform);
+        }
+#endif
 
     }
 }

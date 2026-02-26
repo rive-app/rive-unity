@@ -122,7 +122,11 @@ namespace Rive.Components
         [ShowIf(nameof(ShouldShowMaterialPropertyNames))]
         [InspectorField(InspectorSections.RendererSettings)]
         [Tooltip("The material properties to set the texture to.")]
+#if UNITY_6000_3_OR_NEWER
+        [MaterialProperties(nameof(GetRendererMaterials), UnityEngine.Rendering.ShaderPropertyType.Texture)]
+#else
         [MaterialProperties(nameof(GetRendererMaterials), UnityEditor.ShaderUtil.ShaderPropertyType.TexEnv)]
+#endif
 #endif
         [SerializeField]
         private SerializedDictionary_Material_ListString m_materialPropertyNameData = new SerializedDictionary_Material_ListString();

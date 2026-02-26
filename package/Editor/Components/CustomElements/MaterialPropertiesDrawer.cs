@@ -5,6 +5,11 @@ using UnityEditor.UIElements;
 using System.Collections.Generic;
 using System.Linq;
 using Rive.Utils;
+#if UNITY_6000_3_OR_NEWER
+using MaterialShaderPropertyType = UnityEngine.Rendering.ShaderPropertyType;
+#else
+using MaterialShaderPropertyType = UnityEditor.ShaderUtil.ShaderPropertyType;
+#endif
 
 namespace Rive.EditorTools
 {
@@ -54,7 +59,7 @@ namespace Rive.EditorTools
             return m_root;
         }
 
-        private void UpdateUI(SerializedProperty property, Material[] materials, ShaderUtil.ShaderPropertyType propertyType)
+        private void UpdateUI(SerializedProperty property, Material[] materials, MaterialShaderPropertyType propertyType)
         {
             m_root.Clear();
             UpdateAvailablePropertyNames(materials, propertyType);
@@ -175,7 +180,34 @@ namespace Rive.EditorTools
             return listView;
         }
 
-        private void UpdateAvailablePropertyNames(Material[] materials, ShaderUtil.ShaderPropertyType propertyType)
+        private static int GetPropertyCount(Shader shader)
+        {
+#if UNITY_6000_3_OR_NEWER
+            return shader.GetPropertyCount();
+#else
+            return ShaderUtil.GetPropertyCount(shader);
+#endif
+        }
+
+        private static MaterialShaderPropertyType GetPropertyType(Shader shader, int index)
+        {
+#if UNITY_6000_3_OR_NEWER
+            return shader.GetPropertyType(index);
+#else
+            return ShaderUtil.GetPropertyType(shader, index);
+#endif
+        }
+
+        private static string GetPropertyName(Shader shader, int index)
+        {
+#if UNITY_6000_3_OR_NEWER
+            return shader.GetPropertyName(index);
+#else
+            return ShaderUtil.GetPropertyName(shader, index);
+#endif
+        }
+
+        private void UpdateAvailablePropertyNames(Material[] materials, MaterialShaderPropertyType propertyType)
         {
             m_availablePropertyNames.Clear();
 
@@ -184,11 +216,11 @@ namespace Rive.EditorTools
                 if (material != null)
                 {
                     var shader = material.shader;
-                    for (int i = 0; i < ShaderUtil.GetPropertyCount(shader); i++)
+                    for (int i = 0; i < GetPropertyCount(shader); i++)
                     {
-                        if (ShaderUtil.GetPropertyType(shader, i) == propertyType)
+                        if (GetPropertyType(shader, i) == propertyType)
                         {
-                            string propertyName = ShaderUtil.GetPropertyName(shader, i);
+                            string propertyName = GetPropertyName(shader, i);
                             if (!m_availablePropertyNames.Contains(propertyName))
                             {
                                 m_availablePropertyNames.Add(propertyName);

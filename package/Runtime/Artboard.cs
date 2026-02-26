@@ -87,6 +87,7 @@ namespace Rive
             return new Vector2(vec.x, vec.y);
         }
 
+        [Obsolete("Component is deprecated and will be removed in a future release. Please use Databinding instead.")]
         public Component Component(string name)
         {
             var ptr = artboardComponentNamed(m_nativeArtboard, name);

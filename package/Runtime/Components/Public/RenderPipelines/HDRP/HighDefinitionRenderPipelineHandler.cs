@@ -156,7 +156,8 @@ namespace Rive.Components.HDRP
 
             if (!m_activeRenderPasses.Contains(renderer))
             {
-                DebugLogger.Instance.LogWarning("Renderer is not registered.");
+                // Teardown paths can attempt to unregister the same renderer more than once.
+                // We keep unregister idempotent and quiet to match URP/BuiltIn handlers.
                 return;
             }
 

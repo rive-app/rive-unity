@@ -21,7 +21,9 @@ namespace Rive.EditorTools
 
         private readonly List<PropertyBinding> m_propertyBindings = new List<PropertyBinding>();
         private readonly List<ListPropertyBinding> m_listBindings = new List<ListPropertyBinding>();
+        private readonly List<Action> m_triggerBindingDisposers = new List<Action>();
         private bool m_isRefreshing;
+        private const double TriggerFiredHighlightSeconds = 0.75d;
         private enum PlaygroundState
         {
             NotPlaying,
@@ -43,11 +45,36 @@ namespace Rive.EditorTools
         private readonly Dictionary<string, bool> m_viewModelExpansion = new Dictionary<string, bool>();
 
         // Used for the artboard databinding dropdowns
+        private enum ArtboardViewModelBindingMode
+        {
+            ExistingInstance,
+            CreateNewInstance
+        }
+
         private class ArtboardSelection
         {
             public Asset Asset;
             public File File;
             public string ArtboardName;
+            public ArtboardViewModelBindingMode ViewModelBindingMode = ArtboardViewModelBindingMode.ExistingInstance;
+            public string ExistingViewModelInstanceName;
+            public ViewModelInstance CustomViewModelInstance;
+            public readonly List<PropertyBinding> CustomBindings = new List<PropertyBinding>();
+            public readonly List<ListPropertyBinding> CustomListBindings = new List<ListPropertyBinding>();
+
+            public void DisposeCustomViewModelInstance()
+            {
+                CustomViewModelInstance?.Dispose();
+                CustomViewModelInstance = null;
+                CustomBindings.Clear();
+                CustomListBindings.Clear();
+            }
+
+            public void DisposeAll()
+            {
+                DisposeCustomViewModelInstance();
+                File = null;
+            }
         }
 
         private const string DocsBaseUrl = InspectorDocLinks.UnityDataBinding;
@@ -349,9 +376,14 @@ namespace Rive.EditorTools
         private void OnDisable()
         {
             EditorApplication.update -= EditorUpdate;
+            ClearTriggerBindings();
             m_propertyBindings.Clear();
             m_listBindings.Clear();
             m_widget = null;
+            foreach (var selection in m_artboardSelectionCache.Values)
+            {
+                selection.DisposeAll();
+            }
             m_artboardSelectionCache.Clear();
             m_viewModelExpansion.Clear();
         }
@@ -467,6 +499,7 @@ namespace Rive.EditorTools
 
         private void RebuildProperties()
         {
+            ClearTriggerBindings();
             m_propertyBindings.Clear();
             m_listBindings.Clear();
             m_viewModelExpansion.Clear();
@@ -497,24 +530,26 @@ namespace Rive.EditorTools
                 0);
         }
 
-        private FileMetadata.ViewModelMetadata FindViewModelMetadata(string viewModelName)
+        private FileMetadata.ViewModelMetadata FindViewModelMetadata(string viewModelName, FileMetadata metadataContext = null)
         {
-            if (m_fileMetadata == null || string.IsNullOrEmpty(viewModelName))
+            var metadata = metadataContext ?? m_fileMetadata;
+            if (metadata == null || string.IsNullOrEmpty(viewModelName))
             {
                 return null;
             }
 
-            return m_fileMetadata.ViewModels.FirstOrDefault(vm => vm.Name == viewModelName);
+            return metadata.ViewModels.FirstOrDefault(vm => vm.Name == viewModelName);
         }
 
-        private List<string> GetEnumOptions(FileMetadata.ViewModelPropertyMetadata property)
+        private List<string> GetEnumOptions(FileMetadata.ViewModelPropertyMetadata property, FileMetadata metadataContext = null)
         {
-            if (m_fileMetadata == null || m_fileMetadata.Enums == null || string.IsNullOrEmpty(property.EnumTypeName))
+            var metadata = metadataContext ?? m_fileMetadata;
+            if (metadata == null || metadata.Enums == null || string.IsNullOrEmpty(property.EnumTypeName))
             {
                 return null;
             }
 
-            var enumMeta = m_fileMetadata.Enums.FirstOrDefault(e => e.Name == property.EnumTypeName);
+            var enumMeta = metadata.Enums.FirstOrDefault(e => e.Name == property.EnumTypeName);
             return enumMeta?.Values?.ToList();
         }
 
@@ -726,17 +761,23 @@ namespace Rive.EditorTools
                 null, field));
         }
 
-        private void AddEnumField(VisualElement parent, string path, FileMetadata.ViewModelPropertyMetadata property, Func<ViewModelInstance> instanceProvider = null, string cacheKey = null, string pathLabelOverride = null, List<PropertyBinding> bindingList = null)
+        private void AddEnumField(VisualElement parent, string path, FileMetadata.ViewModelPropertyMetadata property, Func<ViewModelInstance> instanceProvider = null, string cacheKey = null, string pathLabelOverride = null, List<PropertyBinding> bindingList = null, FileMetadata metadataContext = null)
         {
             instanceProvider ??= GetCurrentInstance;
             cacheKey ??= path;
             bindingList ??= m_propertyBindings;
 
-            var options = GetEnumOptions(property) ?? new List<string>();
-            var popup = new PopupField<string>(null, options, options.FirstOrDefault());
+            var options = GetEnumOptions(property, metadataContext) ?? new List<string>();
+            var defaultOption = options.Count > 0 ? options[0] : string.Empty;
+            var popup = new PopupField<string>(null, options, defaultOption);
 
             popup.RegisterValueChangedCallback(evt =>
             {
+                if (string.IsNullOrEmpty(evt.newValue))
+                {
+                    return;
+                }
+
                 var instance = instanceProvider();
                 var prop = instance?.GetEnumProperty(path);
                 if (prop != null)
@@ -754,7 +795,7 @@ namespace Rive.EditorTools
                     var currentInstance = instanceProvider();
                     var prop = currentInstance?.GetEnumProperty(path);
                     bool hasProp = prop != null;
-                    popup.SetEnabled(hasProp);
+                    popup.SetEnabled(hasProp && popup.choices.Count > 0);
 
                     if (!hasProp)
                     {
@@ -764,13 +805,18 @@ namespace Rive.EditorTools
                     var currentValue = prop.Value;
                     if (!options.Contains(currentValue))
                     {
-                        options = prop.EnumValues?.ToList() ?? options;
+                        options = prop.EnumValues?.Where(v => !string.IsNullOrEmpty(v)).ToList() ?? options;
                         popup.choices = options;
+                        popup.SetEnabled(options.Count > 0);
                     }
 
-                    if (currentValue != null)
+                    if (!string.IsNullOrEmpty(currentValue) && options.Contains(currentValue))
                     {
                         popup.SetValueWithoutNotify(currentValue);
+                    }
+                    else if (options.Count > 0)
+                    {
+                        popup.SetValueWithoutNotify(options[0]);
                     }
                 }
             });
@@ -793,7 +839,7 @@ namespace Rive.EditorTools
         {
             if (m_artboardSelectionCache.TryGetValue(path, out var selection))
             {
-                selection.File = null;
+                selection.DisposeAll();
             }
         }
 
@@ -826,6 +872,105 @@ namespace Rive.EditorTools
 
             artboardDropdown.style.marginLeft = 0;
 
+            var vmBindingModeOptions = new List<string> { "Use Existing Instance", "New Instance" };
+            var vmBindingModeDropdown = new DropdownField(
+                "View Model Binding",
+                vmBindingModeOptions,
+                vmBindingModeOptions[(int)selection.ViewModelBindingMode])
+            {
+                tooltip = "Select whether to bind using a named instance from the selected artboard's default ViewModel or create a new instance"
+            };
+            vmBindingModeDropdown.style.marginLeft = 0;
+            vmBindingModeDropdown.style.display = DisplayStyle.None;
+
+            var vmInstanceDropdown = new DropdownField
+            {
+                choices = new List<string>(),
+                label = "Instance",
+                tooltip = "Select a named instance from the artboard's default ViewModel",
+                value = null
+            };
+            vmInstanceDropdown.style.marginLeft = 0;
+            vmInstanceDropdown.style.display = DisplayStyle.None;
+
+            var vmHintHelpBox = new HelpBox(string.Empty, HelpBoxMessageType.Info);
+            vmHintHelpBox.style.display = DisplayStyle.None;
+            vmHintHelpBox.style.marginTop = 4;
+
+            var customVmContainer = new VisualElement();
+            customVmContainer.style.flexDirection = FlexDirection.Column;
+            customVmContainer.style.display = DisplayStyle.None;
+            customVmContainer.style.marginTop = 6;
+
+            FileMetadata.ArtboardMetadata GetSelectedArtboardMetadata()
+            {
+                var metadata = selection.Asset?.EditorOnlyMetadata;
+                if (metadata == null || string.IsNullOrEmpty(selection.ArtboardName))
+                {
+                    return null;
+                }
+
+                return metadata.GetArtboard(selection.ArtboardName);
+            }
+
+            FileMetadata.ViewModelMetadata GetDefaultViewModelMetadata()
+            {
+                return GetSelectedArtboardMetadata()?.DefaultViewModel;
+            }
+
+            ViewModel GetDefaultViewModelFromFile()
+            {
+                var vmMeta = GetDefaultViewModelMetadata();
+                if (selection.File == null || vmMeta == null || string.IsNullOrEmpty(vmMeta.Name))
+                {
+                    return null;
+                }
+
+                return selection.File.GetViewModelByName(vmMeta.Name);
+            }
+
+            void EnsureCustomViewModelInstance()
+            {
+                if (selection.CustomViewModelInstance != null)
+                {
+                    return;
+                }
+
+                var defaultVm = GetDefaultViewModelFromFile();
+                if (defaultVm == null)
+                {
+                    return;
+                }
+
+                selection.CustomViewModelInstance = defaultVm.CreateInstance();
+            }
+
+            void RebuildCustomInstanceEditor()
+            {
+                selection.CustomBindings.Clear();
+                selection.CustomListBindings.Clear();
+                customVmContainer.Clear();
+
+                var defaultVmMeta = GetDefaultViewModelMetadata();
+                if (defaultVmMeta == null || selection.CustomViewModelInstance == null)
+                {
+                    return;
+                }
+
+                BuildViewModelSection(
+                    defaultVmMeta,
+                    string.Empty,
+                    customVmContainer,
+                    0,
+                    () => selection.CustomViewModelInstance,
+                    displayPathPrefix: "custom-instance",
+                    cachePathPrefix: $"{cacheKey}/custom-instance",
+                    bindingList: selection.CustomBindings,
+                    listBindingList: selection.CustomListBindings,
+                    metadataContext: selection.Asset?.EditorOnlyMetadata,
+                    viewModelResolver: name => string.IsNullOrEmpty(name) ? null : selection.File?.GetViewModelByName(name));
+            }
+
             void ApplySelectionToProperty()
             {
                 var instance = instanceProvider();
@@ -841,10 +986,91 @@ namespace Rive.EditorTools
                     return;
                 }
 
-                var bindable = selection.File.BindableArtboard(selection.ArtboardName);
+                BindableArtboard bindable = null;
+                var defaultVmMeta = GetDefaultViewModelMetadata();
+                bool hasDefaultVm = defaultVmMeta != null && !string.IsNullOrEmpty(defaultVmMeta.Name);
+
+                if (hasDefaultVm)
+                {
+                    ViewModelInstance targetInstance = null;
+                    if (selection.ViewModelBindingMode == ArtboardViewModelBindingMode.ExistingInstance)
+                    {
+                        var vm = GetDefaultViewModelFromFile();
+                        if (vm != null && !string.IsNullOrEmpty(selection.ExistingViewModelInstanceName))
+                        {
+                            targetInstance = vm.CreateInstanceByName(selection.ExistingViewModelInstanceName);
+                        }
+                    }
+                    else
+                    {
+                        EnsureCustomViewModelInstance();
+                        targetInstance = selection.CustomViewModelInstance;
+                    }
+
+                    bindable = selection.File.BindableArtboard(selection.ArtboardName, targetInstance);
+                }
+                else
+                {
+                    bindable = selection.File.BindableArtboard(selection.ArtboardName);
+                }
+
                 if (bindable != null)
                 {
                     prop.Value = bindable;
+                }
+            }
+
+            void RefreshViewModelControls()
+            {
+                var defaultVmMeta = GetDefaultViewModelMetadata();
+                bool hasDefaultVm = defaultVmMeta != null && !string.IsNullOrEmpty(defaultVmMeta.Name);
+
+                vmBindingModeDropdown.style.display = hasDefaultVm ? DisplayStyle.Flex : DisplayStyle.None;
+                vmHintHelpBox.style.display = hasDefaultVm ? DisplayStyle.None : (selection.Asset == null ? DisplayStyle.None : DisplayStyle.Flex);
+                vmHintHelpBox.text = "This artboard doesn't support databinding.";
+
+                if (!hasDefaultVm)
+                {
+                    vmInstanceDropdown.style.display = DisplayStyle.None;
+                    customVmContainer.style.display = DisplayStyle.None;
+                    selection.ExistingViewModelInstanceName = null;
+                    selection.DisposeCustomViewModelInstance();
+                    return;
+                }
+
+                var instanceNames = defaultVmMeta.InstanceNames ?? new List<string>();
+                vmInstanceDropdown.choices = instanceNames.ToList();
+
+                if (!string.IsNullOrEmpty(selection.ExistingViewModelInstanceName) &&
+                    vmInstanceDropdown.choices.Contains(selection.ExistingViewModelInstanceName))
+                {
+                    vmInstanceDropdown.SetValueWithoutNotify(selection.ExistingViewModelInstanceName);
+                }
+                else
+                {
+                    selection.ExistingViewModelInstanceName = vmInstanceDropdown.choices.FirstOrDefault();
+                    vmInstanceDropdown.SetValueWithoutNotify(selection.ExistingViewModelInstanceName);
+                }
+
+                vmBindingModeDropdown.SetValueWithoutNotify(vmBindingModeOptions[(int)selection.ViewModelBindingMode]);
+                bool isExistingMode = selection.ViewModelBindingMode == ArtboardViewModelBindingMode.ExistingInstance;
+                vmInstanceDropdown.style.display = isExistingMode ? DisplayStyle.Flex : DisplayStyle.None;
+                vmInstanceDropdown.SetEnabled(isExistingMode && vmInstanceDropdown.choices.Count > 0);
+
+                if (isExistingMode)
+                {
+                    customVmContainer.style.display = DisplayStyle.None;
+                }
+                else
+                {
+                    EnsureCustomViewModelInstance();
+                    if (customVmContainer.childCount == 0)
+                    {
+                        RebuildCustomInstanceEditor();
+                    }
+                    customVmContainer.style.display = selection.CustomViewModelInstance != null
+                        ? DisplayStyle.Flex
+                        : DisplayStyle.None;
                 }
             }
 
@@ -893,12 +1119,38 @@ namespace Rive.EditorTools
                     selection.File = File.Load(newAsset);
                 }
 
+                RefreshViewModelControls();
                 ApplySelectionToProperty();
             });
 
             artboardDropdown.RegisterValueChangedCallback(evt =>
             {
                 selection.ArtboardName = evt.newValue;
+                selection.DisposeCustomViewModelInstance();
+                customVmContainer.Clear();
+                RefreshViewModelControls();
+                ApplySelectionToProperty();
+            });
+
+            vmBindingModeDropdown.RegisterValueChangedCallback(evt =>
+            {
+                selection.ViewModelBindingMode = evt.newValue == vmBindingModeOptions[(int)ArtboardViewModelBindingMode.CreateNewInstance]
+                    ? ArtboardViewModelBindingMode.CreateNewInstance
+                    : ArtboardViewModelBindingMode.ExistingInstance;
+
+                if (selection.ViewModelBindingMode == ArtboardViewModelBindingMode.CreateNewInstance)
+                {
+                    selection.DisposeCustomViewModelInstance();
+                    customVmContainer.Clear();
+                }
+
+                RefreshViewModelControls();
+                ApplySelectionToProperty();
+            });
+
+            vmInstanceDropdown.RegisterValueChangedCallback(evt =>
+            {
+                selection.ExistingViewModelInstanceName = evt.newValue;
                 ApplySelectionToProperty();
             });
 
@@ -913,6 +1165,7 @@ namespace Rive.EditorTools
                     bool hasProp = prop != null;
                     assetField.SetEnabled(hasProp);
                     artboardDropdown.SetEnabled(hasProp && selection.Asset != null);
+                    vmBindingModeDropdown.SetEnabled(hasProp);
                     artboardDropdown.style.display = selection.Asset == null ? DisplayStyle.None : DisplayStyle.Flex;
 
                     if (assetField.value != selection.Asset)
@@ -937,6 +1190,16 @@ namespace Rive.EditorTools
                     {
                         artboardDropdown.SetValueWithoutNotify(selection.ArtboardName);
                     }
+
+                    RefreshViewModelControls();
+                    foreach (var customBinding in selection.CustomBindings)
+                    {
+                        customBinding.Sync?.Invoke(selection.CustomViewModelInstance);
+                    }
+                    foreach (var customListBinding in selection.CustomListBindings)
+                    {
+                        customListBinding.Sync?.Invoke(selection.CustomViewModelInstance);
+                    }
                 }
             });
 
@@ -944,6 +1207,10 @@ namespace Rive.EditorTools
             container.style.flexDirection = FlexDirection.Column;
             container.Add(assetField);
             container.Add(artboardDropdown);
+            container.Add(vmBindingModeDropdown);
+            container.Add(vmInstanceDropdown);
+            container.Add(vmHintHelpBox);
+            container.Add(customVmContainer);
 
             parent.Add(CreatePropertyCard(displayName, pathLabelOverride ?? path, "Artboard", GetDocUrl(ViewModelDataType.Artboard),
                 null, container));
@@ -954,6 +1221,8 @@ namespace Rive.EditorTools
             instanceProvider ??= GetCurrentInstance;
             cacheKey ??= path;
             bindingList ??= m_propertyBindings;
+            ViewModelInstanceTriggerProperty subscribedProp = null;
+            double lastTriggeredAt = -1d;
 
             var button = new Button(() =>
             {
@@ -965,6 +1234,52 @@ namespace Rive.EditorTools
                 text = $"Fire Trigger"
             };
 
+            var statusLabel = new Label("Fired");
+            statusLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+            statusLabel.style.paddingLeft = 8;
+            statusLabel.style.paddingRight = 8;
+            statusLabel.style.paddingTop = 2;
+            statusLabel.style.paddingBottom = 2;
+            statusLabel.style.marginLeft = 8;
+            statusLabel.style.borderTopLeftRadius = 4;
+            statusLabel.style.borderTopRightRadius = 4;
+            statusLabel.style.borderBottomLeftRadius = 4;
+            statusLabel.style.borderBottomRightRadius = 4;
+            statusLabel.style.display = DisplayStyle.None;
+
+            Action onTriggered = () =>
+            {
+                lastTriggeredAt = EditorApplication.timeSinceStartup;
+                statusLabel.text = "Fired";
+                statusLabel.style.color = new UnityEngine.Color(0.12f, 0.95f, 0.45f, 1f);
+                statusLabel.style.backgroundColor = new UnityEngine.Color(0.1f, 0.35f, 0.18f, 0.55f);
+                statusLabel.style.display = DisplayStyle.Flex;
+            };
+
+            void UpdateTriggerStatus(bool hasProp)
+            {
+                if (!hasProp)
+                {
+                    statusLabel.style.display = DisplayStyle.None;
+                    return;
+                }
+
+                bool recentlyFired = lastTriggeredAt >= 0d &&
+                    EditorApplication.timeSinceStartup - lastTriggeredAt <= TriggerFiredHighlightSeconds;
+                statusLabel.style.display = recentlyFired ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+
+            void DisposeSubscription()
+            {
+                if (subscribedProp != null)
+                {
+                    subscribedProp.OnTriggered -= onTriggered;
+                    subscribedProp = null;
+                }
+            }
+
+            m_triggerBindingDisposers.Add(DisposeSubscription);
+
             bindingList.Add(new PropertyBinding
             {
                 Path = cacheKey,
@@ -974,11 +1289,38 @@ namespace Rive.EditorTools
                     var current = instanceProvider();
                     var prop = current?.GetTriggerProperty(path);
                     button.SetEnabled(prop != null);
+
+                    if (!ReferenceEquals(subscribedProp, prop))
+                    {
+                        DisposeSubscription();
+                        subscribedProp = prop;
+                        if (subscribedProp != null)
+                        {
+                            subscribedProp.OnTriggered += onTriggered;
+                        }
+                    }
+
+                    UpdateTriggerStatus(prop != null);
                 }
             });
 
+            var triggerControlRow = new VisualElement();
+            triggerControlRow.style.flexDirection = FlexDirection.Row;
+            triggerControlRow.style.alignItems = Align.Center;
+            triggerControlRow.Add(button);
+            triggerControlRow.Add(statusLabel);
+
             parent.Add(CreatePropertyCard(displayName, pathLabelOverride ?? path, "Trigger", GetDocUrl(ViewModelDataType.Trigger),
-                null, button));
+                null, triggerControlRow));
+        }
+
+        private void ClearTriggerBindings()
+        {
+            foreach (var dispose in m_triggerBindingDisposers)
+            {
+                dispose?.Invoke();
+            }
+            m_triggerBindingDisposers.Clear();
         }
 
         private void AddListField(
@@ -987,15 +1329,21 @@ namespace Rive.EditorTools
             string displayName,
             Func<ViewModelInstance> instanceProvider = null,
             string cacheKey = null,
-            string pathLabelOverride = null)
+            string pathLabelOverride = null,
+            List<ListPropertyBinding> listBindingList = null,
+            FileMetadata metadataContext = null,
+            Func<string, ViewModel> viewModelResolver = null)
         {
             instanceProvider ??= GetCurrentInstance;
             cacheKey ??= path;
+            listBindingList ??= m_listBindings;
+            metadataContext ??= m_fileMetadata;
+            viewModelResolver ??= name => string.IsNullOrEmpty(name) ? null : m_widget?.File?.GetViewModelByName(name);
 
             var listContainer = new VisualElement();
             listContainer.style.flexDirection = FlexDirection.Column;
 
-            var vmNames = m_fileMetadata?.ViewModels?
+            var vmNames = metadataContext?.ViewModels?
                 .Select(vm => vm.Name)
                 .Where(n => !string.IsNullOrEmpty(n))
                 .Distinct()
@@ -1029,7 +1377,7 @@ namespace Rive.EditorTools
                     targetType = listProp?.Count > 0 ? listProp.GetInstanceAt(0)?.ViewModelName : null;
                 }
 
-                var vm = !string.IsNullOrEmpty(targetType) ? m_widget?.File?.GetViewModelByName(targetType) : null;
+                var vm = !string.IsNullOrEmpty(targetType) ? viewModelResolver(targetType) : null;
                 return vm?.CreateInstance();
             }
 
@@ -1084,14 +1432,15 @@ namespace Rive.EditorTools
                     return;
                 }
 
-                var meta = FindViewModelMetadata(instance.ViewModelName);
+                var meta = FindViewModelMetadata(instance.ViewModelName, metadataContext);
                 if (meta == null)
                 {
                     element.Add(new HelpBox($"No metadata found for '{instance.ViewModelName}'.", HelpBoxMessageType.Warning));
                     return;
                 }
 
-                BuildViewModelSection(meta, string.Empty, element, 1, () => instance, $"{path}[{index}]", $"{path}[{index}]", bindings);
+                BuildViewModelSection(meta, string.Empty, element, 1, () => instance, $"{path}[{index}]", $"{path}[{index}]",
+                    bindings, null, metadataContext, viewModelResolver);
             };
 
             listContainer.Add(listView);
@@ -1198,7 +1547,7 @@ namespace Rive.EditorTools
                 }
             };
 
-            m_listBindings.Add(listBinding);
+            listBindingList.Add(listBinding);
 
             parent.Add(CreatePropertyCard(displayName, pathLabelOverride ?? path, "List", GetDocUrl(ViewModelDataType.List),
                 null, listContainer, false));
@@ -1408,10 +1757,16 @@ namespace Rive.EditorTools
             Func<ViewModelInstance> instanceProvider = null,
             string displayPathPrefix = null,
             string cachePathPrefix = null,
-            List<PropertyBinding> bindingList = null)
+            List<PropertyBinding> bindingList = null,
+            List<ListPropertyBinding> listBindingList = null,
+            FileMetadata metadataContext = null,
+            Func<string, ViewModel> viewModelResolver = null)
         {
             instanceProvider ??= GetCurrentInstance;
             bindingList ??= m_propertyBindings;
+            listBindingList ??= m_listBindings;
+            metadataContext ??= m_fileMetadata;
+            viewModelResolver ??= name => string.IsNullOrEmpty(name) ? null : m_widget?.File?.GetViewModelByName(name);
 
             string resolvedDisplayPrefix = displayPathPrefix ?? accessPathPrefix;
             string resolvedCachePrefix = cachePathPrefix ?? accessPathPrefix;
@@ -1516,16 +1871,17 @@ namespace Rive.EditorTools
                         AddArtboardField(container, propertyAccessPath, property.Name, instanceProvider, propertyCachePath, propertyDisplayPath, bindingList);
                         break;
                     case ViewModelDataType.Enum:
-                        AddEnumField(container, propertyAccessPath, property, instanceProvider, propertyCachePath, propertyDisplayPath, bindingList);
+                        AddEnumField(container, propertyAccessPath, property, instanceProvider, propertyCachePath, propertyDisplayPath, bindingList, metadataContext);
                         break;
                     case ViewModelDataType.Trigger:
                         AddTriggerField(container, propertyAccessPath, property.Name, instanceProvider, propertyCachePath, propertyDisplayPath, bindingList);
                         break;
                     case ViewModelDataType.ViewModel:
-                        var nestedMeta = FindViewModelMetadata(property.NestedViewModelName);
+                        var nestedMeta = FindViewModelMetadata(property.NestedViewModelName, metadataContext);
                         if (nestedMeta != null)
                         {
-                            BuildViewModelSection(nestedMeta, propertyAccessPath, container, depth + 1, instanceProvider, propertyDisplayPath, propertyCachePath, bindingList);
+                            BuildViewModelSection(nestedMeta, propertyAccessPath, container, depth + 1, instanceProvider, propertyDisplayPath, propertyCachePath,
+                                bindingList, listBindingList, metadataContext, viewModelResolver);
                         }
                         else
                         {
@@ -1535,7 +1891,8 @@ namespace Rive.EditorTools
                         }
                         break;
                     case ViewModelDataType.List:
-                        AddListField(container, propertyAccessPath, property.Name, instanceProvider, propertyCachePath, propertyDisplayPath);
+                        AddListField(container, propertyAccessPath, property.Name, instanceProvider, propertyCachePath, propertyDisplayPath,
+                            listBindingList, metadataContext, viewModelResolver);
                         break;
                     case ViewModelDataType.ListIndex:
                         AddUnsupportedLabel(container, property.Name, property.Type);

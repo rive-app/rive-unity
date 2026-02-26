@@ -7,6 +7,7 @@ namespace Rive
     /// <summary>
     /// Represents a Component of a Rive Artboard.
     /// </summary>
+    [Obsolete("Component is deprecated and will be removed in a future release. Please use Databinding instead.")]
     public class Component
     {
         private readonly IntPtr m_nativeComponent;

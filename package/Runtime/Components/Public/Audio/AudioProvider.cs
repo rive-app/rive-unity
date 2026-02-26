@@ -106,7 +106,7 @@ namespace Rive.Components
 
         private void LogWebGLWarningIfNeeded()
         {
-#if UNITY_WEBGL
+#if UNITY_WEBGL && !UNITY_EDITOR
             DebugLogger.Instance.LogWarning($"The {nameof(AudioProvider)} component is not supported in WebGL builds. System audio will be used instead of routing audio through Unity's AudioSource.");
 #endif
         }

@@ -12,7 +12,8 @@ namespace Rive
         Unknown = 0,
         Image = 105,
         Font = 141,
-        Audio = 406
+        Audio = 406,
+        Script = 529
     }
 
     /// <summary>

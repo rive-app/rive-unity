@@ -1,5 +1,10 @@
 #if UNITY_EDITOR
 using UnityEditor;
+#if UNITY_6000_3_OR_NEWER
+using MaterialShaderPropertyType = UnityEngine.Rendering.ShaderPropertyType;
+#else
+using MaterialShaderPropertyType = UnityEditor.ShaderUtil.ShaderPropertyType;
+#endif
 #endif
 using UnityEngine;
 
@@ -19,14 +24,22 @@ namespace Rive.EditorTools
         /// <summary>
         /// The type of shader properties to display (e.g., TexEnv, Float, Color).
         /// </summary>
-        public ShaderUtil.ShaderPropertyType PropertyType { get; private set; }
+        public MaterialShaderPropertyType PropertyType { get; private set; }
 
         /// <summary>
         /// Creates a new MaterialPropertiesAttribute.
         /// </summary>
         /// <param name="materialsSourceName">Name of the member that provides the materials.</param>
         /// <param name="propertyType">Type of shader properties to display.</param>
-        public MaterialPropertiesAttribute(string materialsSourceName, ShaderUtil.ShaderPropertyType propertyType = ShaderUtil.ShaderPropertyType.TexEnv)
+        public MaterialPropertiesAttribute(
+            string materialsSourceName,
+            MaterialShaderPropertyType propertyType =
+#if UNITY_6000_3_OR_NEWER
+            MaterialShaderPropertyType.Texture
+#else
+            MaterialShaderPropertyType.TexEnv
+#endif
+        )
         {
             MaterialsSourceName = materialsSourceName;
             PropertyType = propertyType;

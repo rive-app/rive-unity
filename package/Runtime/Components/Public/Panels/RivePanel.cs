@@ -842,9 +842,9 @@ namespace Rive.Components
             }
         }
         /// <summary>
-        /// Called every frame to update the widgets. This is where the widgets should update their visuals based on their state.
+        /// When in `Manual` update mode, call this method every frame to advance the widgets managed by this panel.
         /// </summary>
-        /// <param name="deltaTime"></param>
+        /// <param name="deltaTime">The time since the last frame.</param>
         public void Tick(float deltaTime)
         {
             if (!isActiveAndEnabled)
@@ -858,6 +858,10 @@ namespace Rive.Components
             Orchestrator.Instance?.NotifyManualTickOccurred(this);
         }
 
+        /// <summary>
+        /// Called every frame to update the widgets. This is where the widgets should update their visuals based on their state.
+        /// </summary>
+        /// <param name="deltaTime">The time since the last frame.</param>
         internal void TickImmediate(float deltaTime)
         {
             bool widgetNeedsRedraw = false;
