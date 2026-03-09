@@ -470,6 +470,121 @@ namespace Rive.Tests
         }
 
 
+        // ---- ShelfPackingStrategy direct tests ----
+
+        [Test]
+        public void ShelfPacking_TryInsert_RejectsWidthExceedingAtlasWidth()
+        {
+            var packer = new ShelfPackingStrategy();
+            packer.Initialize(256, 256);
+
+            bool result = packer.TryInsert(512, 100, out RectInt rect);
+
+            Assert.IsFalse(result, "TryInsert should fail when requested width exceeds atlas width");
+        }
+
+        [Test]
+        public void ShelfPacking_TryInsert_RejectsHeightExceedingAtlasHeight()
+        {
+            var packer = new ShelfPackingStrategy();
+            packer.Initialize(256, 256);
+
+            bool result = packer.TryInsert(100, 512, out RectInt rect);
+
+            Assert.IsFalse(result, "TryInsert should fail when requested height exceeds atlas height");
+        }
+
+        [Test]
+        public void ShelfPacking_TryInsert_SucceedsWhenFitting()
+        {
+            var packer = new ShelfPackingStrategy();
+            packer.Initialize(256, 256);
+
+            bool result = packer.TryInsert(200, 100, out RectInt rect);
+
+            Assert.IsTrue(result, "TryInsert should succeed when rect fits within atlas");
+            Assert.AreEqual(200, rect.width);
+            Assert.AreEqual(100, rect.height);
+        }
+
+        [Test]
+        public void ShelfPacking_TryInsert_RejectsWhenWidthExceedsAtlasWidth_EmptyShelves()
+        {
+            var packer = new ShelfPackingStrategy();
+            packer.Initialize(512, 1024);
+
+            bool result = packer.TryInsert(1024, 200, out RectInt rect);
+
+            Assert.IsFalse(result, "TryInsert should reject a rect wider than atlas even when height fits and no shelves exist");
+        }
+
+        // ---- Atlas growth integration tests ----
+
+        [UnityTest]
+        public IEnumerator AtlasGrowth_PanelWiderThanStartingSize_AtlasGrows()
+        {
+            m_strategy.Configure(
+                new Vector2Int(256, 256),
+                new Vector2Int(2048, 2048),
+                maxResolutionPerPanel: 1024
+            );
+
+            m_panel.SetDimensions(new Vector2(512, 128));
+            m_strategy.RegisterPanel(m_panel);
+
+            yield return null;
+
+            var texture = m_strategy.GetRenderTexture(m_panel);
+            Assert.IsNotNull(texture, "Atlas texture should exist");
+            Assert.GreaterOrEqual(texture.width, 512, "Atlas width should grow to fit panel width");
+        }
+
+        [UnityTest]
+        public IEnumerator AtlasGrowth_PanelTallerThanStartingSize_AtlasGrows()
+        {
+            m_strategy.Configure(
+                new Vector2Int(256, 256),
+                new Vector2Int(2048, 2048),
+                maxResolutionPerPanel: 1024
+            );
+
+            m_panel.SetDimensions(new Vector2(128, 512));
+            m_strategy.RegisterPanel(m_panel);
+
+            yield return null;
+
+            var texture = m_strategy.GetRenderTexture(m_panel);
+            Assert.IsNotNull(texture, "Atlas texture should exist");
+            Assert.GreaterOrEqual(texture.height, 512, "Atlas height should grow to fit panel height");
+        }
+
+        [UnityTest]
+        public IEnumerator PanelScale_ReflectsActualAtlasDimensions()
+        {
+            m_strategy.Configure(
+                new Vector2Int(256, 256),
+                new Vector2Int(2048, 2048),
+                maxResolutionPerPanel: 1024
+            );
+
+            m_panel.SetDimensions(new Vector2(512, 128));
+            m_strategy.RegisterPanel(m_panel);
+
+            yield return null;
+
+            var texture = m_strategy.GetRenderTexture(m_panel);
+            Vector2 scale = m_strategy.GetPanelScale(m_panel);
+
+            Assert.LessOrEqual(scale.x, 1f, "Panel scale X should not exceed 1 (panel should fit within atlas)");
+            Assert.LessOrEqual(scale.y, 1f, "Panel scale Y should not exceed 1 (panel should fit within atlas)");
+
+            int allocatedWidth = Mathf.RoundToInt(scale.x * texture.width);
+            int allocatedHeight = Mathf.RoundToInt(scale.y * texture.height);
+
+            Assert.LessOrEqual(allocatedWidth, texture.width, "Allocated width should not exceed atlas texture width");
+            Assert.LessOrEqual(allocatedHeight, texture.height, "Allocated height should not exceed atlas texture height");
+        }
+
         private class MockPackingStrategy : RenderTargetAtlasPackingProvider.IPackingStrategy
         {
             public bool WasInitializeCalled { get; private set; }

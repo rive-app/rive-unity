@@ -863,7 +863,8 @@ namespace Rive.Components
                 newShelfY = 0;  // No shelves yet, start at the top
             }
 
-            bool hasRoomForNewShelf = newShelfY + requestedHeight <= m_height;
+            bool hasRoomForNewShelf = newShelfY + requestedHeight <= m_height && requestedWidth <= m_width;
+
             if (hasRoomForNewShelf)
             {
                 var newShelf = new Shelf(newShelfY, requestedHeight);
