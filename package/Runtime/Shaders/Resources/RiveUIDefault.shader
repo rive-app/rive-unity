@@ -99,22 +99,31 @@ Shader "Rive/UI/Default"
                 return o;
             }
 
-            fixed4 frag (v2f i) : SV_Target
+            half4 frag (v2f i) : SV_Target
             {
                 // Sample texture
-                fixed4 tex = tex2D(_MainTex, i.texcoord);
+                half4 tex = tex2D(_MainTex, i.texcoord);
 
-                // Decode from gamma only when the project is Linear
+                // Rive renders premultiplied alpha into the render texture.
+                // Convert to linear in un-premultiplied space, then premultiply again.
                 #if !defined(UNITY_COLORSPACE_GAMMA)
-                    tex.rgb = GammaToLinearSpace(tex.rgb);
+                    if (tex.a > 0.0h)
+                    {
+                        half3 unpremultiplied = tex.rgb / tex.a;
+                        tex.rgb = GammaToLinearSpace(unpremultiplied) * tex.a;
+                    }
                 #endif
 
-                // Standard UI tinting
-                fixed4 color = i.color * tex;
+                // Preserve premultiplied alpha when Unity UI applies tint/CanvasGroup alpha.
+                half4 color;
+                color.a = tex.a * i.color.a;
+                color.rgb = tex.rgb * i.color.rgb * i.color.a;
 
                 // RectMask2D clipping
+                // we scale both RGB and A to keep premultiplied invariant
                 #ifdef UNITY_UI_CLIP_RECT
-                    color.a *= UnityGet2DClipping(i.worldPosition.xy, _ClipRect);
+                    half clipFactor = UnityGet2DClipping(i.worldPosition.xy, _ClipRect);
+                    color *= clipFactor;
                 #endif
 
                 // Optional alpha clipping for masking

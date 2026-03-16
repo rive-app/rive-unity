@@ -390,6 +390,20 @@ namespace Rive.Tests
             DestroyObj(customMaterial);
         }
 
+        [UnityTest]
+        public IEnumerator Start_WithoutCustomMaterial_UsesRivePremultipliedUIMaterial()
+        {
+            Setup();
+
+            yield return null;
+
+            Assert.AreEqual(
+                TextureHelper.GammaToLinearUIMaterial,
+                m_renderer.DisplayImage.material,
+                "RiveCanvasRenderer should use the Rive UI material so transparent premultiplied content composites correctly."
+            );
+        }
+
     }
 
     public class MockRivePanelComponent : MonoBehaviour, IRivePanel

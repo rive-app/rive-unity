@@ -259,7 +259,7 @@ namespace Rive.Components
 
             Material materialToApply = m_customMaterial;
 
-            if (materialToApply == null && Application.isPlaying && TextureHelper.ProjectNeedsColorSpaceFix)
+            if (materialToApply == null && Application.isPlaying)
             {
                 materialToApply = TextureHelper.GammaToLinearUIMaterial;
             }

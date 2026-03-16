@@ -2438,6 +2438,70 @@ namespace Rive.Tests
             DestroyObj(capture);
         }
 
+        /// <summary>
+        /// Alpha-heavy HUD golden used to catch regressions in premultiplied alpha compositing.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Canvas_DefaultMaterial_GameHudScope_AlphaHeavy_Correct()
+        {
+            var canvasGO = new GameObject("Canvas_GameHudScope");
+            var cam = new GameObject("UICam_GameHudScope").AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.Color;
+            cam.backgroundColor = UnityEngine.Color.black;
+            cam.orthographic = true;
+            cam.transform.position = new Vector3(0, 0, -10f);
+
+            var canvas = canvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = cam;
+
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                TestPrefabReferences.RivePanelWithSingleWidget,
+                prefab =>
+                {
+                    var go = UnityEngine.Object.Instantiate(prefab);
+                    panel = go.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(1920, 1080));
+                },
+                () => Assert.Fail("Failed to load panel prefab"));
+
+            Rive.Asset riveAsset = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                TestAssetReferences.riv_gameHudScope,
+                asset => riveAsset = asset,
+                () => Assert.Fail($"Failed to load rive asset at {TestAssetReferences.riv_gameHudScope}")
+            );
+
+            Assert.IsNotNull(riveAsset, $"Rive asset at path {TestAssetReferences.riv_gameHudScope} could not be loaded.");
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            Assert.IsNotNull(widget, "Expected RiveWidget in panel prefab.");
+
+            widget.Load(riveAsset);
+
+            var uiRenderer = panel.gameObject.AddComponent<Rive.Components.RiveCanvasRenderer>();
+            uiRenderer.PointerInputMode = Rive.Components.PointerInputMode.DisablePointerInput;
+            uiRenderer.MatchCanvasResolution = false;
+            uiRenderer.CustomMaterial = null;
+
+            panel.transform.SetParent(canvasGO.transform, false);
+
+            var capture = MakeRT(1920, 1080);
+            cam.targetTexture = capture;
+
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            const string goldenId = "Canvas_GameHudScope_AlphaHeavy_RendersCorrectly";
+            yield return m_goldenHelper.AssertWithRenderTexture(goldenId, capture, applyColorCorrection: false);
+
+            DestroyObj(panel.gameObject);
+            DestroyObj(canvasGO);
+            DestroyObj(cam.gameObject);
+            capture.Release();
+            DestroyObj(capture);
+        }
+
 
         private void DestroyObj(UnityEngine.Object obj)
         {

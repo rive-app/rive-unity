@@ -111,28 +111,14 @@ namespace Rive.Components
                 previewTexture = rt != null ? rt : GetDefaultTexture();
             }
 
-            // Apply color correction in Linear color space for correct preview display
+            // Apply color correction in both Linear and Gamma color spaces for correct preview display
+            // We also do this for Gamma to address issues with premultiplied alpha textures appearing incorrectly.
             // The scene view renders 3D objects normally, so we need to use a material that decodes 
             // Rive's gamma output to linear for the scene view to display correctly.
-            if (Rive.TextureHelper.ProjectNeedsColorSpaceFix)
+            var decodeMat = Rive.TextureHelper.GammaToLinearUIMaterial;
+            if (decodeMat != null && m_previewMaterial != null && m_previewMaterial.shader != decodeMat.shader)
             {
-                var decodeMat = Rive.TextureHelper.GammaToLinearUIMaterial;
-                if (decodeMat != null && m_previewMaterial != null && m_previewMaterial.shader != decodeMat.shader)
-                {
-                    m_previewMaterial.shader = decodeMat.shader;
-                }
-            }
-            else
-            {
-                // In Gamma color space, use Unlit/Transparent, no need to decode anything.
-                if (m_previewMaterial != null && m_previewMaterial.shader.name != "Unlit/Transparent")
-                {
-                    Shader unlitTransparent = Shader.Find("Unlit/Transparent");
-                    if (unlitTransparent != null)
-                    {
-                        m_previewMaterial.shader = unlitTransparent;
-                    }
-                }
+                m_previewMaterial.shader = decodeMat.shader;
             }
 
             if (previewTexture != m_lastPreviewTexture)

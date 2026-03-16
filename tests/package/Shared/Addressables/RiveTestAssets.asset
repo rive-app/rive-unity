@@ -427,6 +427,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e5a15e5cca3624f5fb3eb90b567e42ef
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Canvas_GameHudScope_AlphaHeavy_RendersCorrectly.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: e658d4d04b9184bb887e4d8bc11bde16
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_CenterLeft.png
     m_ReadOnly: 0
