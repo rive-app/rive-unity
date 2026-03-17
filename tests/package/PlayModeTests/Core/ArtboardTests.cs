@@ -263,5 +263,90 @@ namespace Rive.Tests
                 });
             }
         }
+
+        [UnityTest]
+        public IEnumerator StateMachine_DisposedAfterArtboard_DoesNotCrash()
+        {
+
+            var testData = GetTestRiveAssetData()[0];
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testData.assetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testData.assetPath}")
+            );
+            File riveFile = LoadAndTrackFile(riveAsset);
+            Artboard artboard = riveFile.Artboard(testData.artboardIndex);
+            Assert.IsNotNull(artboard);
+            StateMachine stateMachine = artboard.StateMachine(0);
+            Assert.IsNotNull(stateMachine);
+
+            StateMachine stateMachine2 = artboard.StateMachine(0);
+
+            stateMachine.Advance(0f);
+            stateMachine2.Advance(0f);
+
+            // Dispose in the "WRONG" order, artboard first, then state machine to simulate what happens when the GC finalizes artboard before SM.
+            artboard.Dispose();
+            riveFile.Dispose();
+            stateMachine.Dispose(); // should not crash
+            stateMachine2.Dispose(); // should not crash
+            Assert.IsTrue(riveFile.IsDisposed);
+            Assert.IsTrue(artboard.IsDisposed);
+            Assert.IsTrue(stateMachine.IsDisposed);
+            Assert.IsTrue(stateMachine2.IsDisposed);
+        }
+
+#if UNITY_EDITOR
+        [UnityTest]
+        public IEnumerator StateMachine_AllReferencesDropped_GCDoesNotCrash()
+        {
+            const float waitForCollectionTimeoutSeconds = 5f;
+
+            // Simulates domain reload: all managed references are dropped
+            // simultaneously. GC finalizers run in undefined order.
+            var testData = GetTestRiveAssetData()[0];
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testData.assetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testData.assetPath}")
+            );
+            // Scope the file/artboard/SM so they all become unreachable together
+            WeakReference smWeakRef;
+            {
+                File riveFile = File.Load(riveAsset);
+                Artboard artboard = riveFile.Artboard(testData.artboardIndex);
+                StateMachine stateMachine = artboard.StateMachine(0);
+                Assert.IsNotNull(stateMachine);
+                stateMachine.Advance(0f);
+                smWeakRef = new WeakReference(stateMachine);
+                // We drop all references but do NOT dispose
+                stateMachine = null;
+                artboard = null;
+                riveFile = null;
+            }
+            // Force GC and finalization so both SM and Artboard finalizers run
+            // in undefined order. This should not crash.
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            float waitStartTime = Time.realtimeSinceStartup;
+            while (smWeakRef.IsAlive &&
+                   Time.realtimeSinceStartup - waitStartTime <
+                       waitForCollectionTimeoutSeconds)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                yield return null;
+            }
+
+            Assert.IsFalse(smWeakRef.IsAlive, "StateMachine should have been collected");
+        }
+#endif
     }
 }
