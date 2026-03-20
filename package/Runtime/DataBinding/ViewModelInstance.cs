@@ -17,8 +17,9 @@ namespace Rive
 
         private WeakReference<File> m_riveFile;
 
-        // Track subscribed property pointers without keeping the property objects alive.
-        private readonly HashSet<IntPtr> m_subscribedPropertyPointers = new HashSet<IntPtr>();
+        // Strong references to subscribed properties keyed by native pointer.
+        // The VMI owns these so that properties survive even when the user drops their reference.
+        private readonly Dictionary<IntPtr, ViewModelInstancePrimitiveProperty> m_subscribedProperties = new Dictionary<IntPtr, ViewModelInstancePrimitiveProperty>();
 
         private readonly List<WeakReference<ViewModelInstance>> m_parents = new List<WeakReference<ViewModelInstance>>(); private readonly List<ViewModelInstance> m_children = new List<ViewModelInstance>();
 
@@ -245,20 +246,13 @@ namespace Rive
 
         private void ClearCallbacks()
         {
-            // Clear callbacks for any properties that are still alive.
-            // We only track pointers here to avoid keeping property objects alive.
-            foreach (var ptr in m_subscribedPropertyPointers)
+            foreach (var kvp in m_subscribedProperties)
             {
-                if (ViewModelInstanceProperty.TryGetGloballyCachedVMPropertyForPointer(ptr, out var vmProp) &&
-                    vmProp is ViewModelInstancePrimitiveProperty primitiveProp)
-                {
-                    primitiveProp.ClearAllCallbacks();
-                }
-
-                PropertyCallbacksHub.Instance.Unregister(ptr);
+                kvp.Value.ClearDelegatesOnly();
+                PropertyCallbacksHub.Instance.Unregister(kvp.Key);
             }
 
-            m_subscribedPropertyPointers.Clear();
+            m_subscribedProperties.Clear();
         }
 
         internal void AddParent(ViewModelInstance parent)
@@ -272,7 +266,7 @@ namespace Rive
             m_parents.Add(new WeakReference<ViewModelInstance>(parent));
 
             // If we have properties or children with callbacks, notify parent
-            if (m_subscribedPropertyPointers.Count > 0 || m_children.Count > 0)
+            if (m_subscribedProperties.Count > 0 || m_children.Count > 0)
             {
                 parent.AddChildToCallbacks(this);
             }
@@ -314,7 +308,7 @@ namespace Rive
             m_children.Remove(child);
 
             // If no more children or properties need callbacks, notify parents
-            if (m_children.Count == 0 && m_subscribedPropertyPointers.Count == 0)
+            if (m_children.Count == 0 && m_subscribedProperties.Count == 0)
             {
                 for (int i = 0; i < m_parents.Count; i++)
                 {
@@ -344,13 +338,13 @@ namespace Rive
                 return;
             }
 
-            // If this is our first property with callbacks, notify parents
-            bool wasFirst = m_subscribedPropertyPointers.Count == 0;
-            bool added = m_subscribedPropertyPointers.Add(ptr);
+            bool wasFirst = m_subscribedProperties.Count == 0;
+            bool added = !m_subscribedProperties.ContainsKey(ptr);
+
+            m_subscribedProperties[ptr] = property;
 
             PropertyCallbacksHub.Instance.Register(property);
 
-            // Preserve existing parent notification behavior (though the orchestrator approach used by RivePanel/Widget no longer relies on it).
             if (added && wasFirst)
             {
                 for (int i = 0; i < m_parents.Count; i++)
@@ -378,12 +372,12 @@ namespace Rive
             IntPtr ptr = property.InstancePropertyPtr;
             if (ptr != IntPtr.Zero)
             {
-                m_subscribedPropertyPointers.Remove(ptr);
+                m_subscribedProperties.Remove(ptr);
                 PropertyCallbacksHub.Instance.Unregister(ptr);
             }
 
             // If no more properties with callbacks and no children with callbacks, notify parents
-            if (m_subscribedPropertyPointers.Count == 0 && m_children.Count == 0)
+            if (m_subscribedProperties.Count == 0 && m_children.Count == 0)
             {
                 for (int i = 0; i < m_parents.Count; i++)
                 {
@@ -485,27 +479,21 @@ namespace Rive
                 return;
             }
 
-            // For legacy behavior, we process callbacks for properties subscribed on this instance,
-            // then traverse children. This preserves existing non-panel/widget usage where
-            // callers advance their own state machines and then call HandleCallbacks() on
-            // a root ViewModelInstance.
-            foreach (var ptr in m_subscribedPropertyPointers)
+            foreach (var kvp in m_subscribedProperties)
             {
-                if (ViewModelInstanceProperty.TryGetGloballyCachedVMPropertyForPointer(ptr, out var vmProp) &&
-                    vmProp is ViewModelInstancePrimitiveProperty primitiveProp &&
-                    primitiveProp.HasChanged)
+                var prop = kvp.Value;
+                if (prop.HasChanged)
                 {
-                    primitiveProp.RaiseChangedEvent();
+                    prop.RaiseChangedEvent();
                 }
             }
 
-            foreach (var ptr in m_subscribedPropertyPointers)
+            foreach (var kvp in m_subscribedProperties)
             {
-                if (ViewModelInstanceProperty.TryGetGloballyCachedVMPropertyForPointer(ptr, out var vmProp) &&
-                    vmProp is ViewModelInstancePrimitiveProperty primitiveProp &&
-                    primitiveProp.HasChanged)
+                var prop = kvp.Value;
+                if (prop.HasChanged)
                 {
-                    primitiveProp.ClearChanges();
+                    prop.ClearChanges();
                 }
             }
 
@@ -675,34 +663,37 @@ namespace Rive
 
         private void Dispose(bool disposing)
         {
-
             if (m_disposed)
             {
                 return;
             }
 
-            ClearCallbacks();
-
-            foreach (var kvp in m_viewModelInstances)
+            if (disposing)
             {
-                var childViewModelInstance = kvp.Value;
-                childViewModelInstance.RemoveParent(this);
-            }
+                // ClearCallbacks() is intentionally only called on the explicit Dispose() path.
+                // On the finalizer path, the managed objects in m_subscribedProperties may already be finalized,
+                // and taking the lock inside PropertyCallbacksHub.Unregister() from a finalizer thread risks deadlocks.
+                // The hub uses weak references, so the hub won't keep the properties alive. It will also clean up any dead properties during the next CaptureChanges() call.
+                ClearCallbacks();
 
-            m_viewModelInstances.Clear();
-
-            for (int i = m_parents.Count - 1; i >= 0; i--)
-            {
-                if (m_parents[i].TryGetTarget(out var parentInstance) && parentInstance != null)
+                foreach (var kvp in m_viewModelInstances)
                 {
-                    RemoveParent(parentInstance);
-
+                    var childViewModelInstance = kvp.Value;
+                    childViewModelInstance.RemoveParent(this);
                 }
+
+                m_viewModelInstances.Clear();
+
+                for (int i = m_parents.Count - 1; i >= 0; i--)
+                {
+                    if (m_parents[i].TryGetTarget(out var parentInstance) && parentInstance != null)
+                    {
+                        RemoveParent(parentInstance);
+                    }
+                }
+
+                m_children.Clear();
             }
-
-            m_children.Clear();
-
-
 
             if (m_safeHandle != null && !m_safeHandle.IsInvalid)
             {
@@ -711,7 +702,6 @@ namespace Rive
                 m_safeHandle.Dispose();
 
                 RemoveGloballyCachedViewModelInstanceForPointer(nativePtr);
-
             }
 
             m_disposed = true;

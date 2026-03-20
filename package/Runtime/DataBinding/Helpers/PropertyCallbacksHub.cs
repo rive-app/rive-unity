@@ -4,7 +4,10 @@ using System.Collections.Generic;
 namespace Rive
 {
     /// <summary>
-    /// Centralized callback pump for view model instance properties. Used by the Orchestrator to trigger callbacks for all subscribed properties instead of traversing the ViewModelInstance hierarchy
+    /// Centralized callback pump for view model instance properties. Used by the Orchestrator
+    /// to trigger callbacks for all subscribed properties instead of traversing the ViewModelInstance hierarchy.
+    /// Uses weak references so it does not prevent properties from being garbage collected;
+    /// the owning <see cref="ViewModelInstance"/> is responsible for keeping subscribed properties alive.
     /// </summary>
     internal sealed class PropertyCallbacksHub
     {
@@ -22,15 +25,18 @@ namespace Rive
             }
         }
 
-        // Set of subscribed native vm instance property pointers
-        private readonly HashSet<IntPtr> m_propertyPointers = new HashSet<IntPtr>();
+        private readonly Dictionary<IntPtr, WeakReference<ViewModelInstancePrimitiveProperty>> m_subscribedProperties =
+            new Dictionary<IntPtr, WeakReference<ViewModelInstancePrimitiveProperty>>();
         private readonly List<ViewModelInstancePrimitiveProperty> m_changedScratch = new List<ViewModelInstancePrimitiveProperty>();
+        private readonly List<ViewModelInstancePrimitiveProperty> m_captureScratch = new List<ViewModelInstancePrimitiveProperty>();
         private readonly List<IntPtr> m_deadPointersScratch = new List<IntPtr>();
+        private readonly object m_lock = new object();
 
         private PropertyCallbacksHub() { }
 
         /// <summary>
-        /// Registers a property with the hub.
+        /// Registers a property with the hub via a weak reference.
+        /// The owning <see cref="ViewModelInstance"/> keeps the property alive.
         /// </summary>
         /// <param name="property">The property to register.</param>
         internal void Register(ViewModelInstancePrimitiveProperty property)
@@ -46,7 +52,10 @@ namespace Rive
                 return;
             }
 
-            m_propertyPointers.Add(ptr);
+            lock (m_lock)
+            {
+                m_subscribedProperties[ptr] = new WeakReference<ViewModelInstancePrimitiveProperty>(property);
+            }
         }
 
         /// <summary>
@@ -60,7 +69,10 @@ namespace Rive
                 return;
             }
 
-            m_propertyPointers.Remove(instancePropertyPtr);
+            lock (m_lock)
+            {
+                m_subscribedProperties.Remove(instancePropertyPtr);
+            }
         }
 
         /// <summary>
@@ -73,17 +85,30 @@ namespace Rive
             m_changedScratch.Clear();
             m_deadPointersScratch.Clear();
 
-            // Collect and clear changed properties in the same frame as advancement,
-            // then raise callbacks later on the main thread.
-            foreach (var ptr in m_propertyPointers)
+            lock (m_lock)
             {
-                if (!ViewModelInstanceProperty.TryGetGloballyCachedVMPropertyForPointer(ptr, out var vmProp) ||
-                    !(vmProp is ViewModelInstancePrimitiveProperty property) ||
-                    property == null)
+                m_captureScratch.Clear();
+                foreach (var kvp in m_subscribedProperties)
                 {
-                    m_deadPointersScratch.Add(ptr);
-                    continue;
+                    if (kvp.Value.TryGetTarget(out var property))
+                    {
+                        m_captureScratch.Add(property);
+                    }
+                    else
+                    {
+                        m_deadPointersScratch.Add(kvp.Key);
+                    }
                 }
+
+                for (int i = 0; i < m_deadPointersScratch.Count; i++)
+                {
+                    m_subscribedProperties.Remove(m_deadPointersScratch[i]);
+                }
+            }
+
+            for (int i = 0; i < m_captureScratch.Count; i++)
+            {
+                var property = m_captureScratch[i];
 
                 if (property.HasChanged)
                 {
@@ -92,17 +117,7 @@ namespace Rive
                 }
             }
 
-            for (int i = 0; i < m_deadPointersScratch.Count; i++)
-            {
-                m_propertyPointers.Remove(m_deadPointersScratch[i]);
-            }
-
-            if (m_changedScratch.Count == 0)
-            {
-                return false;
-            }
-
-            return true;
+            return m_changedScratch.Count > 0;
         }
 
         /// <summary>
@@ -128,4 +143,3 @@ namespace Rive
 #endif
     }
 }
-

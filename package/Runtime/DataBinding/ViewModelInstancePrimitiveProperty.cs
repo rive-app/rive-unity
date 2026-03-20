@@ -60,12 +60,27 @@ namespace Rive
         }
 
         /// <summary>
-        /// Clears all callbacks registered with this property.
+        /// Clears this property's callbacks and performs the normal cleanup path.
+        /// Use this when the property is unsubscribing itself, because it also tells
+        /// the owning <see cref="ViewModelInstance"/> to unregister the property.
         /// </summary>
         internal virtual void ClearAllCallbacks()
         {
             // If we've removed all subscribers, unregister
             m_instance?.UnregisterPropertyForCallbacks(this);
+        }
+
+        /// <summary>
+        /// Clears only this property's stored callback delegates.
+        /// Unlike <see cref="ClearAllCallbacks"/>, this does not unregister the property
+        /// from its owning <see cref="ViewModelInstance"/>.
+        /// This is used by <see cref="ViewModelInstance.ClearCallbacks"/> because that
+        /// method is already walking the subscribed properties and handling hub cleanup
+        /// itself. Calling the full unregister path there would change the collection
+        /// while it is being looped over.
+        /// </summary>
+        internal virtual void ClearDelegatesOnly()
+        {
         }
 
         internal void RegisterForCallbacks()
@@ -175,6 +190,11 @@ namespace Rive
         {
             m_onValueChanged = null;
             base.ClearAllCallbacks();
+        }
+
+        internal override void ClearDelegatesOnly()
+        {
+            m_onValueChanged = null;
         }
 
         public abstract T Value { get; set; }

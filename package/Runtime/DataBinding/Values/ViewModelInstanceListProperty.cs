@@ -255,6 +255,11 @@ namespace Rive
             base.ClearAllCallbacks();
         }
 
+        internal override void ClearDelegatesOnly()
+        {
+            m_onTriggered = null;
+        }
+
         [DllImport(NativeLibrary.name)]
         private static extern nuint getViewModelInstanceListSize(IntPtr listProperty);
 

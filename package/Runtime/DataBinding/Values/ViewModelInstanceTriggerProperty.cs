@@ -50,5 +50,10 @@ namespace Rive
             m_onTriggered = null;
             base.ClearAllCallbacks();
         }
+
+        internal override void ClearDelegatesOnly()
+        {
+            m_onTriggered = null;
+        }
     }
 }

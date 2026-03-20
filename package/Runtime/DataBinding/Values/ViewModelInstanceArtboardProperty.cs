@@ -69,6 +69,11 @@ namespace Rive
             base.ClearAllCallbacks();
         }
 
+        internal override void ClearDelegatesOnly()
+        {
+            m_onValueChanged = null;
+        }
+
         [DllImport(NativeLibrary.name)]
         private static extern bool setViewModelInstanceArtboardValue(
             IntPtr instanceProperty,

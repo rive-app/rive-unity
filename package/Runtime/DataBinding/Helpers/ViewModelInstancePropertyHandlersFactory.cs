@@ -291,15 +291,25 @@ namespace Rive
             // Check if we have already created an instance of this property
             if (ViewModelInstanceProperty.TryGetGloballyCachedVMPropertyForPointer(result.PropertyPtr, out var cachedProperty))
             {
-                instanceAsExpectedType = cachedProperty as T;
+                bool isStale = cachedProperty is ViewModelInstancePrimitiveProperty cachedPrim &&
+                               cachedPrim.RootInstance != instance;
 
                 // We want to catch cases where the property was created as a different type than expected
-                if (instanceAsExpectedType == null)
+                if (isStale)
                 {
-                    DebugLogger.Instance.LogError("Failed to get property: " + path + ". Expected type: " + typeof(T).Name);
-                    return null;
+                    ViewModelInstanceProperty.RemoveCachedPropertyForPointer(result.PropertyPtr);
                 }
-                return instanceAsExpectedType;
+                else
+                {
+                    instanceAsExpectedType = cachedProperty as T;
+
+                    if (instanceAsExpectedType == null)
+                    {
+                        DebugLogger.Instance.LogError("Failed to get property: " + path + ". Expected type: " + typeof(T).Name);
+                        return null;
+                    }
+                    return instanceAsExpectedType;
+                }
             }
 
             // Create a new property instance

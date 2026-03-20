@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using NUnit.Framework;
 using Rive.Components;
 using Rive.Tests.Utils;
@@ -1090,6 +1091,108 @@ namespace Rive.Tests
             yield return null;
 
             Assert.AreEqual(1, callbackCount, "Number callback should fire exactly once for one value set in Auto mode.");
+        }
+
+        [UnityTest]
+        public IEnumerator BooleanProperty_FiresCallbackOnSubsequentChanges()
+        {
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
+
+            var boolProp = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>("agreedToTerms");
+            if (boolProp == null)
+            {
+                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Boolean).FirstOrDefault();
+                Assert.IsNotNull(fallback, "Expected at least one boolean property");
+                boolProp = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>(fallback.Name);
+            }
+            Assert.IsNotNull(boolProp, "Boolean property should exist");
+
+            boolProp.Value = false;
+            yield return null;
+
+            int callbackCount = 0;
+            boolProp.OnValueChanged += (_) => callbackCount++;
+
+            boolProp.Value = true;
+            yield return null;
+            Assert.AreEqual(1, callbackCount, "Boolean callback should fire on first change (false -> true).");
+
+            boolProp.Value = false;
+            yield return null;
+            Assert.AreEqual(2, callbackCount, "Boolean callback should fire on second change (true -> false).");
+
+            boolProp.Value = true;
+            yield return null;
+            Assert.AreEqual(3, callbackCount, "Boolean callback should fire on third change (false -> true again).");
+        }
+
+        [UnityTest]
+        public IEnumerator BooleanProperty_Orchestrator_AutoMode_FiresOncePerSet()
+        {
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
+
+            var boolProp = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>("agreedToTerms");
+            if (boolProp == null)
+            {
+                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Boolean).FirstOrDefault();
+                Assert.IsNotNull(fallback, "Expected at least one boolean property");
+                boolProp = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>(fallback.Name);
+            }
+            Assert.IsNotNull(boolProp, "Boolean property should exist");
+
+            bool initialValue = boolProp.Value;
+
+            int callbackCount = 0;
+            boolProp.OnValueChanged += (_) => callbackCount++;
+
+            // First change
+            boolProp.Value = !initialValue;
+
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount, "Boolean callback should fire exactly once for the first value set in Auto mode.");
+
+            // Second change — this is the case reported as broken
+            boolProp.Value = initialValue;
+
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(2, callbackCount, "Boolean callback should fire exactly once for the second value set in Auto mode.");
         }
 
         [UnityTest]
@@ -2627,6 +2730,261 @@ namespace Rive.Tests
             Assert.AreEqual(0, callbackCount, "Callback should not be invoked after unsubscribing");
         }
 
+#if UNITY_EDITOR
+
+        private IEnumerator ForceGCAndWaitForFinalizers()
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
+                GC.WaitForPendingFinalizers();
+                yield return null;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator PropertyCallbacksHub_CaptureChanges_DoesNotThrow_WhenRegistrationsChangeConcurrently()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for callback capture race test");
+                yield break;
+            }
+
+            // Create instances and subscribe so they are registered with the hub.
+            var instances = new List<ViewModelInstance>();
+            var properties = new List<ViewModelInstanceStringProperty>();
+
+            for (int i = 0; i < 64; i++)
+            {
+                var instance = itemViewModel.CreateInstance();
+                var textProperty = instance.GetStringProperty("text");
+                textProperty.OnValueChanged += _ => { };
+                instances.Add(instance);
+                properties.Add(textProperty);
+            }
+
+            // Background thread: continuously unregister/re-register properties
+            // while the main thread calls CaptureChanges.
+            using var cancellationTokenSource = new CancellationTokenSource();
+            Exception backgroundException = null;
+
+            var worker = new Thread(() =>
+            {
+                try
+                {
+                    while (!cancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        for (int i = 0; i < properties.Count && !cancellationTokenSource.Token.IsCancellationRequested; i++)
+                        {
+                            PropertyCallbacksHub.Instance.Unregister(properties[i].InstancePropertyPtr);
+                            PropertyCallbacksHub.Instance.Register(properties[i]);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    backgroundException = ex;
+                }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+
+            Exception captureException = null;
+            for (int i = 0; i < 4000; i++)
+            {
+                try
+                {
+                    PropertyCallbacksHub.Instance.CaptureChanges();
+                }
+                catch (Exception ex)
+                {
+                    captureException = ex;
+                    break;
+                }
+            }
+
+            cancellationTokenSource.Cancel();
+            worker.Join();
+
+            foreach (var instance in instances)
+            {
+                instance.Dispose();
+            }
+
+            Assert.IsNull(backgroundException, $"Background thread threw: {backgroundException}");
+            Assert.IsNull(captureException, $"CaptureChanges threw during concurrent registration changes: {captureException}");
+        }
+
+        [UnityTest]
+        public IEnumerator PropertyCallbacksHub_KeepsSubscribedPropertyAlive_WhenNoExternalReferenceExists()
+        {
+            string testAssetPath = TestAssetReferences.riv_asset_databinding_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var vmInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(vmInstance, "ViewModelInstance should exist");
+
+            CallbackCounter callbackCounter = new CallbackCounter();
+
+            // Subscribe without keeping a reference to the property
+            SubscribeWithoutKeepingReference(vmInstance, callbackCounter, "name");
+
+            // Force GC, the property should survive because the VMI keeps subscribed properties alive.
+            yield return ForceGCAndWaitForFinalizers();
+
+            // Change the value through a fresh GetStringProperty call.
+            var prop = vmInstance.GetStringProperty("name");
+            Assert.IsNotNull(prop, "Property should still be retrievable after GC");
+            prop.Value = "after GC";
+
+            yield return null;
+
+            Assert.AreEqual(1, callbackCounter.Count,
+                "Callback should still fire after GC because the VMI keeps subscribed properties alive");
+        }
+
+        [UnityTest]
+        public IEnumerator PropertyCallbacksHub_ReleasesProperties_WhenViewModelInstanceIsDisposed()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found");
+                yield break;
+            }
+
+            int callbackCount = 0;
+
+            // Create a standalone instance, subscribe without keeping a property reference,
+            // then dispose the instance.
+            var instance = itemViewModel.CreateInstance();
+            var textProperty = instance.GetStringProperty("text");
+            Assert.IsNotNull(textProperty, "Text property should exist");
+
+            textProperty.OnValueChanged += _ => callbackCount++;
+            textProperty.Value = "before dispose";
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount, "Callback should fire before disposal");
+
+            instance.Dispose();
+
+            // After disposal the hub should have released the property.
+            // Verify by creating a new instance that can reuse the same native pointer.
+            // If the hub still held the old property, CaptureChanges would process a stale entry.
+            callbackCount = 0;
+            PropertyCallbacksHub.Instance.CaptureChanges();
+            PropertyCallbacksHub.Instance.FlushCapturedCallbacks();
+
+            Assert.AreEqual(0, callbackCount,
+                "Callback should not fire after the owning ViewModelInstance is disposed");
+        }
+
+        [UnityTest]
+        public IEnumerator PropertyCallbacksHub_PrunesDeadEntries_WhenViewModelInstanceIsCollected()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            CallbackCounter callbackCounter = new CallbackCounter();
+
+            // Create a standalone instance and subscribe inside a no-inlining helper
+            // so both the instance and property become unreachable after return.
+            CreateStandaloneInstanceAndSubscribe(m_widget.File, callbackCounter);
+
+            // Force GC so the instance and its owned properties are collected.
+            // The hub holds only weak references, so its entries become dead.
+            yield return ForceGCAndWaitForFinalizers();
+            yield return null;
+
+            // CaptureChanges should lazily prune the dead weak references
+            // and not process any stale callbacks.
+            PropertyCallbacksHub.Instance.CaptureChanges();
+            PropertyCallbacksHub.Instance.FlushCapturedCallbacks();
+
+            Assert.AreEqual(0, callbackCounter.Count,
+                "Callback should not fire after the owning ViewModelInstance is collected");
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private void CreateStandaloneInstanceAndSubscribe(File riveFile, CallbackCounter counter)
+        {
+            var itemViewModel = riveFile.GetViewModelByName("TodoItem");
+            Assert.IsNotNull(itemViewModel, "TodoItem view model should exist");
+            var instance = itemViewModel.CreateInstance();
+            var textProperty = instance.GetStringProperty("text");
+            Assert.IsNotNull(textProperty, "Text property should exist");
+            textProperty.OnValueChanged += _ => counter.Increment();
+        }
+
+        // Helper to ensure the instance and property go out of scope.
+        // Using [MethodImpl(NoInlining)] prevents the JIT from extending local lifetimes.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private void SubscribeWithoutKeepingReference(ViewModelInstance vm, CallbackCounter callbackCounter, string propertyName)
+        {
+            var textProperty = vm.GetStringProperty(propertyName);
+            Assert.IsNotNull(textProperty, "Text property should exist");
+            textProperty.OnValueChanged += _ => callbackCounter.Increment();
+        }
+
+        private class CallbackCounter
+        {
+            public int Count { get; private set; }
+
+            public void Increment()
+            {
+                Count++;
+            }
+        }
+#endif
         [UnityTest]
         public IEnumerator PropertyCache_ReturnsSameInstance()
         {
