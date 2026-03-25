@@ -631,6 +631,43 @@ namespace Rive.Tests
 
         }
 
+        /// <summary>
+        /// Verifies that loading and instantiating an artboard with a CFF/OTF font does not crash.
+        /// This catches HarfBuzz symbol collisions with Unity's bundled HarfBuzz on iOS,
+        /// where unrenamed CFF charstring interpreter symbols can cause EXC_BAD_ACCESS
+        /// during glyph path extraction.
+        /// See: rive_harfbuzz_renames.h for more details.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator LoadRivFile_WithCFFFont_DoesNotCrash()
+        {
+            Asset loadedAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_cff_font_test,
+                (asset) => loadedAsset = asset,
+                () => Assert.Fail("Failed to load CFF font test riv asset"));
+
+            Assert.IsNotNull(loadedAsset);
+
+            File riveFile = LoadAndTrackFile(loadedAsset);
+            Assert.IsNotNull(riveFile);
+
+            Artboard artboard = riveFile.Artboard(0);
+            Assert.IsNotNull(artboard, "Artboard instantiation with CFF font should not crash");
+
+            StateMachine stateMachine = artboard.StateMachine(0);
+            Assert.IsNotNull(stateMachine, "StateMachine instantiation with CFF font should not crash");
+
+            stateMachine.Advance(0f);
+
+            yield return null;
+
+            stateMachine.Dispose();
+            artboard.Dispose();
+            riveFile.Dispose();
+
+        }
+
 
         private void TriggerFinalizer(File file)
         {
