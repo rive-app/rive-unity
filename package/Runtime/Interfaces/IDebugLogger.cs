@@ -11,5 +11,6 @@ namespace Rive
         void LogError(string message);
 
         void LogException(System.Exception exception);
+
     }
 }

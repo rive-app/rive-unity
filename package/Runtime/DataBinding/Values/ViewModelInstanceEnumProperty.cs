@@ -40,6 +40,8 @@ namespace Rive
         {
             get
             {
+                ThrowIfOwnerDisposed();
+
                 if (InstancePropertyPtr == IntPtr.Zero)
                 {
                     DebugLogger.Instance.LogWarning("Trying to get a null enum property.");
@@ -56,6 +58,8 @@ namespace Rive
             }
             set
             {
+                ThrowIfOwnerDisposed();
+
                 int index = Array.IndexOf(m_enumValues, value);
 
                 if (index == -1)
@@ -81,6 +85,8 @@ namespace Rive
         {
             get
             {
+                ThrowIfOwnerDisposed();
+
                 if (InstancePropertyPtr == IntPtr.Zero)
                 {
                     DebugLogger.Instance.LogWarning("Trying to get a null enum property.");
@@ -91,6 +97,8 @@ namespace Rive
             }
             set
             {
+                ThrowIfOwnerDisposed();
+
                 if (value < 0 || value >= m_enumValues.Length)
                 {
                     DebugLogger.Instance.LogWarning("Invalid enum value index: " + value);

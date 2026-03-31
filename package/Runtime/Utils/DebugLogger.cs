@@ -46,5 +46,6 @@ namespace Rive.Utils
         {
             Debug.LogException(exception);
         }
+
     }
 }

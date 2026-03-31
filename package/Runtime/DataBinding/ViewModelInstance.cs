@@ -36,6 +36,8 @@ namespace Rive
 
         private bool m_disposed = false;
 
+        internal bool IsDisposed => m_disposed;
+
         private string m_viewModelName = null;
 
 
@@ -448,8 +450,7 @@ namespace Rive
 
             if (m_disposed)
             {
-                DebugLogger.Instance.LogError("Cannot get property from disposed ViewModelInstance");
-                return null;
+                throw new ObjectDisposedException(nameof(ViewModelInstance), "Cannot get property from a disposed ViewModelInstance.");
             }
 
             // Handle ViewModelInstance type specially since we do a few things differently for non-primitive properties
@@ -511,6 +512,11 @@ namespace Rive
         /// <param name="newInstance">The new instance to replace the property with.</param>
         public void SetViewModelInstance(string path, ViewModelInstance newInstance)
         {
+            if (m_disposed)
+            {
+                throw new ObjectDisposedException(nameof(ViewModelInstance), "Cannot set view model instance on a disposed ViewModelInstance.");
+            }
+
             if (string.IsNullOrEmpty(path))
             {
                 DebugLogger.Instance.LogError("Property path cannot be null or empty");

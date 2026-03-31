@@ -20,6 +20,7 @@ namespace Rive
         {
             set
             {
+                ThrowIfOwnerDisposed();
                 SetArtboardInternal(value);
             }
         }

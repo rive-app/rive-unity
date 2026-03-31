@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Rive.Utils;
 
 namespace Rive
 {
@@ -127,7 +128,14 @@ namespace Rive
         {
             for (int i = 0; i < m_changedScratch.Count; i++)
             {
-                m_changedScratch[i].RaiseChangedEvent();
+                try
+                {
+                    m_changedScratch[i].RaiseChangedEvent();
+                }
+                catch (Exception e)
+                {
+                    DebugLogger.Instance.LogException(e);
+                }
             }
 
             m_changedScratch.Clear();

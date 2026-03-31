@@ -27,6 +27,7 @@ namespace Rive
         {
             get
             {
+                ThrowIfOwnerDisposed();
                 StringHashInfo currentInfo = getViewModelInstanceStringInfo(InstancePropertyPtr);
 
                 // We check if either length or hash changed before marshalling the string
@@ -46,6 +47,7 @@ namespace Rive
             }
             set
             {
+                ThrowIfOwnerDisposed();
                 setViewModelInstanceStringValue(InstancePropertyPtr, value);
             }
         }

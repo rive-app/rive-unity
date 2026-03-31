@@ -37,5 +37,6 @@ namespace Rive.Tests.Utils
             LoggedErrors.Clear();
             LoggedExceptions.Clear();
         }
+
     }
 }

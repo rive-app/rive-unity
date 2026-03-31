@@ -4244,5 +4244,381 @@ namespace Rive.Tests
                 }
             }
         }
+
+        #region Disposed ViewModelInstance Tests
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_GetProperty_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            Assert.IsNotNull(viewModel, "PersonViewModel should exist");
+
+            var viewModelInstance = viewModel.CreateInstance();
+            Assert.IsNotNull(viewModelInstance, "Should be able to create ViewModelInstance");
+
+            viewModelInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => viewModelInstance.GetStringProperty("name"));
+            Assert.Throws<ObjectDisposedException>(() => viewModelInstance.GetNumberProperty("age"));
+            Assert.Throws<ObjectDisposedException>(() => viewModelInstance.GetBooleanProperty("agreedToTerms"));
+            Assert.Throws<ObjectDisposedException>(() => viewModelInstance.GetColorProperty("favColor"));
+            Assert.Throws<ObjectDisposedException>(() => viewModelInstance.GetEnumProperty("country"));
+            Assert.Throws<ObjectDisposedException>(() => viewModelInstance.GetTriggerProperty("onFormSubmit"));
+            Assert.Throws<ObjectDisposedException>(() => viewModelInstance.GetViewModelInstanceProperty("favDrink"));
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_SetViewModelInstance_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var drinkViewModel = riveFile.GetViewModelByName("DrinkViewModel");
+            Assert.IsNotNull(drinkViewModel, "DrinkViewModel should exist");
+
+            var personViewModel = riveFile.GetViewModelByName("PersonViewModel");
+            Assert.IsNotNull(personViewModel, "PersonViewModel should exist");
+
+            var personInstance = personViewModel.CreateInstance();
+            Assert.IsNotNull(personInstance, "Should be able to create PersonViewModel instance");
+
+            var drinkInstance = drinkViewModel.CreateInstance();
+            Assert.IsNotNull(drinkInstance, "Should be able to create DrinkViewModel instance");
+
+            personInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => personInstance.SetViewModelInstance("favDrink", drinkInstance));
+
+            drinkInstance.Dispose();
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_StringPropertyAccess_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            var viewModelInstance = viewModel.CreateInstance();
+
+            var stringProp = viewModelInstance.GetStringProperty("name");
+            Assert.IsNotNull(stringProp, "String property 'name' should exist before disposal");
+
+            viewModelInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => { var _ = stringProp.Value; });
+            Assert.Throws<ObjectDisposedException>(() => { stringProp.Value = "test"; });
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_NumberPropertyAccess_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            var viewModelInstance = viewModel.CreateInstance();
+
+            var numberProp = viewModelInstance.GetNumberProperty("age");
+            Assert.IsNotNull(numberProp, "Number property 'age' should exist before disposal");
+
+            viewModelInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => { var _ = numberProp.Value; });
+            Assert.Throws<ObjectDisposedException>(() => { numberProp.Value = 42f; });
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_BooleanPropertyAccess_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            var viewModelInstance = viewModel.CreateInstance();
+
+            var boolProp = viewModelInstance.GetBooleanProperty("agreedToTerms");
+            Assert.IsNotNull(boolProp, "Boolean property 'agreedToTerms' should exist before disposal");
+
+            viewModelInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => { var _ = boolProp.Value; });
+            Assert.Throws<ObjectDisposedException>(() => { boolProp.Value = true; });
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_ColorPropertyAccess_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            var viewModelInstance = viewModel.CreateInstance();
+
+            var colorProp = viewModelInstance.GetColorProperty("favColor");
+            Assert.IsNotNull(colorProp, "Color property 'favColor' should exist before disposal");
+
+            viewModelInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => { var _ = colorProp.Value; });
+            Assert.Throws<ObjectDisposedException>(() => { colorProp.Value = UnityEngine.Color.red; });
+            Assert.Throws<ObjectDisposedException>(() => { var _ = colorProp.Value32; });
+            Assert.Throws<ObjectDisposedException>(() => { colorProp.Value32 = new Color32(255, 0, 0, 255); });
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_EnumPropertyAccess_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            var viewModelInstance = viewModel.CreateInstance();
+
+            var enumProp = viewModelInstance.GetEnumProperty("country");
+            Assert.IsNotNull(enumProp, "Enum property 'country' should exist before disposal");
+
+            viewModelInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => { var _ = enumProp.Value; });
+            Assert.Throws<ObjectDisposedException>(() => { enumProp.Value = "japan"; });
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_TriggerPropertyAccess_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            var viewModelInstance = viewModel.CreateInstance();
+
+            var triggerProp = viewModelInstance.GetTriggerProperty("onFormSubmit");
+            Assert.IsNotNull(triggerProp, "Trigger property 'onFormSubmit' should exist before disposal");
+
+            viewModelInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => triggerProp.Trigger());
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_ListPropertyAccess_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_db_list_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load list test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
+            Assert.IsNotNull(viewModelInstance, "Should be able to create ViewModelInstance");
+
+            m_widget.StateMachine.BindViewModelInstance(viewModelInstance);
+
+            var listProp = viewModelInstance.GetListProperty("items");
+            Assert.IsNotNull(listProp, "List property 'items' should exist before disposal");
+
+            var itemViewModel = riveFile.GetViewModelByName("TodoItem");
+            Assert.IsNotNull(itemViewModel, "TodoItem ViewModel should exist");
+            var itemInstance = itemViewModel.CreateInstance();
+            Assert.IsNotNull(itemInstance, "Should be able to create TodoItem instance");
+
+            viewModelInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => { var _ = listProp.Count; });
+            Assert.Throws<ObjectDisposedException>(() => listProp.GetInstanceAt(0));
+            Assert.Throws<ObjectDisposedException>(() => listProp.Add(itemInstance));
+            Assert.Throws<ObjectDisposedException>(() => listProp.Insert(itemInstance, 0));
+            Assert.Throws<ObjectDisposedException>(() => listProp.Remove(itemInstance));
+            Assert.Throws<ObjectDisposedException>(() => listProp.RemoveAt(0));
+            Assert.Throws<ObjectDisposedException>(() => listProp.Swap(0, 1));
+
+            itemInstance.Dispose();
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_SubscribingToCallback_ThrowsObjectDisposedException()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            var viewModelInstance = viewModel.CreateInstance();
+
+            var stringProp = viewModelInstance.GetStringProperty("name");
+            Assert.IsNotNull(stringProp, "String property 'name' should exist before disposal");
+
+            var numberProp = viewModelInstance.GetNumberProperty("age");
+            Assert.IsNotNull(numberProp, "Number property 'age' should exist before disposal");
+
+            var triggerProp = viewModelInstance.GetTriggerProperty("onFormSubmit");
+            Assert.IsNotNull(triggerProp, "Trigger property 'onFormSubmit' should exist before disposal");
+
+            viewModelInstance.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => stringProp.OnValueChanged += (val) => { });
+            Assert.Throws<ObjectDisposedException>(() => numberProp.OnValueChanged += (val) => { });
+            Assert.Throws<ObjectDisposedException>(() => triggerProp.OnTriggered += () => { });
+        }
+
+        [UnityTest]
+        public IEnumerator DisposedViewModelInstance_UnsubscribingFromCallback_DoesNotThrow()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            var viewModelInstance = viewModel.CreateInstance();
+
+            var stringProp = viewModelInstance.GetStringProperty("name");
+            Assert.IsNotNull(stringProp, "String property 'name' should exist before disposal");
+
+            Action<string> stringHandler = (val) => { };
+            stringProp.OnValueChanged += stringHandler;
+
+            var triggerProp = viewModelInstance.GetTriggerProperty("onFormSubmit");
+            Assert.IsNotNull(triggerProp, "Trigger property 'onFormSubmit' should exist before disposal");
+
+            Action triggerHandler = () => { };
+            triggerProp.OnTriggered += triggerHandler;
+
+            viewModelInstance.Dispose();
+
+            Assert.DoesNotThrow(() => stringProp.OnValueChanged -= stringHandler);
+            Assert.DoesNotThrow(() => triggerProp.OnTriggered -= triggerHandler);
+        }
+
+        #endregion
+
+        #region Callback Isolation
+
+        /// <summary>
+        /// Verifies that an exception thrown by one property's callback does not prevent
+        /// other property callbacks from being invoked during the same flush cycle.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Orchestrator_ExceptionInOneCallback_DoesNotPreventOtherCallbacksFromFiring()
+        {
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+            var numberProp = viewModelInstance.GetProperty<ViewModelInstanceNumberProperty>("age");
+            if (numberProp == null)
+            {
+                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Number).FirstOrDefault();
+                Assert.IsNotNull(fallback, "Expected at least one number property");
+                numberProp = viewModelInstance.GetProperty<ViewModelInstanceNumberProperty>(fallback.Name);
+            }
+            Assert.IsNotNull(numberProp, "Number property should exist");
+
+            var boolProp = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>("agreedToTerms");
+            if (boolProp == null)
+            {
+                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Boolean).FirstOrDefault();
+                Assert.IsNotNull(fallback, "Expected at least one boolean property");
+                boolProp = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>(fallback.Name);
+            }
+            Assert.IsNotNull(boolProp, "Boolean property should exist");
+
+            int healthyCallbackCount = 0;
+
+            // Subscribe a throwing callback first, then a healthy one on a different property.
+            numberProp.OnValueChanged += (_) =>
+            {
+                throw new InvalidOperationException("Intentional test exception in callback");
+            };
+            boolProp.OnValueChanged += (_) => healthyCallbackCount++;
+
+            // Change both properties in the same frame.
+            numberProp.Value = numberProp.Value + 1f;
+            boolProp.Value = !boolProp.Value;
+
+
+            yield return null;
+            yield return null;
+
+            Assert.IsTrue((mockLogger.LoggedExceptions.Count > 0 && mockLogger.LoggedExceptions[0] is InvalidOperationException), "Expected an exception to be logged from the throwing callback");
+
+
+            Assert.AreEqual(1, healthyCallbackCount,
+                "Healthy callback should still fire despite another callback throwing");
+        }
+
+        #endregion
     }
 }

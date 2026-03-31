@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Rive.Utils;
 using UnityEngine;
 
 namespace Rive.Components
@@ -55,6 +56,7 @@ namespace Rive.Components
         }
 
         private readonly HashSet<RivePanel> m_registeredPanels = new HashSet<RivePanel>();
+        private readonly List<RivePanel> m_panelTickList = new List<RivePanel>(); // Used to store the panels to tick in the TickAutoPanels method to avoid modifying the HashSet while iterating.
         private bool m_tickedThisFrame;
 
         private void OnDestroy()
@@ -166,8 +168,13 @@ namespace Rive.Components
             float deltaTime = Time.deltaTime;
             bool tickedAny = false;
 
-            foreach (var panel in m_registeredPanels)
+            m_panelTickList.Clear();
+            m_panelTickList.AddRange(m_registeredPanels);
+
+            for (int i = 0; i < m_panelTickList.Count; i++)
             {
+                var panel = m_panelTickList[i];
+
                 if (panel == null || !panel.isActiveAndEnabled)
                 {
                     continue;
@@ -180,8 +187,17 @@ namespace Rive.Components
 
                 tickedAny = true;
 
-                panel.TickImmediate(deltaTime);
+                try
+                {
+                    panel.TickImmediate(deltaTime);
+                }
+                catch (System.Exception e)
+                {
+                    DebugLogger.Instance.LogException(e);
+                }
             }
+
+            m_panelTickList.Clear();
 
             return tickedAny;
         }

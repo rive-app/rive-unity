@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using Rive.Utils;
 
 namespace Rive
 {
@@ -17,6 +18,19 @@ namespace Rive
         /// The instance this property belongs to.
         /// </summary>
         internal ViewModelInstance RootInstance => m_instance;
+
+        /// <summary>
+        /// Throws <see cref="ObjectDisposedException"/> if the owning <see cref="ViewModelInstance"/> has been disposed.
+        /// </summary>
+        protected void ThrowIfOwnerDisposed()
+        {
+            if (m_instance != null && m_instance.IsDisposed)
+            {
+                throw new ObjectDisposedException(
+                    nameof(ViewModelInstance),
+                    $"Cannot access {GetType().Name}: the owning ViewModelInstance has been disposed.");
+            }
+        }
 
         /// <summary>
         /// Whether the value has changed since the last time it was read.
@@ -111,6 +125,7 @@ namespace Rive
         /// <param name="backingField">Reference to the private delegate field storing subscribers.</param>
         protected void AddPropertyCallback(Action handler, ref Action backingField)
         {
+            ThrowIfOwnerDisposed();
             bool wasEmpty = backingField == null;
             backingField += handler;
             if (wasEmpty)
@@ -139,6 +154,7 @@ namespace Rive
         /// </summary>
         protected void AddPropertyCallback<T>(Action<T> handler, ref Action<T> backingField)
         {
+            ThrowIfOwnerDisposed();
             bool wasEmpty = backingField == null;
             backingField += handler;
             if (wasEmpty)

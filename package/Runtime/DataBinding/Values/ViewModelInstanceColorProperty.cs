@@ -54,8 +54,16 @@ namespace Rive
         /// </summary>
         public override UnityEngine.Color Value
         {
-            get => ArgbToColor(getViewModelInstanceColorValue(InstancePropertyPtr));
-            set => setViewModelInstanceColorValue(InstancePropertyPtr, ColorToArgb(value));
+            get
+            {
+                ThrowIfOwnerDisposed();
+                return ArgbToColor(getViewModelInstanceColorValue(InstancePropertyPtr));
+            }
+            set
+            {
+                ThrowIfOwnerDisposed();
+                setViewModelInstanceColorValue(InstancePropertyPtr, ColorToArgb(value));
+            }
         }
 
         /// <summary>
@@ -63,8 +71,16 @@ namespace Rive
         /// </summary>
         public Color32 Value32
         {
-            get => ArgbToColor32(getViewModelInstanceColorValue(InstancePropertyPtr));
-            set => setViewModelInstanceColorValue(InstancePropertyPtr, Color32ToArgb(value));
+            get
+            {
+                ThrowIfOwnerDisposed();
+                return ArgbToColor32(getViewModelInstanceColorValue(InstancePropertyPtr));
+            }
+            set
+            {
+                ThrowIfOwnerDisposed();
+                setViewModelInstanceColorValue(InstancePropertyPtr, Color32ToArgb(value));
+            }
         }
 
 

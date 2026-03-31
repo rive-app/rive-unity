@@ -21,7 +21,11 @@ namespace Rive
         /// <param name="imageAsset"> The image asset to set. </param>
         public ImageOutOfBandAsset Value
         {
-            set => SetImage(value);
+            set
+            {
+                ThrowIfOwnerDisposed();
+                SetImage(value);
+            }
         }
 
         /// <summary>

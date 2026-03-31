@@ -816,6 +816,135 @@ namespace Rive.Tests
                 "Widget should be ticked once after manual tick");
         }
 
+        /// <summary>
+        /// Verifies that enabling a new panel during the Orchestrator's TickAutoPanels loop
+        /// (which modifies the registered panels collection mid-iteration) does not throw an
+        /// InvalidOperationException.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Orchestrator_DoesNotThrow_WhenPanelRegisteredDuringTick()
+        {
+            var secondPanel = RivePanelTestUtils.CreatePanel("SecondPanel");
+            var secondPanelStrategy = secondPanel.gameObject.AddComponent<MockRenderTargetStrategy>();
+            secondPanel.RenderTargetStrategy = secondPanelStrategy;
+            secondPanel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            // Start with the second panel disabled so it's not in the Orchestrator's set yet.
+            secondPanel.gameObject.SetActive(false);
+
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            // Let both panels settle before adding the trigger widget.
+            yield return null;
+
+            // Add a widget that enables the second panel when ticked.
+            var triggerWidget = CreatePanelToggleWidget("TriggerWidget", secondPanel.gameObject, enableOnTick: true);
+            m_panel.AddToHierarchy(triggerWidget);
+
+            // On the next frame, The orchestrator iterates the
+            // registered panels collection. During m_panel's tick the trigger widget enables
+            // secondPanel, which calls Orchestrator.RegisterPanel and mutates the collection
+            // mid-iteration. If not accounted for, this throws InvalidOperationException,
+            // which Unity logs as an error and the test runner treats as a failure.
+            yield return null;
+
+            Assert.IsTrue(triggerWidget.HasFired,
+                "Trigger widget should have fired during the orchestrator tick");
+            Assert.IsTrue(secondPanel.gameObject.activeSelf,
+                "Second panel should have been activated by the trigger widget");
+
+            UnityEngine.Object.Destroy(secondPanel.gameObject);
+        }
+
+        /// <summary>
+        /// Verifies that disabling a registered panel during the Orchestrator's TickAutoPanels
+        /// loop does not throw an InvalidOperationException.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Orchestrator_DoesNotThrow_WhenPanelUnregisteredDuringTick()
+        {
+            var secondPanel = RivePanelTestUtils.CreatePanel("SecondPanel");
+            var secondPanelStrategy = secondPanel.gameObject.AddComponent<MockRenderTargetStrategy>();
+            secondPanel.RenderTargetStrategy = secondPanelStrategy;
+            secondPanel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            // Let both panels settle before adding the trigger widget.
+            yield return null;
+
+            // Add a widget that disables the second panel when ticked.
+            var triggerWidget = CreatePanelToggleWidget("TriggerWidget", secondPanel.gameObject, enableOnTick: false);
+            m_panel.AddToHierarchy(triggerWidget);
+
+            // On the next frame, The orchestrator iterates the
+            // registered panels collection. During m_panel's tick the trigger widget disables
+            // secondPanel, which calls Orchestrator.UnregisterPanel and mutates the collection
+            // mid-iteration. If not accounted for, this throws InvalidOperationException,
+            // which Unity logs as an error and the test runner treats as a failure.
+            yield return null;
+
+            Assert.IsTrue(triggerWidget.HasFired,
+                "Trigger widget should have fired during the orchestrator tick");
+            Assert.IsFalse(secondPanel.gameObject.activeSelf,
+                "Second panel should have been deactivated by the trigger widget");
+
+            UnityEngine.Object.Destroy(secondPanel.gameObject);
+        }
+
+        /// <summary>
+        /// Verifies that an exception thrown by one panel's TickImmediate does not prevent
+        /// other panels from being ticked
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Orchestrator_ExceptionInOnePanel_DoesNotPreventOtherPanelsFromTicking()
+        {
+            // Set up a "broken" panel with a widget that throws during Tick.
+            var brokenPanel = RivePanelTestUtils.CreatePanel("BrokenPanel");
+            var brokenStrategy = brokenPanel.gameObject.AddComponent<MockRenderTargetStrategy>();
+            brokenPanel.RenderTargetStrategy = brokenStrategy;
+            brokenPanel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            var throwingWidget = new GameObject("ThrowingWidget").AddComponent<ThrowingMockWidget>();
+            brokenPanel.AddToHierarchy(throwingWidget);
+
+            // Set up a healthy panel with a normal widget.
+            var healthyPanel = RivePanelTestUtils.CreatePanel("HealthyPanel");
+            var healthyStrategy = healthyPanel.gameObject.AddComponent<MockRenderTargetStrategy>();
+            healthyPanel.RenderTargetStrategy = healthyStrategy;
+            healthyPanel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            var normalWidget = new GameObject("NormalWidget").AddComponent<MockRiveWidget>();
+            healthyPanel.AddToHierarchy(normalWidget);
+
+            yield return null;
+
+            int ticksBefore = normalWidget.TickCount;
+
+            // Expect the exception to be logged
+            Assert.IsTrue(mockLogger.LoggedExceptions.Count > 0,
+                "An exception should be logged");
+
+            // Orchestrator.Update() ticks both panels; the broken panel throws but
+            // the healthy panel should still be ticked.
+            yield return null;
+
+            Assert.Greater(normalWidget.TickCount, ticksBefore,
+                "Healthy panel's widget should still be ticked despite the other panel throwing");
+
+            UnityEngine.Object.Destroy(brokenPanel.gameObject);
+            UnityEngine.Object.Destroy(healthyPanel.gameObject);
+        }
+
+        private PanelToggleMockWidget CreatePanelToggleWidget(string name, GameObject targetPanelObject, bool enableOnTick)
+        {
+            var widgetObj = new GameObject(name);
+            var widget = widgetObj.AddComponent<PanelToggleMockWidget>();
+            widget.TargetPanelObject = targetPanelObject;
+            widget.EnableOnTick = enableOnTick;
+            return widget;
+        }
+
     }
 
     public class MockRiveWidget : WidgetBehaviour
@@ -937,6 +1066,56 @@ namespace Rive.Tests
         protected override IEnumerable<Renderer> GetRenderers()
         {
             return Enumerable.Empty<Renderer>();
+        }
+    }
+
+    /// <summary>
+    /// A mock widget that enables or disables another panel's GameObject when ticked.
+    /// Used to verify that the Orchestrator.TickAutoPanels loop does not throw an InvalidOperationException if a panel is registered or unregistered during the loop.
+    /// </summary>
+    public class PanelToggleMockWidget : WidgetBehaviour
+    {
+        private IRenderObject m_renderObject;
+        public GameObject TargetPanelObject { get; set; }
+        public bool EnableOnTick { get; set; }
+        public bool HasFired { get; private set; }
+
+        public override IRenderObject RenderObject => m_renderObject;
+        public override HitTestBehavior HitTestBehavior { get; set; } = HitTestBehavior.None;
+
+        protected override void OnEnable()
+        {
+            m_renderObject = new MockRenderObject();
+            base.OnEnable();
+        }
+
+        public override bool Tick(float deltaTime)
+        {
+            if (!HasFired && TargetPanelObject != null)
+            {
+                HasFired = true;
+                TargetPanelObject.SetActive(EnableOnTick);
+            }
+            return base.Tick(deltaTime);
+        }
+    }
+
+    public class ThrowingMockWidget : WidgetBehaviour
+    {
+        private IRenderObject m_renderObject;
+
+        public override IRenderObject RenderObject => m_renderObject;
+        public override HitTestBehavior HitTestBehavior { get; set; } = HitTestBehavior.None;
+
+        protected override void OnEnable()
+        {
+            m_renderObject = new MockRenderObject();
+            base.OnEnable();
+        }
+
+        public override bool Tick(float deltaTime)
+        {
+            throw new InvalidOperationException("ThrowingMockWidget intentional test exception");
         }
     }
 

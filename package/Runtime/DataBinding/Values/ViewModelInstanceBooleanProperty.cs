@@ -17,8 +17,16 @@ namespace Rive
         /// </summary>
         public override bool Value
         {
-            get => getViewModelInstanceBooleanValue(InstancePropertyPtr);
-            set => setViewModelInstanceBooleanValue(InstancePropertyPtr, value);
+            get
+            {
+                ThrowIfOwnerDisposed();
+                return getViewModelInstanceBooleanValue(InstancePropertyPtr);
+            }
+            set
+            {
+                ThrowIfOwnerDisposed();
+                setViewModelInstanceBooleanValue(InstancePropertyPtr, value);
+            }
         }
 
 

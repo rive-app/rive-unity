@@ -28,6 +28,8 @@ namespace Rive
         /// </summary>
         public void Trigger()
         {
+            ThrowIfOwnerDisposed();
+
             if (InstancePropertyPtr == IntPtr.Zero)
             {
                 DebugLogger.Instance.LogWarning("Trying to trigger a null trigger property.");

@@ -23,6 +23,8 @@ namespace Rive
         {
             get
             {
+                ThrowIfOwnerDisposed();
+
                 if (InstancePropertyPtr == IntPtr.Zero)
                 {
                     DebugLogger.Instance.LogWarning("Trying to get length of a null list property.");
@@ -39,6 +41,8 @@ namespace Rive
         /// <returns>The view model instance at the specified index, or null if the index is out of bounds.</returns>
         public ViewModelInstance GetInstanceAt(int index)
         {
+            ThrowIfOwnerDisposed();
+
             if (InstancePropertyPtr == IntPtr.Zero)
             {
                 DebugLogger.Instance.LogError("Trying to get item from a null list property.");
@@ -81,6 +85,8 @@ namespace Rive
         /// <param name="instance">The view model instance to add.</param>
         public void Add(ViewModelInstance instance)
         {
+            ThrowIfOwnerDisposed();
+
             if (InstancePropertyPtr == IntPtr.Zero)
             {
                 DebugLogger.Instance.LogError("Trying to add to a null list property.");
@@ -106,6 +112,7 @@ namespace Rive
         /// <param name="index">The index at which to insert the instance.</param>
         public void Insert(ViewModelInstance instance, int index)
         {
+            ThrowIfOwnerDisposed();
 
             if (instance == null)
             {
@@ -143,6 +150,8 @@ namespace Rive
         /// </remarks>
         public void Remove(ViewModelInstance instance)
         {
+            ThrowIfOwnerDisposed();
+
             if (InstancePropertyPtr == IntPtr.Zero)
             {
                 DebugLogger.Instance.LogError("Trying to remove from a null list property.");
@@ -167,6 +176,8 @@ namespace Rive
         /// <param name="index">The index of the item to remove.</param>
         public void RemoveAt(int index)
         {
+            ThrowIfOwnerDisposed();
+
             if (InstancePropertyPtr == IntPtr.Zero)
             {
                 DebugLogger.Instance.LogError("Trying to remove from a null list property.");
@@ -197,6 +208,8 @@ namespace Rive
         /// <param name="indexB">The index of the second item to swap.</param>
         public void Swap(int indexA, int indexB)
         {
+            ThrowIfOwnerDisposed();
+
             if (InstancePropertyPtr == IntPtr.Zero)
             {
                 DebugLogger.Instance.LogError("Trying to swap instances in a null list property.");

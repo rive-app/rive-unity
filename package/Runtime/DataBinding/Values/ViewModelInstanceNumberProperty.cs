@@ -17,8 +17,16 @@ namespace Rive
         /// </summary>
         public override float Value
         {
-            get => getViewModelInstanceNumberValue(InstancePropertyPtr);
-            set => setViewModelInstanceNumberValue(InstancePropertyPtr, value);
+            get
+            {
+                ThrowIfOwnerDisposed();
+                return getViewModelInstanceNumberValue(InstancePropertyPtr);
+            }
+            set
+            {
+                ThrowIfOwnerDisposed();
+                setViewModelInstanceNumberValue(InstancePropertyPtr, value);
+            }
         }
 
         [DllImport(NativeLibrary.name)]
