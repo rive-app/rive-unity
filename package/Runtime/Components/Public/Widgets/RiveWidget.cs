@@ -1056,6 +1056,8 @@ return;
             TriggerWidgetLoadedEvent();
 
             m_needsLayoutRecalculationFix = true;
+
+            ApplyLayoutRecalculationFixIfNeeded();
         }
 
 

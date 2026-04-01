@@ -9,6 +9,7 @@ using System;
 using System.Linq;
 using Rive.Components;
 using System.Collections.Generic;
+using UnityEngine.Rendering;
 using UnityEngine.TestTools.Graphics;
 using Rive.Utils;
 
@@ -860,6 +861,112 @@ namespace Rive.Tests
 
         }
 
+#if RIVE_USING_URP
+        /// <summary>
+        /// Tests that the panel continues to render and update correctly after changing quality settings. Updating quality settings can cause the scriptable renderer to change, which can cause issues if the panel or pipeline renderer doesn't handle it correctly (e.g. not recreating render textures, not handling render pipeline events, etc.), so this verifies that the package accounts for this.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator RivePanel_RendersAsExpected_After_QualitySettingsChange()
+        {
+            int originalQualityLevel = QualitySettings.GetQualityLevel();
+            RenderPipelineAsset originalPipeline = GraphicsSettings.currentRenderPipeline;
+            int targetQualityLevel = FindAlternativeQualityLevelWithDifferentRenderPipeline(originalQualityLevel);
+
+            if (targetQualityLevel < 0)
+            {
+                Assert.Ignore(
+                    "This URP golden test requires at least two quality levels with different render pipeline assets."
+                );
+            }
+
+
+            RenderPipelineAsset targetPipeline = QualitySettings.GetRenderPipelineAssetAt(targetQualityLevel);
+
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+            File firstFile = null;
+            File secondFile = null;
+
+            try
+            {
+                yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                    panelPrefabPath,
+                    (prefab) =>
+                    {
+                        var panelObj = UnityEngine.Object.Instantiate(prefab);
+                        panel = panelObj.GetComponent<RivePanel>();
+                        panel.SetDimensions(new Vector2(800, 600));
+                    },
+                    () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+                );
+
+                var widget = panel.GetComponentInChildren<RiveWidget>();
+                Assert.IsNotNull(widget, "Expected a RiveWidget in the single-widget panel prefab.");
+
+                Asset firstAsset = null;
+                yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                    TestAssetReferences.riv_asset_databinding_test,
+                    (asset) => firstAsset = asset,
+                    () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_asset_databinding_test}")
+                );
+
+                firstFile = File.Load(firstAsset);
+                widget.Load(firstFile);
+                widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return WaitForPanelRenderSettled(panel, frames: 1);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_DataBinding_InitialFrame",
+                    panel.RenderTexture
+                );
+
+                QualitySettings.SetQualityLevel(targetQualityLevel, true);
+                yield return WaitForRenderPipelineChange(targetPipeline);
+
+                Assert.AreNotEqual(
+                    originalPipeline,
+                    GraphicsSettings.currentRenderPipeline,
+                    "Expected the active render pipeline to change after switching quality settings."
+                );
+
+                Asset secondAsset = null;
+                yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                    TestAssetReferences.riv_image_db_test,
+                    (asset) => secondAsset = asset,
+                    () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_image_db_test}")
+                );
+
+                secondFile = File.Load(secondAsset);
+                widget.Fit = Fit.Contain;
+                widget.Load(secondFile);
+                widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return WaitForPanelRenderSettled(panel, frames: 1);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_InitialState_NoImage",
+                    panel.RenderTexture
+                );
+
+                QualitySettings.SetQualityLevel(originalQualityLevel, true);
+                yield return WaitForRenderPipelineChange(originalPipeline);
+            }
+            finally
+            {
+                QualitySettings.SetQualityLevel(originalQualityLevel, true);
+                secondFile?.Dispose();
+                firstFile?.Dispose();
+                if (panel != null)
+                {
+                    DestroyObj(panel.gameObject);
+                }
+            }
+        }
+#endif
+
         [UnityTest]
         public IEnumerator RivePanel_RemoveAndAddWidget_MaintainsVisuals()
         {
@@ -1017,6 +1124,51 @@ namespace Rive.Tests
             UnityEngine.Object.Destroy(temp);
             return hasContent;
         }
+
+#if RIVE_USING_URP
+        private static int FindAlternativeQualityLevelWithDifferentRenderPipeline(int currentQualityLevel)
+        {
+            RenderPipelineAsset currentPipeline = QualitySettings.GetRenderPipelineAssetAt(currentQualityLevel);
+
+            for (int i = 0; i < QualitySettings.names.Length; i++)
+            {
+                if (i == currentQualityLevel)
+                {
+                    continue;
+                }
+
+                RenderPipelineAsset candidatePipeline = QualitySettings.GetRenderPipelineAssetAt(i);
+                if (candidatePipeline != null && !ReferenceEquals(candidatePipeline, currentPipeline))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static IEnumerator WaitForRenderPipelineChange(RenderPipelineAsset expectedPipeline, float timeoutSeconds = 2f)
+        {
+            float elapsedTime = 0f;
+            while (elapsedTime < timeoutSeconds)
+            {
+                if (ReferenceEquals(GraphicsSettings.currentRenderPipeline, expectedPipeline))
+                {
+                    yield break;
+                }
+
+                yield return null;
+                yield return new WaitForEndOfFrame();
+                elapsedTime += Time.unscaledDeltaTime > 0f ? Time.unscaledDeltaTime : 0.016f;
+            }
+
+            Assert.AreEqual(
+                expectedPipeline,
+                GraphicsSettings.currentRenderPipeline,
+                "Timed out waiting for the quality settings change to apply the expected render pipeline asset."
+            );
+        }
+#endif
 
         [UnityTest]
         public IEnumerator DataBinding_InitialFrame_ShowsExpectedValues()

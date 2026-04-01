@@ -72,10 +72,13 @@ namespace Rive.Components.URP
             }
         }
 #endif
-        // This method is obsolete in Unity 2023.1/Unity 6 and newer, but we keep it so that Rive rendering still works without RenderGraph when in Compatibility mode.
-#if UNITY_2023_1_OR_NEWER
+        // Unity 6.4 / URP 17.4 no longer exposes the compatibility Execute override on
+        // ScriptableRenderPass, so we only compile this path on older versions.
+        // On supported older versions, we keep it so that Rive rendering still works without RenderGraph when in Compatibility mode.
+#if UNITY_2023_1_OR_NEWER && !UNITY_6000_4_OR_NEWER
         [System.Obsolete]
 #endif
+#if !UNITY_6000_4_OR_NEWER
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
 
@@ -96,6 +99,7 @@ namespace Rive.Components.URP
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
         }
+#endif
 
         public IRenderer GetRenderer()
         {

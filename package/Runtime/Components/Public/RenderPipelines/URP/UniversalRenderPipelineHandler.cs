@@ -23,7 +23,7 @@ namespace Rive.Components.URP
 
         private Dictionary<IRenderer, RenderPass> m_activeRenderPasses = new Dictionary<IRenderer, RenderPass>();
 
-        private ScriptableRenderer m_scriptableRenderer;
+        private UniversalAdditionalCameraData m_cameraData;
 
         private bool m_isDestroyed = false;
 
@@ -122,6 +122,7 @@ namespace Rive.Components.URP
         private void SetRenderCamera(Camera camera)
         {
             m_renderCamera = camera;
+            m_cameraData = camera != null ? camera.GetUniversalAdditionalCameraData() : null;
         }
 
         private void OnBeginCamera(ScriptableRenderContext context, Camera camera)
@@ -143,27 +144,32 @@ namespace Rive.Components.URP
                 return;
             }
 
-            foreach (var renderHandle in m_activeRenderPasses.Values)
+            UniversalAdditionalCameraData cameraData;
+
+#if UNITY_EDITOR
+            if (camera.cameraType == CameraType.SceneView)
             {
-                ProcessHandle(renderHandle, camera);
+                cameraData = camera.GetUniversalAdditionalCameraData();
+            }
+            else
+#endif
+            {
+                cameraData = m_cameraData;
             }
 
-        }
-
-        private void ProcessHandle(RenderPass renderPass, Camera camera)
-        {
-            if (renderPass == null)
+            ScriptableRenderer scriptableRenderer = cameraData != null ? cameraData.scriptableRenderer : null;
+            if (scriptableRenderer == null)
             {
                 return;
             }
 
-            if (m_scriptableRenderer == null)
+            foreach (var renderHandle in m_activeRenderPasses.Values)
             {
-                m_scriptableRenderer = camera.GetUniversalAdditionalCameraData().scriptableRenderer;
+                if (renderHandle != null)
+                {
+                    scriptableRenderer.EnqueuePass(renderHandle);
+                }
             }
-
-            m_scriptableRenderer?.EnqueuePass(renderPass);
-
         }
 
         private RenderPass GetRenderHandleForRenderer(IRenderer renderer)
@@ -318,7 +324,7 @@ namespace Rive.Components.URP
                 Unregister(m_cleanupList[i]);
             }
 
-            m_scriptableRenderer = null;
+            m_cameraData = null;
             m_renderCamera = null;
         }
 
