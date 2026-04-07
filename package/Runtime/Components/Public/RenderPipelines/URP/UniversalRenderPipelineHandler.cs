@@ -127,7 +127,7 @@ namespace Rive.Components.URP
 
         private void OnBeginCamera(ScriptableRenderContext context, Camera camera)
         {
-            if (RenderCamera == null)
+            if (RenderCamera == null || !RenderCamera.isActiveAndEnabled)
             {
                 RenderCamera = CameraHelper.GetRenderCameraInScene();
             }

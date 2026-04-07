@@ -30,6 +30,8 @@ namespace Rive.Components.BuiltIn
 
         private bool m_isDestroyed = false;
 
+        private bool m_registeredWithOrchestrator = false;
+
         private Camera[] m_camerasInScene;
 
 
@@ -71,12 +73,55 @@ namespace Rive.Components.BuiltIn
         protected virtual void OnEnable()
         {
             SceneManager.activeSceneChanged += ChangedActiveScene;
-
+            TrySubscribeToOrchestrator();
         }
 
         protected virtual void OnDisable()
         {
             SceneManager.activeSceneChanged -= ChangedActiveScene;
+            UnsubscribeFromOrchestrator();
+        }
+
+        private void TrySubscribeToOrchestrator()
+        {
+            if (m_registeredWithOrchestrator || !isActiveAndEnabled || m_activeRenderCommandBuffers.Count == 0)
+            {
+                return;
+            }
+
+            var orchestrator = Orchestrator.Instance;
+            if (orchestrator != null)
+            {
+                orchestrator.OnPostRenderPreparation += ValidateRenderCamera;
+                m_registeredWithOrchestrator = true;
+            }
+        }
+
+        private void UnsubscribeFromOrchestrator()
+        {
+            if (!m_registeredWithOrchestrator)
+            {
+                return;
+            }
+
+            var orchestrator = Orchestrator.Instance;
+            if (orchestrator != null)
+            {
+                orchestrator.OnPostRenderPreparation -= ValidateRenderCamera;
+            }
+            m_registeredWithOrchestrator = false;
+        }
+
+        private void ValidateRenderCamera()
+        {
+            if (m_renderCamera != null && !m_renderCamera.isActiveAndEnabled)
+            {
+                Camera newCamera = GetRenderCameraInScene();
+                if (newCamera != null)
+                {
+                    RenderCamera = newCamera;
+                }
+            }
         }
 
         private void ChangedActiveScene(Scene arg0, Scene arg1)
@@ -210,12 +255,13 @@ namespace Rive.Components.BuiltIn
 
             renderer.AddToCommandBuffer(commandBuffer);
 
-           
+
 
 
             m_activeRenderCommandBuffers.Add(renderer, commandBuffer);
+            TrySubscribeToOrchestrator();
 
-             if (renderer is Renderer r && r.RenderQueue != null && r.RenderQueue.Texture != null)
+            if (renderer is Renderer r && r.RenderQueue != null && r.RenderQueue.Texture != null)
             {
                 InternalSetRenderTargetToCommandBufferIfNeeded(commandBuffer, r.RenderQueue.Texture);
             }
@@ -305,6 +351,11 @@ namespace Rive.Components.BuiltIn
 
                 m_activeRenderCommandBuffers.Remove(renderer);
                 m_commandBufferPool.Release(commandBuffer);
+
+                if (m_activeRenderCommandBuffers.Count == 0)
+                {
+                    UnsubscribeFromOrchestrator();
+                }
             }
         }
 
@@ -327,6 +378,8 @@ namespace Rive.Components.BuiltIn
         private void Cleanup()
         {
             m_isDestroyed = true;
+            UnsubscribeFromOrchestrator();
+
             if (m_setNewRenderCameraCoroutine != null)
             {
                 StopCoroutine(m_setNewRenderCameraCoroutine);

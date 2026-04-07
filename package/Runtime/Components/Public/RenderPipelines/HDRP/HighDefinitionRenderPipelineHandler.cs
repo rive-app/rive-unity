@@ -21,6 +21,7 @@ namespace Rive.Components.HDRP
 
         private Dictionary<RenderTexture, RTHandle> m_rtHandleCache = new Dictionary<RenderTexture, RTHandle>();
 
+        private bool m_registeredWithOrchestrator = false;
 
         /// <summary>
         /// The camera that will render the Rive content.
@@ -67,15 +68,56 @@ namespace Rive.Components.HDRP
         protected virtual void OnEnable()
         {
             SceneManager.activeSceneChanged += ChangedActiveScene;
-
+            TrySubscribeToOrchestrator();
         }
 
         protected virtual void OnDisable()
         {
             SceneManager.activeSceneChanged -= ChangedActiveScene;
+            UnsubscribeFromOrchestrator();
         }
 
+        private void TrySubscribeToOrchestrator()
+        {
+            if (m_registeredWithOrchestrator || !isActiveAndEnabled || m_activeRenderPasses.Count == 0)
+            {
+                return;
+            }
 
+            var orchestrator = Orchestrator.Instance;
+            if (orchestrator != null)
+            {
+                orchestrator.OnPostRenderPreparation += ValidateRenderCamera;
+                m_registeredWithOrchestrator = true;
+            }
+        }
+
+        private void UnsubscribeFromOrchestrator()
+        {
+            if (!m_registeredWithOrchestrator)
+            {
+                return;
+            }
+
+            var orchestrator = Orchestrator.Instance;
+            if (orchestrator != null)
+            {
+                orchestrator.OnPostRenderPreparation -= ValidateRenderCamera;
+            }
+            m_registeredWithOrchestrator = false;
+        }
+
+        private void ValidateRenderCamera()
+        {
+            if (m_renderCamera != null && !m_renderCamera.isActiveAndEnabled)
+            {
+                Camera newCamera = CameraHelper.GetRenderCameraInScene();
+                if (newCamera != null)
+                {
+                    RenderCamera = newCamera;
+                }
+            }
+        }
 
         private void ChangedActiveScene(Scene arg0, Scene arg1)
         {
@@ -144,6 +186,7 @@ namespace Rive.Components.HDRP
             }
 
             m_activeRenderPasses.Add(renderer);
+            TrySubscribeToOrchestrator();
         }
 
         public void Unregister(IRenderer renderer)
@@ -162,6 +205,11 @@ namespace Rive.Components.HDRP
             }
 
             m_activeRenderPasses.Remove(renderer);
+
+            if (m_activeRenderPasses.Count == 0)
+            {
+                UnsubscribeFromOrchestrator();
+            }
         }
 
         public UnityEngine.RenderTexture AllocateRenderTexture(int width, int height)
@@ -238,6 +286,7 @@ namespace Rive.Components.HDRP
 
         private void Cleanup()
         {
+            UnsubscribeFromOrchestrator();
 
             // Remove the custom pass from the volume and destroy the volume
             if (m_customPassVolume != null)

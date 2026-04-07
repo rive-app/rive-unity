@@ -968,6 +968,141 @@ namespace Rive.Tests
 #endif
 
         [UnityTest]
+        public IEnumerator RivePanel_RendersAfterRenderCameraDisabledAndNewCameraActivated()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+            File firstFile = null;
+            File secondFile = null;
+            Camera secondaryCamera = null;
+            Texture2D beforeSnapshot = null;
+            Texture2D afterSnapshot = null;
+
+            try
+            {
+                yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                    panelPrefabPath,
+                    (prefab) =>
+                    {
+                        var panelObj = UnityEngine.Object.Instantiate(prefab);
+                        panel = panelObj.GetComponent<RivePanel>();
+                        panel.SetDimensions(new Vector2(800, 600));
+                    },
+                    () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+                );
+
+                var widget = panel.GetComponentInChildren<RiveWidget>();
+                Assert.IsNotNull(widget, "Expected a RiveWidget in the single-widget panel prefab.");
+
+                // --- Load file A and verify initial render ---
+                Asset firstAsset = null;
+                yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                    TestAssetReferences.riv_sophiaHud,
+                    (asset) => firstAsset = asset,
+                    () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_sophiaHud}")
+                );
+
+                firstFile = File.Load(firstAsset);
+                widget.Load(firstFile);
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return WaitForPanelRenderSettled(panel, frames: 1);
+
+                Assert.IsNotNull(panel.RenderTexture, "RenderTexture should exist after loading file A");
+                bool hasContentBeforeSwitch = CheckRenderTextureHasContent(panel.RenderTexture);
+                Assert.IsTrue(hasContentBeforeSwitch, "Render texture should have visible content with file A");
+
+                beforeSnapshot = CaptureRenderTexture(panel.RenderTexture);
+
+                // Now we're going to simulate a scenario where the render camera is disabled and a new camera is activated.
+                // The render pipeline handler has latched onto the original camera as its RenderCamera.
+                // Disabling it and enabling a new camera should NOT break rendering.
+                // If it does, it will likely be because the render pipeline handler is holding onto the original camera and not updating its RenderCamera property.
+                var secondaryCameraObj = new GameObject("SecondaryCamera");
+                secondaryCamera = secondaryCameraObj.AddComponent<Camera>();
+                secondaryCamera.clearFlags = CameraClearFlags.SolidColor;
+                secondaryCamera.backgroundColor = UnityEngine.Color.black;
+                secondaryCamera.depth = m_camera.depth + 1;
+                secondaryCamera.enabled = false;
+
+                m_camera.enabled = false;
+                secondaryCamera.enabled = true;
+
+                yield return null;
+
+                // --- Load file B and verify the render texture updates ---
+                Asset secondAsset = null;
+                yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                    TestAssetReferences.riv_ratingAnimationWithEvents,
+                    (asset) => secondAsset = asset,
+                    () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_ratingAnimationWithEvents}")
+                );
+
+                secondFile = File.Load(secondAsset);
+                widget.Load(secondFile);
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return WaitForPanelRenderSettled(panel, frames: 2);
+
+                Assert.IsNotNull(panel.RenderTexture, "RenderTexture should still exist after camera switch and file swap");
+                bool hasContentAfterSwitch = CheckRenderTextureHasContent(panel.RenderTexture);
+                Assert.IsTrue(hasContentAfterSwitch, "Render texture should have visible content after camera switch and loading file B");
+
+                afterSnapshot = CaptureRenderTexture(panel.RenderTexture);
+                Assert.IsFalse(
+                    AreTexturesIdentical(beforeSnapshot, afterSnapshot),
+                    "Render texture should differ after switching to a different Rive file"
+                );
+            }
+            finally
+            {
+                secondFile?.Dispose();
+                firstFile?.Dispose();
+                if (afterSnapshot != null) DestroyObj(afterSnapshot);
+                if (beforeSnapshot != null) DestroyObj(beforeSnapshot);
+                if (secondaryCamera != null) DestroyObj(secondaryCamera.gameObject);
+                if (panel != null) DestroyObj(panel.gameObject);
+            }
+        }
+
+        private static Texture2D CaptureRenderTexture(RenderTexture rt)
+        {
+            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+            RenderTexture prev = RenderTexture.active;
+            try
+            {
+                RenderTexture.active = rt;
+                tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+                tex.Apply();
+                return tex;
+            }
+            catch
+            {
+                UnityEngine.Object.Destroy(tex);
+                throw;
+            }
+            finally
+            {
+                RenderTexture.active = prev;
+            }
+        }
+
+        private static bool AreTexturesIdentical(Texture2D a, Texture2D b)
+        {
+            if (a.width != b.width || a.height != b.height) return false;
+            var pixelsA = a.GetPixels32();
+            var pixelsB = b.GetPixels32();
+            if (pixelsA.Length != pixelsB.Length) return false;
+            for (int i = 0; i < pixelsA.Length; i++)
+            {
+                if (pixelsA[i].r != pixelsB[i].r || pixelsA[i].g != pixelsB[i].g ||
+                    pixelsA[i].b != pixelsB[i].b || pixelsA[i].a != pixelsB[i].a)
+                    return false;
+            }
+            return true;
+        }
+
+        [UnityTest]
         public IEnumerator RivePanel_RemoveAndAddWidget_MaintainsVisuals()
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;

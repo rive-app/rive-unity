@@ -59,6 +59,8 @@ namespace Rive.Components
         private readonly List<RivePanel> m_panelTickList = new List<RivePanel>(); // Used to store the panels to tick in the TickAutoPanels method to avoid modifying the HashSet while iterating.
         private bool m_tickedThisFrame;
 
+        internal event Action OnPostRenderPreparation;
+
         private void OnDestroy()
         {
             m_tickedThisFrame = false;
@@ -235,10 +237,14 @@ namespace Rive.Components
 
         private void LateUpdate()
         {
+
             // Prepare batched rendering after ticking panels.
             // This is intentionally called every frame so batched render requests (e.g. from
             // registration/size/layout changes) can be handled even when no panels ticked.
             PrepareRenderTargetsStrategies();
+
+            OnPostRenderPreparation?.Invoke();
+
         }
 
 #if UNITY_EDITOR
