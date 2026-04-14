@@ -108,12 +108,11 @@ namespace Rive
 
                     IReadOnlyList<ViewModelEnumData> enumsForFile = result.RootViewModelInstance.RiveFile != null ? result.RootViewModelInstance.RiveFile.ViewModelEnums : null;
 
-
-                    bool isValidIndex = result.EnumIndex.HasValue && result.EnumIndex.Value >= 0 && (int)result.EnumIndex.Value < enumsForFile.Count;
-
                     // If the enums are included in the file, we can reuse them across multiple instances
                     // Otherwise, we'll have to fetch the enum values from the instance. This happens in the ViewModelInstanceEnumProperty constructor if we don't have the enum values already.
-                    if (isValidIndex && enumsForFile != null)
+                    bool isValidIndex = enumsForFile != null && result.EnumIndex.HasValue && result.EnumIndex.Value < (nuint)enumsForFile.Count;
+
+                    if (isValidIndex)
                     {
                         string[] enumValues = enumsForFile[(int)result.EnumIndex.Value].ValuesArray;
                         return new ViewModelInstanceEnumProperty(
@@ -352,14 +351,10 @@ namespace Rive
             {
                 return null;
             }
-            if (info.enumIndex < 0)
-            {
-                return null;
-            }
 
             IReadOnlyList<ViewModelEnumData> enumsForFile = vmInstance.RiveFile.ViewModelEnums;
 
-            if (enumsForFile == null || (int)info.enumIndex >= enumsForFile.Count)
+            if (enumsForFile == null || info.enumIndex >= (nuint)enumsForFile.Count)
             {
                 return null;
             }
