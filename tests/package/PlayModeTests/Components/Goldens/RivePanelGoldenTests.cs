@@ -458,6 +458,69 @@ namespace Rive.Tests
             }
         }
 
+#if UNITY_EDITOR
+        [UnityTest]
+        public IEnumerator Panel_WidgetLoad_WhenNativeUnavailable_ThrowsManagedException()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                prefab =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                    panel.DrawOptimization = DrawOptimizationOptions.DrawWhenChanged;
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            Assert.IsNotNull(panel, "Expected panel prefab to instantiate.");
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            Assert.IsNotNull(widget, "Expected a RiveWidget in the single-widget panel prefab.");
+
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_sophiaHud;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                asset => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            Assert.IsNotNull(riveAsset, $"Expected test asset at path {riveAssetPath} to load.");
+
+            var previousLogger = DebugLogger.Instance;
+            var mockLogger = new MockLogger();
+            DebugLogger.Instance = mockLogger;
+
+            try
+            {
+                // We force the native plugin to be unavailable by setting the availability override to false.
+                // The editor shouldn't crash. 
+                using (NativeUsageGuard.SetAvailabilityOverrideForScope(false))
+                {
+                    Assert.IsFalse(NativeUsageGuard.IsNativeAvailable);
+                    Assert.Throws<InvalidOperationException>(() => widget.Load(riveAsset));
+                }
+               
+                Assert.IsTrue(NativeUsageGuard.IsNativeAvailable, "The native plugin should be available after the availability override scope is disposed.");
+
+            }
+            finally
+            {
+                DebugLogger.Instance = previousLogger;
+            }
+
+            yield return null;
+
+            DestroyObj(panel.gameObject);
+            yield return null;
+        }
+#endif
+
         [UnityTest]
         public IEnumerator Panel_TransformChanges_MaintainsRenderTexture()
         {

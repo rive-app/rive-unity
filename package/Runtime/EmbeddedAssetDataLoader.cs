@@ -26,13 +26,13 @@ namespace Rive
         /// <returns> An enumerable of embedded assets. </returns>
         public IEnumerable<EmbeddedAssetData> LoadEmbeddedAssetDataFromRiveFileBytes(byte[] riveFileBytes)
         {
-
             if (riveFileBytes == null || riveFileBytes.Length == 0)
             {
                 DebugLogger.Instance.LogError(ERROR_CODE_RIVE_FILE_BYTES_NULL_OR_EMPTY + " - The Rive file bytes are null or empty.");
                 yield break;
             }
 
+            NativeUsageGuard.ThrowIfNativeUnavailable();
 
             IntPtr listPtr = IntPtr.Zero;
             try

@@ -40,6 +40,8 @@ namespace Rive.EditorTools
 
         private static void ShowRestartDialog(string newVersion)
         {
+            Rive.NativeUsageGuard.MarkNativeLoadFailed(Rive.NativeLoadFailureReason.RestartRequired);
+
             EditorUtility.DisplayDialog(
                 "Package Update Detected",
                 $"The Rive plugin has been updated to version {newVersion}.\n\n" +

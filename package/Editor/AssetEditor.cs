@@ -483,6 +483,8 @@ namespace Rive
 
         RenderTexture Render(Rect rect, bool isStatic = false)
         {
+            if (!NativeUsageGuard.IsNativeAvailable) return null;
+
             int width = (int)rect.width;
             int height = (int)rect.height;
 
@@ -554,6 +556,7 @@ namespace Rive
             if (Event.current.type == EventType.Repaint)
             {
                 RenderTexture rt = Render(rect);
+                if (rt == null) return;
 
                 var drawRect = FlipY()
                     ? new Rect(rect.x, rect.y + rect.height, rect.width, -rect.height)

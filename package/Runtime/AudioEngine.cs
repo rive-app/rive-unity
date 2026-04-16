@@ -30,6 +30,8 @@ namespace Rive
 
         public static AudioEngine Make(int numChannels, int sampleRate)
         {
+            NativeUsageGuard.ThrowIfNativeUnavailable();
+
             var nativeEngine = makeAudioEngine((uint)numChannels, (uint)sampleRate);
             if (nativeEngine == IntPtr.Zero)
             {

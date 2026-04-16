@@ -450,6 +450,11 @@ namespace Rive.Components
 
         protected RenderTexture RenderPreview()
         {
+            if (!NativeUsageGuard.IsNativeAvailable)
+            {
+                return null;
+            }
+
             if (m_rivePanel == null || !m_rivePanel.enabled)
             {
                 return null;
@@ -545,6 +550,12 @@ namespace Rive.Components
                 var rq = new RenderQueue(rt);
 
                 m_renderer = rq.Renderer();
+                if (m_renderer == null)
+                {
+                    rq.Dispose();
+                    RenderTexture.active = previousActive;
+                    return null;
+                }
             }
 
             if (!ReferenceEquals(m_renderer.RenderQueue.Texture, rt))

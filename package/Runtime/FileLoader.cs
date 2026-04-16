@@ -145,16 +145,29 @@ namespace Rive
 
                 return file;
             }
-            catch (Exception ex)
+            catch (DllNotFoundException)
             {
-                DebugLogger.Instance.LogException(ex);
                 fallbackAssetLoader.UnloadInternallyLoadedAssets();
+                NativeUsageGuard.MarkNativeLoadFailed(NativeLoadFailureReason.LibraryNotFound);
                 return null;
+            }
+            catch (EntryPointNotFoundException)
+            {
+                fallbackAssetLoader.UnloadInternallyLoadedAssets();
+                NativeUsageGuard.MarkNativeLoadFailed(NativeLoadFailureReason.EntryPointMissing);
+                return null;
+            }
+            catch (Exception)
+            {
+                fallbackAssetLoader.UnloadInternallyLoadedAssets();
+                throw;
             }
         }
 
         private File LoadNativeFileWithCallback(byte[] riveFileByteContents, FallbackFileAssetLoader fallbackAssetLoader)
         {
+            NativeUsageGuard.ThrowIfNativeUnavailable();
+
             NativeFileInterface.s_NativeFileAssetLoader = fallbackAssetLoader;
             IntPtr filePtr = NativeFileInterface.loadRiveFileWithUnityCallback(riveFileByteContents, (uint)riveFileByteContents.Length, NativeFileInterface.AssetLoaderCallback);
 
@@ -177,6 +190,8 @@ namespace Rive
 
         private File LoadNativeFileWithAssetMap(byte[] riveFileByteContents, byte[] assetMap, FallbackFileAssetLoader fallbackAssetLoader, int? cacheId)
         {
+            NativeUsageGuard.ThrowIfNativeUnavailable();
+
             // We call the native load function with the asset map. This will provide the native file with the necessary information to load the assets.
             IntPtr filePtr = NativeFileInterface.loadRiveFile(
                 riveFileByteContents,
