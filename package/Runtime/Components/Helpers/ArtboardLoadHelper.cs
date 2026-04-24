@@ -164,28 +164,29 @@ namespace Rive.Components.Utilities
             return vmInstance;
         }
 
-        public void Tick(float deltaTime, RiveWidget.EventPoolingMode poolingMode, float speed)
+        public void Tick(float deltaTime, RiveWidget.EventPoolingMode poolingMode, float speed, bool pollEvents = true)
         {
             if (m_stateMachine == null)
             {
                 return;
             }
 
-            m_reportedEvents.Clear();
-
-
-            m_stateMachine.ReportedEvents(m_reportedEvents);
-
-
-            for (int i = 0; i < m_reportedEvents.Count; i++)
+            if (pollEvents)
             {
-                var evt = m_reportedEvents[i];
-                OnRiveEventReported?.Invoke(evt);
+                m_reportedEvents.Clear();
 
-                // If pooling is enabled, auto-dispose the event
-                if (poolingMode == RiveWidget.EventPoolingMode.Enabled)
+                m_stateMachine.ReportedEvents(m_reportedEvents);
+
+                for (int i = 0; i < m_reportedEvents.Count; i++)
                 {
-                    evt.Dispose();
+                    var evt = m_reportedEvents[i];
+                    OnRiveEventReported?.Invoke(evt);
+
+                    // If pooling is enabled, auto-dispose the event
+                    if (poolingMode == RiveWidget.EventPoolingMode.Enabled)
+                    {
+                        evt.Dispose();
+                    }
                 }
             }
 

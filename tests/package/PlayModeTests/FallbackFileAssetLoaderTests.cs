@@ -241,6 +241,24 @@ namespace Rive.Tests
         }
 
         [Test]
+        public void NativeUnityAssetLoaderCallback_ShouldSkipScriptAssetType_WithoutError()
+        {
+            var scriptResult = fallbackLoader.NativeUnityAssetLoaderCallback(1u, (ushort)EmbeddedAssetType.Script, "test_script", 100u);
+
+            Assert.AreEqual(IntPtr.Zero, scriptResult);
+            Assert.IsNull(fallbackLoader.GetAssetReference(1));
+            Assert.IsFalse(mockLogger.LoggedErrorsContains(FallbackFileAssetLoader.LogCodes.ERROR_UNSUPPORTED_ASSET_TYPE));
+            Assert.IsFalse(mockLogger.LoggedErrors.Count > 0, "No errors should be logged for the script asset type");
+
+            var imageResult = fallbackLoader.NativeUnityAssetLoaderCallback(2u, (ushort)EmbeddedAssetType.Image, "test_image", 100u);
+
+            var imageRef = fallbackLoader.GetAssetReference(2);
+            Assert.IsNotNull(imageRef);
+            Assert.AreEqual(1u, imageRef.Index, "Image asset index should account for the preceding Script callback");
+            Assert.IsNull(fallbackLoader.GetAssetReference(1), "Script asset should still have no reference");
+        }
+
+        [Test]
         public void LoadContents_ShouldReturnFalse_ForMismatchedTypes()
         {
             var mockImageAsset = CreateOutOfBandAsset<ImageOutOfBandAsset>(new byte[100]);

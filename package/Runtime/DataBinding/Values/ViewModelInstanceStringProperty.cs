@@ -48,7 +48,7 @@ namespace Rive
             set
             {
                 ThrowIfOwnerDisposed();
-                setViewModelInstanceStringValue(InstancePropertyPtr, value);
+                setViewModelInstanceStringValue(InstancePropertyPtr, value ?? string.Empty);
             }
         }
 

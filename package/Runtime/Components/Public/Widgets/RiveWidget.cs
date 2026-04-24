@@ -560,7 +560,8 @@ namespace Rive.Components
             }
 
             ApplyLayoutRecalculationFixIfNeeded();// Do this before Controller.Tick because doing it after affects triggers on the first frame
-            Controller.Tick(deltaTime, ReportedEventPoolingMode, Speed);
+            bool hasEventListeners = OnRiveEventReported != null;
+            Controller.Tick(deltaTime, ReportedEventPoolingMode, Speed, hasEventListeners);
             return needsRedraw;
 
         }

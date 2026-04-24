@@ -4329,6 +4329,36 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator StringProperty_SetValueToNull_DoesNotCrash()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var viewModel = riveFile.GetViewModelByName("PersonViewModel");
+            var viewModelInstance = viewModel.CreateInstance();
+
+            var stringProp = viewModelInstance.GetStringProperty("name");
+            Assert.IsNotNull(stringProp, "String property 'name' should exist");
+
+            stringProp.Value = "initial value";
+            Assert.AreEqual("initial value", stringProp.Value, "String property should have the set value");
+
+            string nullValue = null;
+            Assert.DoesNotThrow(() => { stringProp.Value = nullValue; },
+                "Setting a string property to null should not crash");
+
+            Assert.AreEqual(string.Empty, stringProp.Value,
+                "String property set to null should read back as empty string");
+
+            viewModelInstance.Dispose();
+        }
+
+        [UnityTest]
         public IEnumerator DisposedViewModelInstance_NumberPropertyAccess_ThrowsObjectDisposedException()
         {
             Asset riveAsset = null;

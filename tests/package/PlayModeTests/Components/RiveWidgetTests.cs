@@ -928,6 +928,65 @@ namespace Rive.Tests
 
         }
 
+        [UnityTest]
+        public IEnumerator Events_SubscribeUnsubscribeResubscribe_TogglesEventDelivery()
+        {
+            string assetPath = TestAssetReferences.riv_events_test;
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                assetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {assetPath}")
+            );
+
+            m_widget.Load(riveAsset);
+            yield return null;
+
+            Assert.That(m_widget.Status, Is.EqualTo(Components.WidgetStatus.Loaded));
+
+            var trigger = m_widget.StateMachine.GetTrigger(ReportedEventTests.TRIGGER_SIMPLE);
+            Assert.IsNotNull(trigger);
+
+            ReportedEvent receivedEvent = null;
+            Action<ReportedEvent> handler = (evt =>
+            {
+                if (evt.Name == ReportedEventTests.EVENT_SIMPLE)
+                {
+                    receivedEvent = evt;
+                }
+            });
+
+            // Subscribe and verify events are delivered
+            m_widget.OnRiveEventReported += handler;
+
+            trigger.Fire();
+            yield return null;
+            yield return null;
+
+            Assert.That(receivedEvent, Is.Not.Null, "Event should be received while subscribed");
+            Assert.That(receivedEvent.Name, Is.EqualTo(ReportedEventTests.EVENT_SIMPLE));
+
+            // Unsubscribe and verify events are no longer delivered
+            m_widget.OnRiveEventReported -= handler;
+            receivedEvent = null;
+
+            trigger.Fire();
+            yield return null;
+            yield return null;
+
+            Assert.That(receivedEvent, Is.Null, "Event should not be received after unsubscribing");
+
+            // Resubscribe and verify events are delivered again
+            m_widget.OnRiveEventReported += handler;
+
+            trigger.Fire();
+            yield return null;
+            yield return null;
+
+            Assert.That(receivedEvent, Is.Not.Null, "Event should be received after re-subscribing");
+            Assert.That(receivedEvent.Name, Is.EqualTo(ReportedEventTests.EVENT_SIMPLE));
+        }
+
         [Test]
         public void SpeedProperty_GetSet_WorksCorrectly()
         {
