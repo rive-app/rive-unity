@@ -10,6 +10,7 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceListProperty : ViewModelInstancePrimitiveProperty
     {
+        private readonly HashSet<ViewModelInstance> m_trackedInstances = new HashSet<ViewModelInstance>();
 
         internal ViewModelInstanceListProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance)
             : base(instanceValuePtr, rootInstance)
@@ -62,6 +63,10 @@ namespace Rive
             }
 
             ViewModelInstance vmi = GetOrCreateVMInstanceFromPtr(instancePtr);
+            if (vmi != null)
+            {
+                m_trackedInstances.Add(vmi);
+            }
 
             return vmi;
 
@@ -102,6 +107,7 @@ namespace Rive
             addViewModelInstanceToList(InstancePropertyPtr, instance.NativeSafeHandle.DangerousGetHandle());
 
             instance.AddParent(this.RootInstance);
+            m_trackedInstances.Add(instance);
 
         }
 
@@ -139,6 +145,7 @@ namespace Rive
             }
 
             instance.AddParent(this.RootInstance);
+            m_trackedInstances.Add(instance);
         }
 
         /// <summary>
@@ -167,6 +174,7 @@ namespace Rive
             removeViewModelInstanceFromList(InstancePropertyPtr, instance.NativeSafeHandle.DangerousGetHandle());
 
             instance.RemoveParent(this.RootInstance);
+            m_trackedInstances.Remove(instance);
 
         }
 
@@ -198,7 +206,30 @@ namespace Rive
             }
 
             removeViewModelInstanceFromListAt(InstancePropertyPtr, index);
+            m_trackedInstances.Remove(instance);
 
+        }
+
+        /// <summary>
+        /// Removes all view model instances from the list.
+        /// </summary>
+        public void Clear()
+        {
+            ThrowIfOwnerDisposed();
+
+            if (InstancePropertyPtr == IntPtr.Zero)
+            {
+                DebugLogger.Instance.LogError("Trying to clear a null list property.");
+                return;
+            }
+
+            clearViewModelInstanceList(InstancePropertyPtr);
+
+            foreach (var instance in m_trackedInstances)
+            {
+                instance?.RemoveParent(this.RootInstance);
+            }
+            m_trackedInstances.Clear();
         }
 
         /// <summary>
@@ -290,6 +321,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         private static extern void removeViewModelInstanceFromListAt(IntPtr listProperty, int index);
+
+        [DllImport(NativeLibrary.name)]
+        private static extern void clearViewModelInstanceList(IntPtr listProperty);
 
         [DllImport(NativeLibrary.name)]
         private static extern void swapViewModelInstancesInList(IntPtr listProperty, int indexA, int indexB);

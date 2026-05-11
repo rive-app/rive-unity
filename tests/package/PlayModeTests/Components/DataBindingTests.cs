@@ -2687,6 +2687,286 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator ListProperty_Clear_RemovesAllInstances()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
+            if (viewModelInstance == null)
+            {
+                Assert.Fail("Failed to create view model instance from default artboard");
+                yield break;
+            }
+
+            m_widget.StateMachine.BindViewModelInstance(viewModelInstance);
+
+            var listProperty = viewModelInstance.GetListProperty("items");
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            Assert.AreEqual(0, listProperty.Count, "List should start empty");
+
+            var instance1 = itemViewModel.CreateInstance();
+            var instance2 = itemViewModel.CreateInstance();
+            var instance3 = itemViewModel.CreateInstance();
+
+            listProperty.Add(instance1);
+            listProperty.Add(instance2);
+            listProperty.Add(instance3);
+
+            Assert.AreEqual(3, listProperty.Count, "List should have 3 items after adding");
+
+            listProperty.Clear();
+
+            Assert.AreEqual(0, listProperty.Count, "List should be empty after Clear");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_Clear_OnEmptyList_DoesNotError()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
+            if (viewModelInstance == null)
+            {
+                Assert.Fail("Failed to create view model instance from default artboard");
+                yield break;
+            }
+
+            m_widget.StateMachine.BindViewModelInstance(viewModelInstance);
+
+            var listProperty = viewModelInstance.GetListProperty("items");
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            Assert.AreEqual(0, listProperty.Count, "List should start empty");
+
+            mockLogger.Clear();
+            listProperty.Clear();
+
+            Assert.AreEqual(0, listProperty.Count, "List should still be empty after Clear on empty list");
+            Assert.AreEqual(0, mockLogger.LoggedErrors.Count, "Clear on empty list should not log errors");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_Clear_TriggersOnChangedCallback()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
+
+            var listProperty = boundViewModelInstance.GetListProperty("items");
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            listProperty.Add(itemViewModel.CreateInstance());
+            listProperty.Add(itemViewModel.CreateInstance());
+            yield return null;
+
+            int changeCallbackCount = 0;
+            listProperty.OnChanged += () => changeCallbackCount++;
+
+            listProperty.Clear();
+            yield return null;
+
+            Assert.AreEqual(0, listProperty.Count, "List should be empty after Clear");
+            Assert.GreaterOrEqual(changeCallbackCount, 1, "OnChanged should be triggered when clearing list");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_Clear_AllowsReadingInstances()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
+            if (viewModelInstance == null)
+            {
+                Assert.Fail("Failed to create view model instance from default artboard");
+                yield break;
+            }
+
+            m_widget.StateMachine.BindViewModelInstance(viewModelInstance);
+
+            var listProperty = viewModelInstance.GetListProperty("items");
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            var instance1 = itemViewModel.CreateInstance();
+            var instance2 = itemViewModel.CreateInstance();
+
+            listProperty.Add(instance1);
+            listProperty.Add(instance2);
+            Assert.AreEqual(2, listProperty.Count, "List should have 2 items");
+
+            listProperty.Clear();
+            Assert.AreEqual(0, listProperty.Count, "List should be empty after Clear");
+
+            var instance3 = itemViewModel.CreateInstance();
+            listProperty.Add(instance3);
+            Assert.AreEqual(1, listProperty.Count, "List should have 1 item after re-adding");
+
+            var retrievedInstance = listProperty.GetInstanceAt(0);
+            Assert.IsNotNull(retrievedInstance, "Should be able to retrieve instance after clear and re-add");
+            Assert.AreSame(instance3, retrievedInstance, "Retrieved instance should be the newly added one");
+        }
+
+        [UnityTest]
+        public IEnumerator ListProperty_Clear_DetachesParentChildRelationships()
+        {
+            string testAssetPath = TestAssetReferences.riv_db_list_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
+            if (viewModelInstance == null)
+            {
+                Assert.Fail("Failed to create view model instance from default artboard");
+                yield break;
+            }
+
+            m_widget.StateMachine.BindViewModelInstance(viewModelInstance);
+
+            var listProperty = viewModelInstance.GetListProperty("items");
+            if (listProperty == null)
+            {
+                Assert.Fail("No list property found in test asset");
+                yield break;
+            }
+
+            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
+            if (itemViewModel == null)
+            {
+                Assert.Fail("No item view model found for list testing");
+                yield break;
+            }
+
+            var instance1 = itemViewModel.CreateInstance();
+            var instance2 = itemViewModel.CreateInstance();
+
+            var textProp1 = instance1.GetStringProperty("text");
+            var textProp2 = instance2.GetStringProperty("text");
+            if (textProp1 == null || textProp2 == null)
+            {
+                Assert.Fail("No text property found in list item view model");
+                yield break;
+            }
+
+            int callback1Count = 0;
+            int callback2Count = 0;
+            textProp1.OnValueChanged += (_) => callback1Count++;
+            textProp2.OnValueChanged += (_) => callback2Count++;
+
+            listProperty.Add(instance1);
+            listProperty.Add(instance2);
+            Assert.AreEqual(2, listProperty.Count, "List should have 2 items");
+
+            listProperty.Clear();
+            Assert.AreEqual(0, listProperty.Count, "List should be empty after Clear");
+
+            callback1Count = 0;
+            callback2Count = 0;
+            textProp1.Value = "After Clear 1";
+            textProp2.Value = "After Clear 2";
+            yield return null;
+
+            Assert.AreEqual(1, callback1Count,
+                "Callback should still fire for directly subscribed property after Clear");
+            Assert.AreEqual(1, callback2Count,
+                "Callback should still fire for directly subscribed property after Clear");
+        }
+
+        [UnityTest]
         public IEnumerator Orchestrator_WhenUnsubscribed_DoesNotInvokeCallback()
         {
             string testAssetPath = TestAssetReferences.riv_db_list_test;
