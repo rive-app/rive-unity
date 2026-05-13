@@ -1,15 +1,87 @@
-#if UNITY_EDITOR && UNITY_WEBGL
+#if UNITY_EDITOR
 
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
-using System.Collections.Generic;
-using System.Linq;
 
+[assembly: InternalsVisibleTo("Rive.Tests.Editor")]
 
 namespace Rive.EditorTools
 {
+    internal struct WebGLBuildConfig
+    {
+        public string EmscriptenVersion;
+        public bool UseNoSimd;
+        public string SourcePath;
+    }
 
+    internal interface IWebGLEnvironment
+    {
+        string UnityVersion { get; }
+        bool DisableWasmSimd { get; }
+        string PackageName { get; }
+        bool DirectoryExists(string path);
+    }
+
+    internal class DefaultWebGLEnvironment : IWebGLEnvironment
+    {
+        public string UnityVersion => UnityEngine.Application.unityVersion;
+        public bool DisableWasmSimd => RiveProjectSettings.instance.DisableWasmSimd;
+        public string PackageName => PackageInfo.PACKAGE_NAME;
+        public bool DirectoryExists(string path) => System.IO.Directory.Exists(path);
+    }
+
+    internal static class WebGLConfigResolver
+    {
+        public static bool IsUnity6OrNewer(string unityVersion)
+        {
+            if (string.IsNullOrEmpty(unityVersion)) return false;
+
+            int dotIndex = unityVersion.IndexOf('.');
+            string majorToken = dotIndex >= 0 ? unityVersion.Substring(0, dotIndex) : unityVersion;
+
+            if (!int.TryParse(majorToken, out int major)) return false;
+
+            return major >= 6000 || major == 2023;
+        }
+
+        public static WebGLBuildConfig Resolve(IWebGLEnvironment env)
+        {
+            bool isUnity6OrNewer = IsUnity6OrNewer(env.UnityVersion);
+
+            string emscriptenVersion = isUnity6OrNewer ? "3.1.38" : "3.1.8";
+            bool useNoSimd = isUnity6OrNewer && env.DisableWasmSimd;
+            string simdSuffix = useNoSimd ? "_nosimd" : "";
+            string sourcePath = System.IO.Path.Combine(
+                "Packages", env.PackageName,
+                "Runtime/Libraries/WebGL",
+                $"emscripten_{emscriptenVersion}{simdSuffix}");
+
+            return new WebGLBuildConfig
+            {
+                EmscriptenVersion = emscriptenVersion,
+                UseNoSimd = useNoSimd,
+                SourcePath = sourcePath
+            };
+        }
+
+        public static void Validate(WebGLBuildConfig config, IWebGLEnvironment env)
+        {
+            if (!env.DirectoryExists(config.SourcePath))
+            {
+                string extraHint = config.UseNoSimd
+                    ? " The no-SIMD library variant may not be included in this package version."
+                    : "";
+                throw new BuildFailedException(
+                    $"Rive: Could not find WebGL libraries at {config.SourcePath}.{extraHint}");
+            }
+        }
+    }
+
+#if UNITY_WEBGL
     /// Handles WebGL native plugin selection based on Unity version.
     /// Different Unity versions require different Emscripten-compiled libraries:
     /// - Unity 2022.x and earlier use Emscripten 3.1.8
@@ -25,14 +97,12 @@ namespace Rive.EditorTools
     /// This preprocessor ensures the correct library is included during WebGL builds by temporarily copying the appropriate libraries to the project's Plugin folder during the build
     internal class WebGLBuildPreprocessor : IPreprocessBuildWithReport, IPostprocessBuildWithReport
     {
-
-
-
-        private const string PACKAGE_NAME = PackageInfo.PACKAGE_NAME;
         private const string TEMP_PLUGINS_PATH = "Assets/Plugins/WebGL/Rive";
         private const string CREATED_FOLDERS_PREF = "RiveCreatedPluginFolders";
 
         public int callbackOrder => 0;
+
+        internal IWebGLEnvironment Environment { get; set; } = new DefaultWebGLEnvironment();
 
         private static BuildReport currentBuildReport;
 
@@ -84,6 +154,7 @@ namespace Rive.EditorTools
         {
             SessionState.EraseString(CREATED_FOLDERS_PREF);
         }
+
         public void OnPreprocessBuild(BuildReport report)
         {
             if (report.summary.platform != BuildTarget.WebGL)
@@ -97,18 +168,14 @@ namespace Rive.EditorTools
             // Clear any leftover prefs from previous builds that might have failed
             CleanupBuildPrefs();
 
-            bool isUnity6OrNewer = UnityEngine.Application.unityVersion.StartsWith("6000") ||
-                                  UnityEngine.Application.unityVersion.StartsWith("2023");
+            var config = WebGLConfigResolver.Resolve(Environment);
+            WebGLConfigResolver.Validate(config, Environment);
 
-            string emscriptenVersion = isUnity6OrNewer ? "3.1.38" : "3.1.8";
-            string sourcePath = System.IO.Path.Combine("Packages", PACKAGE_NAME, "Runtime/Libraries/WebGL", $"emscripten_{emscriptenVersion}");
+            CopyLibrariesToPlugins(config.SourcePath);
+        }
 
-            if (!System.IO.Directory.Exists(sourcePath))
-            {
-                throw new BuildFailedException($"Rive: Could not find WebGL libraries at {sourcePath}");
-            }
-
-            // Create and track directories we need so we can clean them up later
+        private void CopyLibrariesToPlugins(string sourcePath)
+        {
             string[] folders = { "Assets/Plugins", "Assets/Plugins/WebGL", TEMP_PLUGINS_PATH };
             foreach (string folder in folders)
             {
@@ -204,6 +271,7 @@ namespace Rive.EditorTools
             }
         }
     }
-
+#endif
 }
+
 #endif
