@@ -17,7 +17,6 @@ namespace Rive.Components
     /// </summary>
     internal sealed class Orchestrator : MonoBehaviour
     {
-        private static bool s_isDestroyed = false;
 
         private static Orchestrator s_instance;
 
@@ -27,16 +26,29 @@ namespace Rive.Components
         {
             get
             {
-
-                if (s_isDestroyed)
-                {
-                    return null;
-                }
-
+                // This check uses Unity's overloaded `==` operator, so it
+                // returns false for destroyed MonoBehaviours and we lazily create a fresh one.
+                // We don't add a boolean `s_isDestroyed` style flag here because it survives
+                // Unity-as-a-Library reloads (RuntimeInitializeOnLoadMethod doesn't fire again
+                // on subsequent runEmbedded calls) and would prevent the Instance getter from
+                // creating a fresh one.
                 if (s_instance != null)
                 {
                     return s_instance;
                 }
+
+                if (!Application.isPlaying)
+                {
+                    return null;
+                }
+
+#if UNITY_EDITOR
+
+                if (s_isApplicationQuitting)
+                {
+                    return null;
+                }
+#endif
 
                 // Ensure the render pipeline handler exists; the orchestrator will be attached there.
                 var handler = RenderPipelineHelper.GetOrCreateHandler() as MonoBehaviour;
@@ -65,10 +77,9 @@ namespace Rive.Components
         {
             m_tickedThisFrame = false;
 
-            if (s_instance == this && !s_isDestroyed)
+            if (s_instance == this)
             {
                 s_instance = null;
-                s_isDestroyed = true;
             }
         }
 
@@ -248,13 +259,25 @@ namespace Rive.Components
         }
 
 #if UNITY_EDITOR
-        // We account for Domain Reload in the editor being disabled
+       
+        private static bool s_isApplicationQuitting;
+
+         // Resets static state when entering Play Mode in the editor with Domain Reload
+         // disabled, so stale editor-only state does not survive across play sessions.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Init()
         {
             s_instance = null;
-            s_isDestroyed = false;
+            s_isApplicationQuitting = false;
             s_registeredRenderTargetStrategies.Clear();
+
+            Application.quitting -= OnApplicationQuitting;
+            Application.quitting += OnApplicationQuitting;
+        }
+
+        private static void OnApplicationQuitting()
+        {
+            s_isApplicationQuitting = true;
         }
 #endif
     }

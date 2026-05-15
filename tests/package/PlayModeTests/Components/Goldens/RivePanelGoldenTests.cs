@@ -458,6 +458,42 @@ namespace Rive.Tests
             }
         }
 
+
+        [UnityTest]
+        public IEnumerator RivePanel_RendersAfterRenderPipelineHandlerDestroyed_SimulatesUnityAsLibraryReload()
+        {
+            var scenario = new PanelScenario(
+                goldenId: "RivePanelWithMultipleWidgets",
+                panelPrefabPath: TestPrefabReferences.RivePanelWithMultipleWidgets);
+
+            // First runEmbedded to confirm the panel renders as expected.
+            var setup1 = SetupTestPanel(scenario);
+            yield return setup1;
+            var panel1 = (RivePanel)setup1.Current;
+
+            yield return WaitForPanelRenderSettled(panel1, frames: 1);
+            yield return m_goldenHelper.AssertWithRenderTexture(scenario.GoldenId, panel1.RenderTexture);
+
+            // Simulate calling unloadApplication by destroying the handler GameObject so the next session
+            // has to lazily recreate it.
+            var handlerMb = RenderPipelineHelper.CurrentHandler as MonoBehaviour;
+            Assert.IsNotNull(handlerMb, "handler should exist.");
+            DestroyObj(handlerMb.gameObject);
+            DestroyObj(panel1.gameObject);
+            yield return null;
+
+            // Simulate runEmbedded by creating a brand new panel. The panel should render the same. The
+            // white-square regression would fail this.
+            var setup2 = SetupTestPanel(scenario);
+            yield return setup2;
+            var panel2 = (RivePanel)setup2.Current;
+
+            yield return WaitForPanelRenderSettled(panel2, frames: 2);
+            yield return m_goldenHelper.AssertWithRenderTexture(scenario.GoldenId, panel2.RenderTexture);
+
+            DestroyObj(panel2.gameObject);
+        }
+
 #if UNITY_EDITOR
         [UnityTest]
         public IEnumerator Panel_WidgetLoad_WhenNativeUnavailable_ThrowsManagedException()
