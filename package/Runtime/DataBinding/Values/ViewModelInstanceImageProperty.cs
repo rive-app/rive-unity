@@ -60,6 +60,20 @@ namespace Rive
 
         }
 
+        /// <summary>
+        /// Binds a RenderTexture-backed image (e.g. video frames, custom GPU
+        /// content) to this property. Pass null to clear.
+        /// </summary>
+        public void SetFromRenderTextureImage(RenderTextureRiveImage image)
+        {
+            ThrowIfOwnerDisposed();
+            IntPtr ptr = (image != null && image.IsValid) ? image.NativePtr : IntPtr.Zero;
+            if (!setViewModelInstanceImageValue(InstancePropertyPtr, ptr))
+            {
+                DebugLogger.Instance.LogWarning("Failed to bind RenderTexture image.");
+            }
+        }
+
         internal override void RaiseChangedEvent()
         {
             m_onValueChanged?.Invoke();
