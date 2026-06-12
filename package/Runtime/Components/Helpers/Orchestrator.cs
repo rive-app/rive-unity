@@ -77,9 +77,17 @@ namespace Rive.Components
         {
             m_tickedThisFrame = false;
 
+
             if (s_instance == this)
             {
                 s_instance = null;
+
+#if RIVE_USING_EXPERIMENTAL
+            // Session teardown: dispose any RenderTexture-backed
+            // images still bound.
+            RenderTextureImageManager.Instance.Clear();
+#endif
+
             }
         }
 
@@ -217,6 +225,10 @@ namespace Rive.Components
 
         private void Update()
         {
+#if RIVE_USING_EXPERIMENTAL
+
+            RenderTextureImageManager.Instance.Tick(); // Doing this before the panels are ticked ensures the images show up on the initial frame.
+#endif
             // We advance any Rive Panels set to Auto update mode. Manual panels notify the orchestrator when they tick via NotifyManualTickOccurred.
             if (TickAutoPanels())
             {
@@ -248,7 +260,6 @@ namespace Rive.Components
 
         private void LateUpdate()
         {
-
             // Prepare batched rendering after ticking panels.
             // This is intentionally called every frame so batched render requests (e.g. from
             // registration/size/layout changes) can be handled even when no panels ticked.

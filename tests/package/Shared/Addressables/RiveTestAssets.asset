@@ -17,6 +17,11 @@ MonoBehaviour:
     m_SerializedData: []
   m_GUID: 39af85064afa84cffa518e2e037473e4
   m_SerializeEntries:
+  - m_GUID: 01f27f32a182b4c9183a2a0a2c2f9078
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RenderTextureImage_Auto_Quadrants.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 07340eceab21f4d9ba987bdeec9989f6
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_ArtboardDataBinding_Controlled_DefaultInstance.png
     m_ReadOnly: 0
@@ -117,6 +122,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4359b22d7ef874cf0acf9bf74c1247ba
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RenderTextureImage_Auto_MidGray.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 454cd36ce458a4d44820b89622ecb9d9
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/AtlasStrategy_Renders_MultiplePanels.png
     m_ReadOnly: 0
@@ -209,6 +219,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 68e7252b868904ea7bd22723b224c390
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_TopCenter.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6f6e7c627cb3e4b87b49a17bc4052392
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RenderTextureImage_None_Unprocessed_TopDown_Linear.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -499,6 +514,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: fb07821abd780430693c01fc07c65caf
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_BottomRight.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fb4b31155fbc046f2a2b85dec5fbcbdf
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RenderTextureImage_None_Unprocessed_TopDown_Gamma.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

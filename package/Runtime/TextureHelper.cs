@@ -17,6 +17,10 @@ namespace Rive
 
         const string GAMMA_TO_LINEAR_UI_SHADER_NAME = "Rive/UI/Default";
 
+        private static Material s_texturePrepareMaterial;
+
+        const string TEXTURE_PREPARE_SHADER_NAME = "Hidden/Rive/RenderTexturePrepare";
+
         /// <summary>
         /// Lazily creates and returns a material that decodes gamma content to linear
         /// Used to display Rive's RenderTexture correctly in Linear color space without relying on sRGB RenderTextures (which are unreliable on some backends).
@@ -47,6 +51,36 @@ namespace Rive
         }
 
         /// <summary>
+        /// Material that flips and/or gamma re-encodes an external Unity texture
+        /// before Rive samples it. Null if the shader's missing, so callers should
+        /// fall back to a plain copy.
+        /// </summary>
+        internal static Material TexturePrepareMaterial
+        {
+            get
+            {
+                if (s_texturePrepareMaterial == null)
+                {
+                    var shader = Shader.Find(TEXTURE_PREPARE_SHADER_NAME);
+                    if (shader != null)
+                    {
+                        s_texturePrepareMaterial = new Material(shader)
+                        {
+                            name = "Rive_RenderTexturePrepare",
+                            hideFlags = HideFlags.HideAndDontSave
+                        };
+                    }
+                    else
+                    {
+                        DebugLogger.Instance.LogError($"Shader '{TEXTURE_PREPARE_SHADER_NAME}' not found.");
+                    }
+                }
+
+                return s_texturePrepareMaterial;
+            }
+        }
+
+        /// <summary>
         /// Whether we should decode Gamma content to linear when displaying Rive RenderTextures.
         /// </summary>
         internal static bool ProjectNeedsColorSpaceFix
@@ -55,6 +89,14 @@ namespace Rive
             {
                 return QualitySettings.activeColorSpace == ColorSpace.Linear;
             }
+        }
+
+        internal static bool SupportsRenderTextureImageSource()
+        {
+            return SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal ||
+                   SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11 ||
+                   SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D12 ||
+                   SystemInfo.graphicsDeviceType == GraphicsDeviceType.Vulkan;
         }
 
         /// <summary>

@@ -44,6 +44,13 @@ namespace Rive
         /// <param name="imageAsset"> The image asset to set. </param>
         private void SetImage(ImageOutOfBandAsset imageAsset)
         {
+#if RIVE_USING_EXPERIMENTAL
+            // This prevents the image from being overridden by a previously set RenderTexture-backed image.
+            if (RenderTextureImageManager.HasAnyBindings)
+            {
+                RenderTextureImageManager.Instance.Unbind(this);
+            }
+#endif
 
             if (imageAsset != null && imageAsset.NativeAsset == IntPtr.Zero)
             {
@@ -60,19 +67,43 @@ namespace Rive
 
         }
 
+#if RIVE_USING_EXPERIMENTAL
         /// <summary>
         /// Binds a RenderTexture-backed image (e.g. video frames, custom GPU
         /// content) to this property. Pass null to clear.
         /// </summary>
-        public void SetFromRenderTextureImage(RenderTextureRiveImage image)
+        public void SetFromRenderTextureImageSource(RenderTextureImageSource image)
         {
             ThrowIfOwnerDisposed();
-            IntPtr ptr = (image != null && image.IsValid) ? image.NativePtr : IntPtr.Zero;
-            if (!setViewModelInstanceImageValue(InstancePropertyPtr, ptr))
+            if (image == null)
+            {
+                RenderTextureImageManager.Instance.Unbind(this);
+                ApplyRenderImagePointer(IntPtr.Zero);
+                return;
+            }
+            // The manager owns the image to property binding and the per-frame
+            // re-push, so this only needs to be called once.
+            if (!RenderTextureImageManager.Instance.BindPropertyToImage(image, this))
             {
                 DebugLogger.Instance.LogWarning("Failed to bind RenderTexture image.");
             }
         }
+
+        /// <summary>
+        /// Pushes a raw native RenderImage pointer into this property. Used by
+        /// <see cref="RenderTextureImageSource"/> to re-bind its per-frame pointer
+        /// without re-attaching. Returns false if the push failed (e.g. owner
+        /// disposed) so the per-frame path can stay quiet.
+        /// </summary>
+        internal bool ApplyRenderImagePointer(IntPtr nativeImagePtr)
+        {
+            if (RootInstance != null && RootInstance.IsDisposed)
+            {
+                return false;
+            }
+            return setViewModelInstanceImageValue(InstancePropertyPtr, nativeImagePtr);
+        }
+#endif // RIVE_USING_EXPERIMENTAL
 
         internal override void RaiseChangedEvent()
         {

@@ -541,7 +541,7 @@ namespace Rive.Tests
                     Assert.IsFalse(NativeUsageGuard.IsNativeAvailable);
                     Assert.Throws<InvalidOperationException>(() => widget.Load(riveAsset));
                 }
-               
+
                 Assert.IsTrue(NativeUsageGuard.IsNativeAvailable, "The native plugin should be available after the availability override scope is disposed.");
 
             }
@@ -2888,6 +2888,674 @@ namespace Rive.Tests
             DestroyObj(capture);
         }
 
+
+#if RIVE_USING_EXPERIMENTAL
+        // ----- RenderTextureImageSource golden tests -----
+        // Bind a Unity RenderTexture into the image_db_test .riv's "image" property
+        // via RenderTextureImageSource and golden the panel output, so orientation +
+        // color are verified end-to-end through the real display path.
+
+        // Asymmetric quadrants so a missing/extra flip is obvious
+        private static Texture2D MakeQuadrantTexture(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            var px = new Color32[size * size];
+            int half = size / 2;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    // Texture origin is bottom-left.
+                    bool top = y >= half;
+                    bool right = x >= half;
+                    Color32 c;
+                    if (top && !right) c = new Color32(255, 0, 0, 255);       // top-left  red
+                    else if (top && right) c = new Color32(0, 255, 0, 255);   // top-right green
+                    else if (!top && !right) c = new Color32(0, 0, 255, 255); // bottom-left blue
+                    else c = new Color32(188, 188, 188, 255);                 // bottom-right ~50% gray
+                    px[y * size + x] = c;
+                }
+            }
+            tex.SetPixels32(px);
+            tex.Apply(false, false);
+            return tex;
+        }
+
+        private static Texture2D MakeSolidTexture(int size, Color32 color)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            var px = new Color32[size * size];
+            for (int i = 0; i < px.Length; i++) px[i] = color;
+            tex.SetPixels32(px);
+            tex.Apply(false, false);
+            return tex;
+        }
+
+        // sRGB=true mirrors a normal color RT (gamma bytes, sampled back to linear);
+        // sRGB=false mirrors a UNORM target (the VideoPlayer / custom-render case,
+        // which ends up holding linear data in a Linear project).
+        private static RenderTexture CreateSourceRenderTexture(Texture2D content, bool sRGB)
+        {
+            var rt = new RenderTexture(content.width, content.height, 0,
+                RenderTextureFormat.ARGB32,
+                sRGB ? RenderTextureReadWrite.sRGB : RenderTextureReadWrite.Linear);
+            rt.Create();
+            Graphics.Blit(content, rt);
+            return rt;
+        }
+
+        // Suffix for references whose look intentionally varies by backend/color
+        // space (i.e. the un-corrected None path). Auto references don't need this.
+        private string CurrentBackendColorSuffix()
+        {
+            string orientation = SystemInfo.graphicsUVStartsAtTop ? "TopDown" : "BottomUp";
+            string colorSpace = QualitySettings.activeColorSpace == ColorSpace.Linear ? "Linear" : "Gamma";
+            return $"{orientation}_{colorSpace}";
+        }
+
+        private class RtImageSetup
+        {
+            public RivePanel Panel;
+            public RiveWidget Widget;
+            public ViewModelInstanceImageProperty ImageProp;
+            public File File;
+        }
+
+        // Spawns the single-widget panel (800x600, Contain to match the existing
+        // image-binding goldens), loads image_db_test, auto-binds, and hands back
+        // the "image" property to drive. Yields the RtImageSetup as its last value.
+        private IEnumerator SetupImageDbPanel()
+        {
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                TestPrefabReferences.RivePanelWithSingleWidget,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail("Failed to load panel prefab"));
+
+            Asset riveAsset = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                TestAssetReferences.riv_image_db_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_image_db_test}"));
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.Fit = Fit.Contain;
+
+            File file = File.Load(riveAsset);
+            widget.Load(file);
+            widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+            yield return new WaitForEndOfFrame();
+
+            var vmi = widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(vmi, "ViewModelInstance should exist");
+            var imageProp = vmi.GetProperty<ViewModelInstanceImageProperty>("image");
+            Assert.IsNotNull(imageProp, "Image property should exist");
+
+            yield return new RtImageSetup { Panel = panel, Widget = widget, ImageProp = imageProp, File = file };
+        }
+
+        // The native bind only works on Metal/D3D/Vulkan; skip (don't fail) elsewhere
+        // (e.g. OpenGL CI) so these goldens don't report false negatives.
+        private static void IgnoreIfUnsupported(RenderTextureImageSource image)
+        {
+            if (!TextureHelper.SupportsRenderTextureImageSource())
+            {
+                Assert.Ignore($"{nameof(RenderTextureImageSource)} is not supported/ready on this backend ({SystemInfo.graphicsDeviceType}); skipping golden.");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_Auto_RendersUprightAndColorCorrect()
+        {
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D content = MakeQuadrantTexture(256);
+            RenderTexture sourceRT = CreateSourceRenderTexture(content, sRGB: true);
+            RenderTextureImageSource image = null;
+            try
+            {
+                image = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.Manual);
+                s.ImageProp.SetFromRenderTextureImageSource(image);
+                yield return null;// We might have missed the current frame Tick, so yield a frame to ensure it is processed on the next frame
+
+                IgnoreIfUnsupported(image);
+
+                // Single reference: Auto should look upright + color-correct on any
+                // backend / color space.
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_Quadrants",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                image?.Dispose();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(content);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_Auto_LinearSourceMatchesSRGBSource()
+        {
+            // A UNORM source (the VideoPlayer / custom-render layout) should look
+            // identical under Auto to the sRGB source, so it's asserted against the
+            // same RenderTextureImage_Auto_Quadrants reference.
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D content = MakeQuadrantTexture(256);
+            RenderTexture sourceRT = CreateSourceRenderTexture(content, sRGB: false);
+            RenderTextureImageSource image = null;
+            try
+            {
+                image = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.Manual);
+                s.ImageProp.SetFromRenderTextureImageSource(image);
+                yield return null;
+
+                IgnoreIfUnsupported(image);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_Quadrants",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                image?.Dispose();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(content);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        // We use a flat 50% gray as the gamma-sensitive test case: a burned (double-color-corrected)
+        // result makes it much darker, which the comparison catches.
+        [UnityTest]
+        public IEnumerator RenderTextureImage_Auto_MidGray_IsNotDoubleColorCorrected()
+        {
+
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D content = MakeSolidTexture(256, new Color32(188, 188, 188, 255));
+            RenderTexture sourceRT = CreateSourceRenderTexture(content, sRGB: true);
+            RenderTextureImageSource image = null;
+            try
+            {
+                image = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.Manual);
+                s.ImageProp.SetFromRenderTextureImageSource(image);
+                yield return null;
+
+                IgnoreIfUnsupported(image);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_MidGray",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                image?.Dispose();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(content);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_None_BindsUnprocessed()
+        {
+            // None binds the source as-is, so the look intentionally varies by
+            // backend (flip) and color space (decode). The reference is therefore
+            // suffixed per config; capture one per backend/color space you ship.
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D content = MakeQuadrantTexture(256);
+            RenderTexture sourceRT = CreateSourceRenderTexture(content, sRGB: true);
+            RenderTextureImageSource image = null;
+            try
+            {
+                image = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.None,
+                    RenderTextureImageSource.RefreshMode.Manual);
+                s.ImageProp.SetFromRenderTextureImageSource(image);
+                yield return null;
+
+                IgnoreIfUnsupported(image);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    $"RenderTextureImage_None_Unprocessed_{CurrentBackendColorSuffix()}",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                image?.Dispose();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(content);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_ManualRefresh_ReflectsSourceChange()
+        {
+            // Manual mode: changing the image source and calling Refresh() should update
+            // the display, because each Refresh() returns a new native pointer which re-pushes and dirties the property.
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+
+            Texture2D quadrants = MakeQuadrantTexture(256);
+            Texture2D gray = MakeSolidTexture(256, new Color32(188, 188, 188, 255));
+            RenderTexture sourceRT = CreateSourceRenderTexture(quadrants, sRGB: true);
+            RenderTextureImageSource image = null;
+            try
+            {
+                image = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.Manual);
+                s.ImageProp.SetFromRenderTextureImageSource(image);
+                yield return null;
+
+
+                IgnoreIfUnsupported(image);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_Quadrants",
+                    s.Panel.RenderTexture);
+
+                // Change the source contents in place, then ask for a refresh.
+                Graphics.Blit(gray, sourceRT);
+                image.Refresh();
+
+                // Wait a few frames to make sure the refresh is processed.   
+                for (int i = 0; i < 3; i++) yield return null;
+
+                yield return new WaitForEndOfFrame();
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_MidGray",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                image?.Dispose();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(quadrants);
+                DestroyObj(gray);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_PerFrame_AutoReflectsSourceChange()
+        {
+            // PerFrame mode (the default): no explicit Refresh()
+            // is needed. The manager ticks the image every frame, which re-blits
+            // and re-pushes a new pointer, so an image change shows up automatically.
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D quadrants = MakeQuadrantTexture(256);
+            Texture2D gray = MakeSolidTexture(256, new Color32(188, 188, 188, 255));
+            RenderTexture sourceRT = CreateSourceRenderTexture(quadrants, sRGB: true);
+            RenderTextureImageSource image = null;
+            try
+            {
+                image = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.PerFrame);
+                s.ImageProp.SetFromRenderTextureImageSource(image);
+                yield return null;
+
+                IgnoreIfUnsupported(image);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_Quadrants",
+                    s.Panel.RenderTexture);
+
+                // No Refresh() call: just change the source and let the per-frame
+                // tick pick it up.
+                Graphics.Blit(gray, sourceRT);
+                for (int i = 0; i < 3; i++) yield return null;
+
+                yield return new WaitForEndOfFrame();
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_MidGray",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                image?.Dispose();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(quadrants);
+                DestroyObj(gray);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_Unbind_RevertsToNoImage()
+        {
+            // Clearing the render-texture binding should fall back to the .riv's
+            // no-image state, reusing the existing image-binding reference.
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D content = MakeQuadrantTexture(256);
+            RenderTexture sourceRT = CreateSourceRenderTexture(content, sRGB: true);
+            RenderTextureImageSource image = null;
+            try
+            {
+                image = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.Manual);
+                s.ImageProp.SetFromRenderTextureImageSource(image);
+                yield return new WaitForEndOfFrame();
+
+                IgnoreIfUnsupported(image);
+
+                s.ImageProp.SetFromRenderTextureImageSource(null);
+                yield return new WaitForEndOfFrame();
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_InitialState_NoImage",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                image?.Dispose();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(content);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_SourceDestroyed_ClearsAndShowsNoLeftovers()
+        {
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D content = MakeQuadrantTexture(256);
+            RenderTexture sourceRT = CreateSourceRenderTexture(content, sRGB: true);
+            RenderTextureImageSource image = null;
+            try
+            {
+                image = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.PerFrame);
+                s.ImageProp.SetFromRenderTextureImageSource(image);
+                yield return null;
+
+                IgnoreIfUnsupported(image);
+
+                // Verify the quadrant is actually showing before we destroy the source.
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_Quadrants",
+                    s.Panel.RenderTexture);
+
+                // Destroy the source, the intermediate should be released and the
+                // panel should fall back to the no-image state and not show stale content.
+                sourceRT.Release();
+                UnityEngine.Object.Destroy(sourceRT);
+                sourceRT = null;
+
+
+                for (int i = 0; i < 3; i++)
+                {
+                    yield return null;
+                }
+                yield return null;
+
+                Assert.IsFalse(image.IsValid);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_InitialState_NoImage",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                image?.Dispose();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(content);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_ReassignedSameFrame_ShowsLastSource()
+        {
+            // Bind one source then a different one before any tick runs. The first
+            // binding is dropped immediately, so only the second source should ever
+            // build and show; the first must never appear.
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D firstContent = MakeSolidTexture(256, new Color32(188, 188, 188, 255));
+            Texture2D secondContent = MakeQuadrantTexture(256);
+            RenderTexture firstRT = CreateSourceRenderTexture(firstContent, sRGB: true);
+            RenderTexture secondRT = CreateSourceRenderTexture(secondContent, sRGB: true);
+            RenderTextureImageSource firstImage = null;
+            RenderTextureImageSource secondImage = null;
+            try
+            {
+                firstImage = new RenderTextureImageSource(
+                    firstRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.Manual);
+                secondImage = new RenderTextureImageSource(
+                    secondRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.Manual);
+
+                // Both assignments happen in the same frame, before any tick.
+                s.ImageProp.SetFromRenderTextureImageSource(firstImage);
+                s.ImageProp.SetFromRenderTextureImageSource(secondImage);
+                yield return null;
+
+                IgnoreIfUnsupported(secondImage);
+
+                // The last-assigned (quadrant) source should be what's showing.
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_Quadrants",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                firstImage?.Dispose();
+                secondImage?.Dispose();
+                if (firstRT != null) { firstRT.Release(); DestroyObj(firstRT); }
+                if (secondRT != null) { secondRT.Release(); DestroyObj(secondRT); }
+                DestroyObj(firstContent);
+                DestroyObj(secondContent);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_ReassignedSameFrameToImageAsset_ShowsImageAsset()
+        {
+            // Bind a render texture then a regular image asset before any tick runs.
+            // The asset assignment should unbind the render-texture source so it
+            // cannot overwrite the asset on the next manager tick.
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D renderTextureContent = MakeQuadrantTexture(256);
+            RenderTexture sourceRT = CreateSourceRenderTexture(renderTextureContent, sRGB: true);
+            RenderTextureImageSource renderTextureImage = null;
+            ImageOutOfBandAsset imageAsset = null;
+            try
+            {
+                yield return m_testAssetLoadingManager.LoadAssetCoroutine<ImageOutOfBandAsset>(
+                    TestAssetReferences.imageasset_desert,
+                    (asset) => imageAsset = asset,
+                    () => Assert.Fail($"Failed to load asset at {TestAssetReferences.imageasset_desert}"));
+                imageAsset.Load();
+
+                renderTextureImage = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.Manual);
+
+                // Both assignments happen in the same frame, before any tick.
+                s.ImageProp.SetFromRenderTextureImageSource(renderTextureImage);
+                s.ImageProp.Value = imageAsset;
+                yield return null;
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_DesertImage",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                renderTextureImage?.Dispose();
+                imageAsset?.Unload();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(renderTextureContent);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_ReassignedToImageAssetAfterBuild_ShowsImageAsset()
+        {
+            // After a real build is in flight, reassign to a regular image asset
+            // in the same frame. The asset should win, not the stale render texture.
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D renderTextureContent = MakeQuadrantTexture(256);
+            RenderTexture sourceRT = CreateSourceRenderTexture(renderTextureContent, sRGB: true);
+            RenderTextureImageSource renderTextureImage = null;
+            ImageOutOfBandAsset imageAsset = null;
+            try
+            {
+                yield return m_testAssetLoadingManager.LoadAssetCoroutine<ImageOutOfBandAsset>(
+                    TestAssetReferences.imageasset_desert,
+                    (asset) => imageAsset = asset,
+                    () => Assert.Fail($"Failed to load asset at {TestAssetReferences.imageasset_desert}"));
+                imageAsset.Load();
+
+                renderTextureImage = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.PerFrame);
+
+                // Let the render texture build and show first.
+                s.ImageProp.SetFromRenderTextureImageSource(renderTextureImage);
+                yield return null;
+
+                IgnoreIfUnsupported(renderTextureImage);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RenderTextureImage_Auto_Quadrants",
+                    s.Panel.RenderTexture);
+
+                // Queue another build, then swap to the asset before the render thread drains.
+                RenderTextureImageManager.Instance.Tick();
+                s.ImageProp.Value = imageAsset;
+                yield return null;
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_DesertImage",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                renderTextureImage?.Dispose();
+                imageAsset?.Unload();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(renderTextureContent);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RenderTextureImage_AssignedAndClearedSameFrame_ShowsNoImage()
+        {
+            // Bind a source then clear it before any tick runs. Nothing should ever
+            // build, so the panel stays in the .riv's no-image state.
+            var setup = SetupImageDbPanel();
+            yield return setup;
+            var s = setup.Current as RtImageSetup;
+
+            Texture2D content = MakeQuadrantTexture(256);
+            RenderTexture sourceRT = CreateSourceRenderTexture(content, sRGB: true);
+            RenderTextureImageSource image = null;
+            try
+            {
+                image = new RenderTextureImageSource(
+                    sourceRT,
+                    RenderTextureImageSource.TextureProcessingMode.Auto,
+                    RenderTextureImageSource.RefreshMode.Manual);
+
+                // Assign and clear in the same frame, before any tick.
+                s.ImageProp.SetFromRenderTextureImageSource(image);
+                s.ImageProp.SetFromRenderTextureImageSource(null);
+                yield return null;
+
+                IgnoreIfUnsupported(image);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_ImageDataBinding_InitialState_NoImage",
+                    s.Panel.RenderTexture);
+            }
+            finally
+            {
+                image?.Dispose();
+                if (sourceRT != null) { sourceRT.Release(); DestroyObj(sourceRT); }
+                DestroyObj(content);
+                s?.File?.Dispose();
+                if (s?.Panel != null) DestroyObj(s.Panel.gameObject);
+            }
+        }
+#endif // RIVE_USING_EXPERIMENTAL
 
         private void DestroyObj(UnityEngine.Object obj)
         {

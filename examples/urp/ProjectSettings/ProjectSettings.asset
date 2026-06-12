@@ -828,6 +828,7 @@ PlayerSettings:
   webGLMemoryGeometricGrowthCap: 96
   webGLPowerPreference: 2
   scriptingDefineSymbols:
+    Android: RIVE_USING_EXPERIMENTAL
     WebGL: 
   additionalCompilerArguments: {}
   platformArchitecture: {}
