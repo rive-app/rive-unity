@@ -263,6 +263,9 @@ namespace Rive.Components
             }
         }
 
+        [Obsolete("This property is a temporary fallback for the old behavior and will be removed in a future version.")]
+        public static bool ShouldAdvanceAfterPointerEvent { get; set; } = true;
+
 
         private ArtboardLoadHelper Controller
         {
@@ -678,7 +681,26 @@ namespace Rive.Components
             return StateMachine.HitTest(rivePoint);
         }
 
+        /// <summary>
+        /// Advances the state machine after a pointer event occurs on the widget. This is needed to ensure that intermediate state, such as a view model property set on pointer down, is processed immediately, even when the down and up occur within the same frame.
+        /// </summary>
+        private void AdvanceAfterPointerEvent()
+        {
+#pragma warning disable 0618 // Disable obsolete warning
+            if (Controller == null || Status != WidgetStatus.Loaded || !ShouldAdvanceAfterPointerEvent)
+            {
+                return;
+            }
 
+            bool hasEventListeners = OnRiveEventReported != null;
+            Controller.Tick(0f, ReportedEventPoolingMode, Speed, hasEventListeners);
+            if (PropertyCallbackApproach == DataBindingPropertyCallbackApproach.Orchestrator)
+            {
+                Orchestrator.Instance?.FlushPropertyCallbacksForImmediateAdvance();
+            }
+            TriggerRedrawNeededEvent();
+#pragma warning restore 0618
+        }
 
 
         public override bool OnPointerDown(Vector2 normalizedPointInRect, int pointerId)
@@ -694,6 +716,10 @@ namespace Rive.Components
             }
 
             HitResult hitResult = StateMachine.PointerDown(rivePoint, pointerId);
+            if (hitResult != HitResult.None)
+            {
+                AdvanceAfterPointerEvent();
+            }
 
             return hitResult != HitResult.None;
         }
@@ -716,6 +742,10 @@ namespace Rive.Components
             }
 
             HitResult hitResult = StateMachine.PointerUp(rivePoint, pointerId);
+            if (hitResult != HitResult.None)
+            {
+                AdvanceAfterPointerEvent();
+            }
 
             return hitResult != HitResult.None;
 

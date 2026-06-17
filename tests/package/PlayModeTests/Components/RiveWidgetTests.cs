@@ -1215,6 +1215,86 @@ namespace Rive.Tests
         }
 
         /// <summary>
+        /// This test verifies that a pointer down followed by a pointer up before the next frame still exposes the intermediate down state.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator PointerDownAndUpInSameFrame_ProcessesIntermediateDownState()
+        {
+            const string ArtboardName = "Main";
+            const float TapYNormalized = 0.5f;
+
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            m_widget.Fit = Fit.Contain;
+            m_widget.Load(riveAsset, artboardName: ArtboardName, stateMachineName: null);
+            RivePanelTestUtils.MakeWidgetFillPanel(m_widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            yield return null;
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModel instance should be bound");
+
+            var targetDown = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>("Target 1/Down");
+            Assert.IsNotNull(targetDown, "Target 1/Down property should exist");
+
+            List<bool> observedValues = new List<bool>();
+            targetDown.OnValueChanged += observedValues.Add;
+
+            Vector2 tapPoint = new Vector2(0.10f, TapYNormalized);
+            Assert.IsTrue(m_widget.OnPointerDown(tapPoint, 0), "Pointer down should hit a target in the test rig");
+            Assert.IsTrue(m_widget.OnPointerUp(tapPoint, 0), "Pointer up should be handled in the test rig");
+            CollectionAssert.AreEqual(
+                new[] { true, false },
+                observedValues,
+                "Pointer down/up in the same frame should still process and report the intermediate down state.");
+        }
+
+        public IEnumerator PointerDownAndUpInSameFrame_WithOptOut_DoesNotProcessIntermediateDownState()
+        {
+            const string ArtboardName = "Main";
+            const float TapYNormalized = 0.5f;
+
+
+            RiveWidget.ShouldAdvanceAfterPointerEvent = false;
+
+            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            m_widget.Fit = Fit.Contain;
+            m_widget.Load(riveAsset, artboardName: ArtboardName, stateMachineName: null);
+            RivePanelTestUtils.MakeWidgetFillPanel(m_widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            yield return null;
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModel instance should be bound");
+
+            var targetDown = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>("Target 1/Down");
+            Assert.IsNotNull(targetDown, "Target 1/Down property should exist");
+
+            List<bool> observedValues = new List<bool>();
+            targetDown.OnValueChanged += observedValues.Add;
+
+            Vector2 tapPoint = new Vector2(0.10f, TapYNormalized);
+            Assert.IsTrue(m_widget.OnPointerDown(tapPoint, 0), "Pointer down should hit a target in the test rig");
+            Assert.IsTrue(m_widget.OnPointerUp(tapPoint, 0), "Pointer up should be handled in the test rig");
+            Assert.AreEqual(1, observedValues.Count, "Only one value should be observed");
+            Assert.AreEqual(true, observedValues[0], "The value should be true");
+        }
+
+
+        /// <summary>
         /// This test verifies that when a pointer is moved while pressing a target, the target that was pressed is reassigned to the new column. It also verifies that the other targets are not affected by moves from other pointers.
         /// </summary>
         [UnityTest]

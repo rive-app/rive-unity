@@ -240,20 +240,37 @@ namespace Rive.Components
         }
 
         /// <summary>
-        /// Captures changed properties and triggers the Unity callbacks. This only triggers/checks for properties the user has subscribed to in code.
+        /// Captures changed properties and triggers Unity callbacks after an immediate state machine advance.
         /// </summary>
+        internal void FlushPropertyCallbacksForImmediateAdvance()
+        {
+            FlushPropertyCallbacksForChangedProperties();
+        }
+
         private void TriggerCallbacksForChangedProperties()
         {
             if (RiveWidget.PropertyCallbackApproach == RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator && m_tickedThisFrame)
             {
-                if (PropertyCallbacksHub.Instance.CaptureChanges())
-                {
-                    PropertyCallbacksHub.Instance.FlushCapturedCallbacks(); // This triggers the Unity callbacks.
-                }
-
+                FlushPropertyCallbacksForChangedProperties();
             }
             m_tickedThisFrame = false;
 
+        }
+
+        /// <summary>
+        /// Captures changed properties and triggers the Unity callbacks. This only triggers/checks for properties the user has subscribed to in code.
+        /// </summary>
+        private void FlushPropertyCallbacksForChangedProperties()
+        {
+            if (RiveWidget.PropertyCallbackApproach != RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator)
+            {
+                return;
+            }
+
+            if (PropertyCallbacksHub.Instance.CaptureChanges())
+            {
+                PropertyCallbacksHub.Instance.FlushCapturedCallbacks(); // This triggers the Unity callbacks.
+            }
         }
 
 
@@ -293,4 +310,3 @@ namespace Rive.Components
 #endif
     }
 }
-
