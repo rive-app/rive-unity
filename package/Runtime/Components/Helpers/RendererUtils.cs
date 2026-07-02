@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 
 namespace Rive.Components.Utilities
@@ -6,18 +5,13 @@ namespace Rive.Components.Utilities
 
     internal class RendererUtils
     {
-        static WaitForEndOfFrame s_waitForEndOfFrame = new WaitForEndOfFrame();
-
-
         /// <summary>
         /// Creates a renderer without a backing render texture.
         /// </summary>
         /// <returns> The created renderer. </returns>
         public static Renderer CreateRenderer()
         {
-            RenderQueue renderQueue = new RenderQueue(null, true, RenderPipelineHelper.CurrentHandler as MonoBehaviour); // Use the current render pipeline handler as the coroutine helper since it already exists
-
-            return renderQueue.Renderer();
+            return CreateRenderer(null);
         }
 
         /// <summary>
@@ -27,9 +21,22 @@ namespace Rive.Components.Utilities
         /// <returns> The created renderer. </returns>
         public static Renderer CreateRenderer(RenderTexture renderTexture)
         {
-            RenderQueue renderQueue = new RenderQueue(renderTexture, true, RenderPipelineHelper.CurrentHandler as MonoBehaviour); // Use the current render pipeline handler as the coroutine helper since it already exists
+            RendererCleanupHelper cleanupHelper = RendererCleanupHelper.Instance;
 
-            return renderQueue.Renderer();
+            // The cleanup helper doubles as the coroutine host.
+            MonoBehaviour coroutineHelper = cleanupHelper != null
+                ? cleanupHelper
+                : RenderPipelineHelper.CurrentHandler as MonoBehaviour;
+
+            RenderQueue renderQueue = new RenderQueue(renderTexture, true, coroutineHelper);
+
+            Renderer renderer = renderQueue.Renderer();
+
+            // Track the renderer so it can be disposed deterministically on application/editor quit,
+            // before Unity tears down the graphics device.
+            cleanupHelper?.Register(renderer);
+
+            return renderer;
         }
 
         /// <summary>
@@ -38,36 +45,20 @@ namespace Rive.Components.Utilities
         /// <param name="renderer"> The renderer to release. </param>
         public static void ReleaseRenderer(Renderer renderer)
         {
-
             if (renderer?.RenderQueue == null) return;
 
-            // We need a monobehaviour to start a coroutine , so we use the current handler
-            // We could also create a new GameObject to start the coroutine, but for now, we know that there's a handler already for each render pipeline so we use that
-            // In the future, we should consider making a dedicated GameObject for this.
-            MonoBehaviour coroutineHelper = RenderPipelineHelper.CurrentHandler as MonoBehaviour;
+            RendererCleanupHelper cleanupHelper = RendererCleanupHelper.Instance;
 
-            if (Application.isPlaying && coroutineHelper != null)
+            if (Application.isPlaying && cleanupHelper != null)
             {
-                coroutineHelper.StartCoroutine(DeferredRelease(renderer));
+                // Deferred (end-of-frame) release while playing, or synchronous if already quitting.
+                cleanupHelper.ReleaseRenderer(renderer);
             }
             else
             {
-                // In edit mode, we can't use coroutines, so we release the renderer immediately.
-                renderer.RenderQueue.Dispose();
-            }
-
-        }
-
-
-        private static IEnumerator DeferredRelease(Renderer renderer)
-        {
-            // Wait for render thread to complete current frame to release the renderer
-            // This helps us avoid issues/crashes when disposing the native pointer before the camera is done rendering.
-
-            yield return s_waitForEndOfFrame;
-
-            if (renderer?.RenderQueue != null)
-            {
+                // In edit mode (or when no helper exists) we can't use coroutines, so we release the
+                // renderer immediately.
+                cleanupHelper?.Unregister(renderer);
                 renderer.RenderQueue.Dispose();
             }
         }

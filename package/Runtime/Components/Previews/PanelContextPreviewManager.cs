@@ -43,6 +43,9 @@ namespace Rive.Components
 
         private void OnEnable()
         {
+            EditorApplication.quitting -= OnEditorQuitting;
+            EditorApplication.quitting += OnEditorQuitting;
+
             if (Application.isPlaying)
             {
                 return;
@@ -57,12 +60,31 @@ namespace Rive.Components
 
         private void OnDisable()
         {
+            EditorApplication.quitting -= OnEditorQuitting;
+
             if (Application.isPlaying)
             {
                 return;
             }
 
+            DisposeCurrentPreview();
+        }
 
+        /// <summary>
+        /// Disposes the preview (and its underlying RenderQueue) before Unity tears down the
+        /// graphics device on editor quit. Doing this while the device is still alive avoids a
+        /// crash on D3D12, where the RenderQueue/RenderTarget teardown signals and waits on the
+        /// GPU command queue. If we relied on the shutdown-driven OnDisable instead, that GPU work
+        /// would run during Unity's CoreShutdown/DestroyWorld while the D3D12 device is being
+        /// destroyed, faulting inside D3D12Core.
+        /// </summary>
+        private void OnEditorQuitting()
+        {
+            DisposeCurrentPreview();
+        }
+
+        private void DisposeCurrentPreview()
+        {
             if (m_currentPreview != null)
             {
                 m_currentPreview.Dispose();
