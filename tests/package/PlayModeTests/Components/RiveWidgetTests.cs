@@ -1378,7 +1378,7 @@ namespace Rive.Tests
 
             private void OnEnable()
             {
-                m_widget = FindFirstObjectByType<RiveWidget>();
+                m_widget = ObjectHelper.FindAny<RiveWidget>();
 
                 if (m_widget != null)
                 {

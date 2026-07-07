@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Rive.Components;
+using Rive.Utils;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
@@ -203,13 +204,7 @@ namespace Rive.EditorTools
 
         private static UnityEngine.EventSystems.EventSystem GetExistingEventSystem()
         {
-
-#if UNITY_6000_0_OR_NEWER
-            return Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
-#else
-            return Object.FindObjectOfType<UnityEngine.EventSystems.EventSystem>();
-#endif
-
+            return ObjectHelper.FindAny<UnityEngine.EventSystems.EventSystem>();
         }
 
         private static void EnsureEventSystemExists()

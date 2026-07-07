@@ -157,7 +157,7 @@ namespace Rive.Tests
             yield return null;
 
 
-            Camera camera = UnityEngine.Object.FindObjectOfType<Camera>();
+            Camera camera = ObjectHelper.FindAny<Camera>();
 
             // Verify no camera yet
             Assert.IsNull(camera);
@@ -218,7 +218,7 @@ namespace Rive.Tests
             yield return null;
 
             // Verify no camera yet
-            Assert.IsNull(UnityEngine.Object.FindObjectOfType<Camera>());
+            Assert.IsNull(ObjectHelper.FindAny<Camera>());
 
             // Create new camera in new scene
             var newCameraObject = new GameObject("NewCamera");

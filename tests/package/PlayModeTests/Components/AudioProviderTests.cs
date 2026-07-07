@@ -74,7 +74,7 @@ namespace Rive.Tests
 
             Assert.IsNotNull(riveAsset, "Expected a valid Rive Asset");
 
-            Assert.IsNull(Object.FindObjectOfType<AudioProvider>(), "AudioProvider should not exist before loading");
+            Assert.IsNull(ObjectHelper.FindAny<AudioProvider>(), "AudioProvider should not exist before loading");
 
             m_widget.Load(riveAsset);
 
@@ -84,7 +84,7 @@ namespace Rive.Tests
 
             yield return null;
 
-            Assert.IsNull(Object.FindObjectOfType<AudioProvider>(), "AudioProvider should not be created for artboards without audio");
+            Assert.IsNull(ObjectHelper.FindAny<AudioProvider>(), "AudioProvider should not be created for artboards without audio");
         }
 
         [UnityTest]
@@ -99,7 +99,7 @@ namespace Rive.Tests
 
             Assert.IsNotNull(riveAsset, "Expected a valid Rive Asset");
 
-            Assert.IsNull(Object.FindObjectOfType<AudioProvider>(), "AudioProvider should not exist before loading");
+            Assert.IsNull(ObjectHelper.FindAny<AudioProvider>(), "AudioProvider should not exist before loading");
 
             m_widget.Load(riveAsset);
 
@@ -109,7 +109,7 @@ namespace Rive.Tests
 
             yield return null;
 
-            AudioProvider audioProvider = Object.FindObjectOfType<AudioProvider>();
+            AudioProvider audioProvider = ObjectHelper.FindAny<AudioProvider>();
 
             Assert.IsNotNull(audioProvider, "AudioProvider should be created for artboards with audio");
 
@@ -130,7 +130,7 @@ namespace Rive.Tests
             yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
             Assert.IsFalse(m_widget.Artboard.HasAudio, "Artboard should not have audio");
             yield return null;
-            Assert.IsNull(Object.FindObjectOfType<AudioProvider>(), "AudioProvider should not exist after loading no-audio file");
+            Assert.IsNull(ObjectHelper.FindAny<AudioProvider>(), "AudioProvider should not exist after loading no-audio file");
 
             // Then, load a file with audio
             Asset audioAsset = null;
@@ -145,7 +145,7 @@ namespace Rive.Tests
             Assert.IsTrue(m_widget.Artboard.HasAudio, "Artboard should have audio");
             yield return null;
 
-            Assert.IsNotNull(Object.FindObjectOfType<AudioProvider>(), "AudioProvider should be created after switching to an audio-enabled file");
+            Assert.IsNotNull(ObjectHelper.FindAny<AudioProvider>(), "AudioProvider should be created after switching to an audio-enabled file");
         }
 
         [UnityTest]
@@ -288,7 +288,7 @@ namespace Rive.Tests
             Assert.IsTrue(m_widget.Artboard.HasAudio, "Artboard should have audio");
             yield return null;
 
-            Assert.IsNull(Object.FindObjectOfType<AudioProvider>(), "AudioProvider should not be created on WebGL");
+            Assert.IsNull(ObjectHelper.FindAny<AudioProvider>(), "AudioProvider should not be created on WebGL");
         }
 #endif
     }

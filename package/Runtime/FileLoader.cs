@@ -17,7 +17,7 @@ namespace Rive
             public const string ERROR_RIVE_FILE_LOAD_FAILED = "RIVE_FILE_LOAD_FAILED";
 
         }
-        private readonly ConcurrentDictionary<int, (WeakReference<File> FileRef, int RefCount)> m_activeFiles = new();
+        private readonly ConcurrentDictionary<long, (WeakReference<File> FileRef, int RefCount)> m_activeFiles = new();
 
 
 
@@ -37,7 +37,7 @@ namespace Rive
         /// <returns></returns>
         internal File LoadWithKnownAssets(
         byte[] riveFileByteContents,
-        int? cacheId,
+        long? cacheId,
         IEnumerable<EmbeddedAssetData> embeddedAssets)
         {
             if (!ValidateInput(riveFileByteContents))
@@ -118,7 +118,7 @@ namespace Rive
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
-        private File GetFileFromCache(int id)
+        private File GetFileFromCache(long id)
         {
             if (m_activeFiles.TryGetValue(id, out var fileInfo) && fileInfo.FileRef.TryGetTarget(out File activeFile))
             {
@@ -188,7 +188,7 @@ namespace Rive
             return file;
         }
 
-        private File LoadNativeFileWithAssetMap(byte[] riveFileByteContents, byte[] assetMap, FallbackFileAssetLoader fallbackAssetLoader, int? cacheId)
+        private File LoadNativeFileWithAssetMap(byte[] riveFileByteContents, byte[] assetMap, FallbackFileAssetLoader fallbackAssetLoader, long? cacheId)
         {
             NativeUsageGuard.ThrowIfNativeUnavailable();
 
@@ -221,7 +221,7 @@ namespace Rive
         /// Increment the reference count for a file.
         /// </summary>
         /// <param name="assetKey"></param>
-        internal void IncrementRefCount(int assetKey)
+        internal void IncrementRefCount(long assetKey)
         {
             if (m_activeFiles.TryGetValue(assetKey, out var fileInfo))
             {
@@ -234,7 +234,7 @@ namespace Rive
         /// </summary>
         /// <param name="assetKey"></param>
         /// <returns> Returns true if the file is still being referenced after decrementing. Otherwise, returns false.</returns>
-        internal bool DecrementRefCount(int assetKey)
+        internal bool DecrementRefCount(long assetKey)
         {
             if (m_activeFiles.TryGetValue(assetKey, out var fileInfo))
             {

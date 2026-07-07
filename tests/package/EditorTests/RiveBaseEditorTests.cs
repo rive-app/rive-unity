@@ -3,6 +3,7 @@ using UnityEditor;
 using NUnit.Framework;
 using UnityEngine.UIElements;
 using Rive.EditorTools;
+using Rive.Utils;
 using UnityEngine.SceneManagement;
 using UnityEditor.SceneManagement;
 using UnityEditor.UIElements;
@@ -175,14 +176,14 @@ namespace Rive.Tests.EditorTests
             }
 
             // Clean up any other objects that might have been created
-            var components = UnityEngine.Object.FindObjectsOfType<TestComponent>();
+            var components = ObjectHelper.FindAll<TestComponent>();
             foreach (var component in components)
             {
                 UnityEngine.Object.DestroyImmediate(component.gameObject);
             }
         }
 
-        private static VisualElement GetFieldElement(VisualElement root, string fieldName, int instanceId)
+        private static VisualElement GetFieldElement(VisualElement root, string fieldName, long instanceId)
         {
             var field = root.Q<PropertyField>($"field-{instanceId}-{nameof(TestComponent)}-{fieldName}");
             return field;
@@ -196,7 +197,7 @@ namespace Rive.Tests.EditorTests
             Assert.IsNotNull(root);
 
             // Test that basic field exists using instance ID
-            var instanceId = m_testComponent.GetInstanceID();
+            var instanceId = ObjectHelper.GetInstanceId(m_testComponent);
             var basicField = GetFieldElement(root, m_testComponent.BindingPath_TestFieldWithoutInspectorFieldAttribute, instanceId);
 
             Assert.IsNotNull(basicField);
@@ -216,7 +217,7 @@ namespace Rive.Tests.EditorTests
 
             var root = m_editor.CreateInspectorGUI();
 
-            var instanceId = m_testComponent.GetInstanceID();
+            var instanceId = ObjectHelper.GetInstanceId(m_testComponent);
             var hiddenFieldWithHideIf = GetFieldElement(root, m_testComponent.BindingPath_HiddenFieldWithHideIf, instanceId);
             Assert.IsNotNull(hiddenFieldWithHideIf);
 
@@ -249,7 +250,7 @@ namespace Rive.Tests.EditorTests
         {
             var root = m_editor.CreateInspectorGUI();
 
-            var instanceId = m_testComponent.GetInstanceID();
+            var instanceId = ObjectHelper.GetInstanceId(m_testComponent);
             var field = GetFieldElement(root, m_testComponent.BindingPath_TestFieldWithoutInspectorFieldAttribute, instanceId);
 
             IBindable fieldBindable = field as IBindable;

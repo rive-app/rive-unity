@@ -204,7 +204,7 @@ namespace Rive.Tests
 
             yield return null;
             // Find an event system in the scene 
-            var eventSystem = UnityEngine.Object.FindObjectOfType<EventSystem>();
+            var eventSystem = ObjectHelper.FindAny<EventSystem>();
 
             Assert.IsNull(eventSystem, "EventSystem should not be present in the scene");
             Assert.IsNull(EventSystem.current, "EventSystem.current should be null");

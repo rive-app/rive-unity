@@ -3,6 +3,7 @@ using UnityEditor;
 using NUnit.Framework;
 using Rive.Components;
 using Rive.EditorTools;
+using Rive.Utils;
 using UnityEngine.EventSystems;
 using Rive.Tests.Utils;
 using UnityEngine.SceneManagement;
@@ -72,13 +73,13 @@ namespace Rive.Tests.EditorTests
             }
 
             // Clean up any EventSystem that might have been created for input handling
-            var eventSystem = Object.FindObjectOfType<EventSystem>();
+            var eventSystem = ObjectHelper.FindAny<EventSystem>();
             if (eventSystem != null)
             {
                 Object.DestroyImmediate(eventSystem.gameObject);
             }
 
-            var panels = Object.FindObjectsOfType<RivePanel>();
+            var panels = ObjectHelper.FindAll<RivePanel>();
             foreach (var panel in panels)
             {
                 Object.DestroyImmediate(panel.gameObject);
@@ -169,7 +170,7 @@ namespace Rive.Tests.EditorTests
             MenuItems.HandleAssetDrop(m_testRiveAsset, existingPanel.transform);
 
             // Should have created a new widget instead of a new panel
-            Assert.AreEqual(1, Object.FindObjectsOfType<RivePanel>().Length);
+            Assert.AreEqual(1, ObjectHelper.FindAll<RivePanel>().Length);
             Assert.AreEqual(2, existingPanel.GetComponentsInChildren<RiveWidget>().Length);
 
             // Should have set the asset on the new widget
@@ -193,7 +194,7 @@ namespace Rive.Tests.EditorTests
             Assert.IsTrue(ReferenceEquals(textureRenderer.Renderer.gameObject, m_testParent));
 
 
-            var panel = Object.FindObjectOfType<RivePanel>();
+            var panel = ObjectHelper.FindAny<RivePanel>();
             Assert.IsNotNull(panel);
             Assert.AreEqual(panel, textureRenderer.RivePanel);
 
@@ -222,7 +223,7 @@ namespace Rive.Tests.EditorTests
         {
             MenuItems.HandleAssetDrop(m_testRiveAsset, null);
 
-            var panel = Object.FindObjectOfType<RivePanel>();
+            var panel = ObjectHelper.FindAny<RivePanel>();
             Assert.IsNotNull(panel);
 
             var canvas = panel.GetComponentInParent<Canvas>();
@@ -230,7 +231,7 @@ namespace Rive.Tests.EditorTests
 
 
             // We want input to work immediately, so we create an EventSystem if one doesn't exist
-            var eventSystem = Object.FindObjectOfType<EventSystem>();
+            var eventSystem = ObjectHelper.FindAny<EventSystem>();
             Assert.IsNotNull(eventSystem);
 
             // The widget should have been created with the asset set.

@@ -2631,7 +2631,7 @@ namespace Rive.Tests
 
             // Check if there's already a directional light in the scene and use that otherwise, create a new one.
             // If we don't do this, the scene might be blown out because there are multiple lights
-            var existingLight = UnityEngine.Object.FindObjectOfType<Light>();
+            var existingLight = ObjectHelper.FindAny<Light>();
             if (existingLight == null || existingLight.type != LightType.Directional)
             {
                 var lightGO = new GameObject("Directional Light");

@@ -28,7 +28,7 @@ namespace Rive
         }
 
         private IntPtr m_nativeFile;
-        private readonly int? m_assetKey;
+        private readonly long? m_assetKey;
         private bool m_isDisposed = false;
 
         private ViewModel[] m_viewModels;
@@ -76,7 +76,7 @@ namespace Rive
             get { return m_fallbackFileAssetLoader; }
         }
 
-        internal int? AssetKey
+        internal long? AssetKey
         {
             get { return m_assetKey; }
         }
@@ -219,7 +219,7 @@ namespace Rive
         static public File Load(TextAsset asset)
         {
             // With text assets, we don't have the embedded asset data ahead of time, but we still want them to be cached if the same asset is loaded multiple times.
-            return s_fileLoader.LoadWithKnownAssets(asset.bytes, asset.GetInstanceID(), null);
+            return s_fileLoader.LoadWithKnownAssets(asset.bytes, ObjectHelper.GetInstanceId(asset), null);
         }
 
         /// <summary>
@@ -232,7 +232,7 @@ namespace Rive
         /// </remarks>
         static public File Load(Asset asset)
         {
-            return s_fileLoader.LoadWithKnownAssets(asset.Bytes, asset.GetInstanceID(), asset.EmbeddedAssets);
+            return s_fileLoader.LoadWithKnownAssets(asset.Bytes, ObjectHelper.GetInstanceId(asset), asset.EmbeddedAssets);
         }
 
         /// <summary>
@@ -297,7 +297,7 @@ namespace Rive
 
 
 
-        internal File(IntPtr nativeFile, int? assetKey, IFallbackFileAssetLoader fallbackFileAssetLoader)
+        internal File(IntPtr nativeFile, long? assetKey, IFallbackFileAssetLoader fallbackFileAssetLoader)
         {
             m_nativeFile = nativeFile;
             m_assetKey = assetKey;

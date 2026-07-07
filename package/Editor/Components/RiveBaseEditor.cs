@@ -259,7 +259,7 @@ namespace Rive.EditorTools
             var property = serializedObject.FindProperty(field.Name);
 
             VisualElement element = GetVisualElementForField(field, property, displayName);
-            string uniqueId = $"field-{target.GetInstanceID()}-{target.GetType().Name}-{field.Name}";
+            string uniqueId = $"field-{ObjectHelper.GetInstanceId(target)}-{target.GetType().Name}-{field.Name}";
             element.name = uniqueId;
 
             HandleValueChangedIfNeeded(field, element);
