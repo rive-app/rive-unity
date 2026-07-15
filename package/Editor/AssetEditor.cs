@@ -15,6 +15,9 @@ namespace Rive
         File m_file;
         private Artboard m_artboard;
         private StateMachine m_stateMachine;
+        private Renderer m_renderer;
+        private RenderTexture m_previewRenderTexture;
+        private CommandBuffer m_commandBuffer;
         private double m_lastTime = 0.0;
         public override bool HasPreviewGUI() => true;
 
@@ -475,7 +478,11 @@ namespace Rive
                 {
                     RenderTexture.ReleaseTemporary(temp);
                 }
-                RenderTexture.ReleaseTemporary(rt);
+                // FlipY path returns a temporary copy; the persistent preview RT must not be released.
+                if (rt != m_previewRenderTexture)
+                {
+                    RenderTexture.ReleaseTemporary(rt);
+                }
                 return tex;
             }
             return null;
@@ -485,13 +492,20 @@ namespace Rive
         {
             if (!NativeUsageGuard.IsNativeAvailable) return null;
 
-            int width = (int)rect.width;
-            int height = (int)rect.height;
+            int width = Mathf.Max(1, (int)rect.width);
+            int height = Mathf.Max(1, (int)rect.height);
 
-            var descriptor = Rive.TextureHelper.Descriptor(width, height);
-            RenderTexture rt = RenderTexture.GetTemporary(descriptor);
+            RenderTexture rt = EnsurePreviewRenderTexture(width, height);
 
-            var cmb = new CommandBuffer();
+            if (m_commandBuffer == null)
+            {
+                m_commandBuffer = new CommandBuffer { name = "Rive_AssetEditor_Preview" };
+            }
+            else
+            {
+                m_commandBuffer.Clear();
+            }
+            var cmb = m_commandBuffer;
 
             cmb.SetRenderTarget(rt);
 
@@ -505,19 +519,43 @@ namespace Rive
 
             if (m_artboard != null)
             {
-                var rq = new RenderQueue(
-                    UnityEngine.SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal
-                        ? null
-                        : rt
-                );
-                var renderer = rq.Renderer();
-                renderer.Align(Fit.Contain, Alignment.Center, m_artboard);
-                renderer.Draw(m_artboard);
-                renderer.AddToCommandBuffer(cmb);
+                // OpenGL in the editor invalidates state across frames if we reuse a renderer.
+                if (m_renderer != null && TextureHelper.IsOpenGLPlatform())
+                {
+                    m_renderer.RenderQueue.Dispose();
+                    m_renderer = null;
+                }
+                else if (m_renderer != null)
+                {
+                    m_renderer.Clear();
+                }
+
+                if (m_renderer == null)
+                {
+                    var rq = new RenderQueue(
+                        SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal ? null : rt
+                    );
+                    m_renderer = rq.Renderer();
+                    if (m_renderer == null)
+                    {
+                        rq.Dispose();
+                        return null;
+                    }
+                }
+                else if (
+                    SystemInfo.graphicsDeviceType != GraphicsDeviceType.Metal
+                    && !ReferenceEquals(m_renderer.RenderQueue.Texture, rt)
+                )
+                {
+                    m_renderer.RenderQueue.UpdateTexture(rt);
+                }
+
+                m_renderer.Align(Fit.Contain, Alignment.Center, m_artboard);
+                m_renderer.Draw(m_artboard);
+                m_renderer.AddToCommandBuffer(cmb);
                 if (!isStatic)
                 {
                     var now = EditorApplication.timeSinceStartup;
-                    double time = now - m_lastTime;
                     m_stateMachine?.Advance((float)(now - m_lastTime));
                     m_lastTime = now;
                 }
@@ -543,11 +581,10 @@ namespace Rive
                 temp.Create();
 
                 Graphics.Blit(rt, temp, new Vector2(1, -1), new Vector2(0, 1));
-                RenderTexture.ReleaseTemporary(rt);
+                // Keep the persistent preview RT; caller releases the flip temporary.
                 rt = temp;
             }
 
-            // Caller releases the temporary RT
             return rt;
         }
 
@@ -569,8 +606,47 @@ namespace Rive
                 // TODO: Remove this once we have a proper way to display the texture in Linear color space.
                 var mat = (Rive.TextureHelper.ProjectNeedsColorSpaceFix ? GetEncodePreviewMaterial() : null);
                 UnityEditor.EditorGUI.DrawPreviewTexture(drawRect, rt, mat);
-                RenderTexture.ReleaseTemporary(rt);
             }
+        }
+
+        private RenderTexture EnsurePreviewRenderTexture(int width, int height)
+        {
+            if (
+                m_previewRenderTexture != null
+                && m_previewRenderTexture.width == width
+                && m_previewRenderTexture.height == height
+            )
+            {
+                return m_previewRenderTexture;
+            }
+
+            CleanupPreviewRenderTexture();
+
+            var descriptor = TextureHelper.Descriptor(width, height);
+            m_previewRenderTexture = new RenderTexture(descriptor)
+            {
+                name = "Rive_AssetEditor_Preview",
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            m_previewRenderTexture.Create();
+            return m_previewRenderTexture;
+        }
+
+        private void CleanupPreviewRenderTexture()
+        {
+            if (m_previewRenderTexture == null)
+            {
+                return;
+            }
+
+            if (RenderTexture.active == m_previewRenderTexture)
+            {
+                RenderTexture.active = null;
+            }
+
+            m_previewRenderTexture.Release();
+            DestroyImmediate(m_previewRenderTexture);
+            m_previewRenderTexture = null;
         }
 
         private static Material s_encodePreviewMaterial;
@@ -589,6 +665,17 @@ namespace Rive
 
         private void UnloadPreview()
         {
+            if (m_renderer != null)
+            {
+                m_renderer.RenderQueue.Dispose();
+                m_renderer = null;
+            }
+            if (m_commandBuffer != null)
+            {
+                m_commandBuffer.Dispose();
+                m_commandBuffer = null;
+            }
+            CleanupPreviewRenderTexture();
             m_stateMachine = null;
             m_artboard = null;
             if (m_file != null)
@@ -598,9 +685,24 @@ namespace Rive
             }
         }
 
+        private void OnEnable()
+        {
+            EditorApplication.quitting -= OnEditorQuitting;
+            EditorApplication.quitting += OnEditorQuitting;
+        }
+
         public void OnDisable()
         {
-            var riveAsset = (Rive.Asset)target;
+            EditorApplication.quitting -= OnEditorQuitting;
+            UnloadPreview();
+        }
+
+        /// <summary>
+        /// Disposes the preview renderer (and its RenderQueue) before Unity tears down the graphics
+        /// device on editor quit.
+        /// </summary>
+        private void OnEditorQuitting()
+        {
             UnloadPreview();
         }
 
