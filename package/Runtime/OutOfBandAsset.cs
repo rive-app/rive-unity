@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
 using System.Collections.Generic;
+using Rive.Utils;
 
 namespace Rive
 {
@@ -95,9 +96,20 @@ namespace Rive
         /// </summary>
         public void Load()
         {
-            if (m_refCount == 0)
+            if (m_nativeAsset == IntPtr.Zero)
             {
+                if (bytes == null || bytes.Length == 0)
+                {
+                    DebugLogger.Instance.LogError("Cannot load out-of-band asset: no serialized bytes are present.");
+                    return;
+                }
+
                 m_nativeAsset = LoadNative(bytes);
+
+                if (m_refCount < 0)
+                {
+                    m_refCount = 0;
+                }
             }
             m_refCount++;
         }
@@ -107,8 +119,14 @@ namespace Rive
         /// </summary>
         public void Unload()
         {
+            if (m_refCount <= 0)
+            {
+                m_refCount = 0;
+                return;
+            }
+
             m_refCount--;
-            if (m_refCount == 0)
+            if (m_refCount == 0 && m_nativeAsset != IntPtr.Zero)
             {
                 IntPtr nativeAsset = m_nativeAsset;
                 m_nativeAsset = IntPtr.Zero;

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
+using Rive.Tests.Utils;
+using Rive.Utils;
 
 namespace Rive.Tests
 {
@@ -10,6 +12,21 @@ namespace Rive.Tests
     /// </summary>
     public class OutOfBandAssetTests
     {
+        private MockLogger mockLogger;
+
+        [SetUp]
+        public void Setup()
+        {
+            mockLogger = new MockLogger();
+            DebugLogger.Instance = mockLogger;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            DebugLogger.Instance = null;
+        }
+
         [Test]
         public void Create_WithValidBytes_ReturnsInstance()
         {
@@ -58,6 +75,41 @@ namespace Rive.Tests
             Assert.DoesNotThrow(() => imageAsset.Unload());
         }
 
+        /// <summary>
+        /// Regression test for "1002 - The provided asset is not loaded in memory".
+        /// Ensures Load() always recreates the native asset, even after an extra Unload() call.
+        /// </summary>
+        [Test]
+        public void Load_AfterTooManyUnload_ReinitializesNativeAsset()
+        {
+            var validNativePointer = new IntPtr(12345);
+            var asset = OutOfBandAsset.Create<TestOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
+            asset.TestNativeAsset = validNativePointer;
+
+            asset.Load();   // refCount 0 -> 1, native created
+            asset.Unload(); // refCount 1 -> 0, native freed (set to Zero)
+            asset.Unload(); // extra Unload is clamped, refCount stays 0, native still Zero
+
+            asset.Load();   // native is null, so it's recreated regardless of ref count
+
+            Assert.AreNotEqual(IntPtr.Zero, asset.NativeAsset,
+                "After Load(), the native asset must be valid so SetFont/SetImage does not fail with error 1002.");
+            Assert.AreEqual(1, asset.RefCount());
+        }
+
+        [Test]
+        public void Load_WithNoBytes_LogsErrorAndDoesNotLoad()
+        {
+            var asset = ScriptableObject.CreateInstance<TestOutOfBandAsset>();
+            asset.TestNativeAsset = new IntPtr(12345);
+
+            asset.Load();
+
+            Assert.AreEqual(IntPtr.Zero, asset.NativeAsset);
+            Assert.AreEqual(0, asset.RefCount());
+            Assert.IsTrue(mockLogger.LoggedErrorsContains("no serialized bytes"));
+        }
+
         private class TestOutOfBandAsset : OutOfBandAsset
         {
             public IntPtr TestNativeAsset { get; set; }
@@ -71,7 +123,7 @@ namespace Rive.Tests
         [Test]
         public void LoadIntoByteAssetMap_WithValidNativeAsset_AddsCorrectBytesToMap()
         {
-            var asset = ScriptableObject.CreateInstance<TestOutOfBandAsset>();
+            var asset = OutOfBandAsset.Create<TestOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
             asset.TestNativeAsset = new IntPtr(12345);
             asset.Load(); // This will set the NativeAsset
 
@@ -117,7 +169,7 @@ namespace Rive.Tests
         [Test]
         public void LoadIntoByteAssetMap_WithUnloadedNativeAsset_DoesNotAddToMap()
         {
-            var asset = ScriptableObject.CreateInstance<TestOutOfBandAsset>();
+            var asset = OutOfBandAsset.Create<TestOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
             asset.TestNativeAsset = IntPtr.Zero;
             asset.Load();
 
@@ -134,7 +186,7 @@ namespace Rive.Tests
         [Test]
         public void LoadIntoByteAssetMap_WithDifferentAssetTypes_AddsCorrectType()
         {
-            var asset = ScriptableObject.CreateInstance<TestOutOfBandAsset>();
+            var asset = OutOfBandAsset.Create<TestOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
             asset.TestNativeAsset = new IntPtr(12345);
             asset.Load();
 
