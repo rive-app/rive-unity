@@ -6,6 +6,14 @@ using System.Diagnostics;
 
 namespace Rive
 {
+    internal static class ProceduralApi
+    {
+        internal const string ObsoleteMessage =
+            "The low-level procedural drawing API is deprecated and will be removed in a future release. " +
+            "Use the RiveWidget/RivePanel component API instead, along with scripting in the Rive Editor for low-level drawing.";
+    }
+
+    [Obsolete(ProceduralApi.ObsoleteMessage)]
     public abstract class Gradient
     {
         private Vector2 m_start;
@@ -41,6 +49,7 @@ namespace Rive
     ///
     /// Provide a list of colors and stops to define the gradient.
     /// </summary>
+    [Obsolete(ProceduralApi.ObsoleteMessage)]
     public class RadialGradient : Gradient
     {
         private readonly float m_radius;
@@ -63,6 +72,7 @@ namespace Rive
     ///
     /// Provide a list of colors and stops to define the gradient.
     /// </summary>
+    [Obsolete(ProceduralApi.ObsoleteMessage)]
     public class LinearGradient : Gradient
     {
         private Vector2 m_end;
@@ -91,6 +101,7 @@ namespace Rive
     ///
     /// Paths are built by calling moveTo, lineTo, quadTo, cubicTo, close, etc.
     /// </summary>
+    [Obsolete(ProceduralApi.ObsoleteMessage)]
     public class Path
     {
         IntPtr m_nativePath = IntPtr.Zero;
@@ -361,6 +372,7 @@ namespace Rive
     /// When painting the algorithm is used to blend the source
     /// pixels with the destination pixels.
     /// </summary>
+    [Obsolete(ProceduralApi.ObsoleteMessage)]
     public enum BlendMode : byte
     {
         SrcOver = 3,
@@ -387,6 +399,7 @@ namespace Rive
     /// When painting the style is used to determine if the
     /// shape is filled or stroked.
     /// </summary>
+    [Obsolete(ProceduralApi.ObsoleteMessage)]
     public enum PaintingStyle : byte
     {
         /// <summary>
@@ -406,6 +419,7 @@ namespace Rive
     /// When stroking a path the cap is used to determine how the
     /// end points of the path are drawn.
     /// </summary>
+    [Obsolete(ProceduralApi.ObsoleteMessage)]
     public enum StrokeCap : byte
     {
         /// <summary>
@@ -429,6 +443,7 @@ namespace Rive
     ///
     /// The kind of finish to place on the joins between segments.
     /// </summary>
+    [Obsolete(ProceduralApi.ObsoleteMessage)]
     public enum StrokeJoin : byte
     {
         /// <summary>
@@ -470,6 +485,7 @@ namespace Rive
     ///
     /// The paint describes the color, gradient, style, thickness, etc.
     /// </summary>
+    [Obsolete(ProceduralApi.ObsoleteMessage)]
     public class Paint
     {
         readonly IntPtr m_nativePaint;

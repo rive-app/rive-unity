@@ -19,6 +19,7 @@ namespace Rive
         /// <param name="artboard">The artboard to draw</param>
         void Draw(Artboard artboard);
 
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
         /// <summary>
         /// Draw the given path and paint to the render queue
         /// </summary>
@@ -31,6 +32,7 @@ namespace Rive
         /// </summary>
         /// <param name="path">The path to use as a clip mask</param>
         void Clip(Path path);
+#pragma warning restore CS0618
 
         /// <summary>
         /// Save the current render queue state

@@ -8,6 +8,7 @@ using Rive.Utils;
 
 namespace Rive.Tests
 {
+#pragma warning disable CS0618 // ProceduralRiveWidget is deprecated
     public class ProceduralRiveWidgetTests
     {
         private GameObject m_widgetObject;
@@ -135,6 +136,7 @@ namespace Rive.Tests
         }
 
     }
+#pragma warning restore CS0618
 
     public class MockProceduralDrawing : ProceduralDrawing
     {

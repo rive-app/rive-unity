@@ -2,6 +2,7 @@ using Rive.Components;
 using UnityEngine;
 namespace Rive.Tests
 {
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated
     /// <summary>
     /// A procedural drawing that draws a blue rectangle with a red triangle centered in it.
     /// </summary>
@@ -115,4 +116,5 @@ namespace Rive.Tests
             return false;
         }
     }
+#pragma warning restore CS0618
 }

@@ -4,6 +4,7 @@ using UnityEngine.Rendering;
 
 namespace Rive.Tests.Utils
 {
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated
     public class MockRenderer : IRenderer
     {
         public event Action<CommandBuffer, bool> OnAddToCommandBuffer;
@@ -43,4 +44,5 @@ namespace Rive.Tests.Utils
         public void Align(Fit fit, Alignment alignment, Artboard artboard, AABB frame, float scaleFactor = 1) =>
             OnAlign?.Invoke(fit, alignment, artboard, frame, scaleFactor);
     }
+#pragma warning restore CS0618
 }

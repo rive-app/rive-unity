@@ -509,6 +509,7 @@ namespace Rive.Components
 
     internal static class ClippingPathHelper
     {
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
         /// <summary>
         /// Configures a clipping path based on the platform and given dimensions. This ensures that it looks correct on all platforms.
         /// </summary>
@@ -542,6 +543,7 @@ namespace Rive.Components
 
             path.Close();
         }
+#pragma warning restore CS0618
     }
 }
 

@@ -72,7 +72,9 @@ namespace Rive.Components
 
         private UnityEngine.Pool.ObjectPool<RenderObjectData> m_dataPool;
 
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
         private Path m_clipPath;
+#pragma warning restore CS0618
 
 
         private Renderer m_renderer;
@@ -327,7 +329,9 @@ namespace Rive.Components
                 {
                     if (m_clipPath == null)
                     {
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
                         m_clipPath = new Path();
+#pragma warning restore CS0618
                     }
                     ClippingPathHelper.ConfigureClippingPath(m_clipPath, rect.width, rect.height);
                     m_renderer.Clip(m_clipPath);

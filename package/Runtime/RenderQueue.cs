@@ -69,6 +69,7 @@ namespace Rive
             renderQueueDrawArtboard(m_nativeRenderQueue, m_index, artboard.NativeArtboard);
         }
 
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
         /// <summary>
         /// Draw the given path and paint to the render queue.
         /// </summary>
@@ -84,6 +85,7 @@ namespace Rive
         {
             renderQueueClipPath(m_nativeRenderQueue, m_index, path.NativePath);
         }
+#pragma warning restore CS0618
 
         /// <summary>
         /// Save the current render queue state.

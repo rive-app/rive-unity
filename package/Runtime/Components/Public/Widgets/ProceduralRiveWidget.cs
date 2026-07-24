@@ -1,3 +1,4 @@
+using System;
 using Rive.Utils;
 using UnityEngine;
 
@@ -7,6 +8,7 @@ namespace Rive.Components
     /// Renders a ProceduralDrawing within a RivePanel.
     /// </summary>
     [AddComponentMenu("Rive/Procedural Rive Widget")]
+    [Obsolete("ProceduralRiveWidget is deprecated and will be removed in a future release. Use scripting in the Rive Editor for procedural drawing.")]
     public sealed class ProceduralRiveWidget : WidgetBehaviour
     {
         [SerializeField] private ProceduralDrawing m_proceduralDrawing;

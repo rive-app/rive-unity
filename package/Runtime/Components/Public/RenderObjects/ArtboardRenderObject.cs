@@ -13,7 +13,9 @@ namespace Rive.Components
         private Artboard m_artboard;
 
         private Alignment m_alignment;
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
         private Path m_clipPath;
+#pragma warning restore CS0618
 
         /// <summary>
         /// The fit of the artboard.
@@ -83,7 +85,9 @@ namespace Rive.Components
             {
                 if (m_clipPath == null)
                 {
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
                     m_clipPath = new Path();
+#pragma warning restore CS0618
                 }
                 ClippingPathHelper.ConfigureClippingPath(m_clipPath, rect.width, rect.height);
 

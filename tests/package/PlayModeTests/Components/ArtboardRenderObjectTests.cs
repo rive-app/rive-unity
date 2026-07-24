@@ -298,6 +298,7 @@ namespace Rive.Tests
             Assert.IsNull(m_renderer.LastClipPath, "Clip path should not be created");
         }
 
+#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated
         public class MockRenderer : IRenderer
         {
 
@@ -356,6 +357,7 @@ namespace Rive.Tests
             {
             }
         }
+#pragma warning restore CS0618
     }
 
 
