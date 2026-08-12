@@ -35,6 +35,8 @@ namespace Rive
 
         private ViewModelEnumData[] m_viewModelEnums;
 
+        private string[] m_globalViewModelNames;
+
 
 
         internal IntPtr NativeFile
@@ -109,6 +111,23 @@ namespace Rive
                     m_viewModelEnums = GetViewModelEnums();
                 }
                 return m_viewModelEnums;
+            }
+        }
+
+        /// <summary>
+        /// The names of the file's global view models, in file order. These are the keys accepted by
+        /// <see cref="StateMachine.BindViewModelInstance(ViewModelInstance, IReadOnlyDictionary{string, ViewModelInstance})"/>
+        /// and <see cref="StateMachine.GetGlobalViewModelInstance"/>.
+        /// </summary>
+        public IReadOnlyList<string> GlobalViewModelNames
+        {
+            get
+            {
+                if (m_globalViewModelNames == null)
+                {
+                    m_globalViewModelNames = LoadGlobalViewModelNames();
+                }
+                return m_globalViewModelNames;
             }
         }
 
@@ -491,6 +510,31 @@ namespace Rive
             }
         }
 
+        private string[] LoadGlobalViewModelNames()
+        {
+            if (!IsNativeFileValid())
+            {
+                return Array.Empty<string>();
+            }
+
+            IntPtr namesList = NativeFileInterface.getGlobalViewModelNamesList(NativeFile);
+            if (namesList == IntPtr.Zero)
+            {
+                return Array.Empty<string>();
+            }
+
+            int count = (int)NativeFileInterface.getGlobalViewModelNamesCount(namesList);
+            string[] names = new string[count];
+            for (int i = 0; i < count; i++)
+            {
+                IntPtr namePtr = NativeFileInterface.getGlobalViewModelNameAtIndex(namesList, (nuint)i);
+                names[i] = Marshal.PtrToStringAnsi(namePtr);
+            }
+
+            NativeFileInterface.freeGlobalViewModelNamesList(namesList);
+            return names;
+        }
+
 
         private ViewModelEnumData[] GetViewModelEnums()
         {
@@ -616,6 +660,18 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getEnumValueAtFileEnumIndex(IntPtr riveFile, nuint enumIndex, nuint valueIndex);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getGlobalViewModelNamesList(IntPtr riveFile);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern nuint getGlobalViewModelNamesCount(IntPtr namesList);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern IntPtr getGlobalViewModelNameAtIndex(IntPtr namesList, nuint index);
+
+        [DllImport(NativeLibrary.name)]
+        internal static extern void freeGlobalViewModelNamesList(IntPtr namesList);
 
         #endregion
 

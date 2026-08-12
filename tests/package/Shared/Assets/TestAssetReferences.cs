@@ -41,6 +41,11 @@ namespace Rive.Tests.Utils
                 public const string riv_artboard_db_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/artboard_db_test.riv";
 
                 public const string riv_db_list_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/db_list_test.riv";
+
+                public const string riv_global_variables_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/global_variables_test.riv";
+
+                public const string riv_global_debug_no_main_viewmodel = "Packages/app.rive.rive-unity.tests/Shared/Assets/global_debug_no_main_viewmodel.riv";
+
                 public const string riv_multitouch_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/multitouch-test.riv";
                 public const string riv_ping_pong_demo = "Packages/app.rive.rive-unity.tests/Shared/Assets/ping_pong_demo.riv";
 

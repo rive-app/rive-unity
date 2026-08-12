@@ -1604,6 +1604,207 @@ namespace Rive.Tests
             yield return null;
         }
 
+        /// <summary>
+        /// We let AutoBindDefault fill the globals with their defaults, then rebind with overrides and confirm the pixels follow.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator DataBinding_GlobalViewModels_ShowExpectedVisuals()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_global_variables_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.Fit = Fit.Contain;
+
+            File riveFile = File.Load(riveAsset);
+
+            try
+            {
+                widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+                widget.Load(riveFile);
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return new WaitForEndOfFrame();
+
+                // We haven't initialized any custom globals yet, so every one of them holds its default instance.
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_GlobalViewModels_Defaults",
+                    panel.RenderTexture
+                );
+
+                // Binding requires a main instance. The widget already made one, so we hand it back
+                // rather than replacing what is on screen.
+                var main = widget.StateMachine.ViewModelInstance;
+                Assert.IsNotNull(main, "AutoBindDefault should have bound a main instance.");
+
+                bool bound = widget.StateMachine.BindViewModelInstance(
+                    main,
+                    new Dictionary<string, ViewModelInstance>
+                    {
+                        { "Colors", CreateColorsGlobal(riveFile, new Color32(255, 0, 255, 255)) },
+                        { "Labels", riveFile.GetViewModelByName("Labels").CreateInstanceByName("US") }
+                    });
+                Assert.IsTrue(bound, "Binding the file's globals should succeed.");
+
+                yield return new WaitForEndOfFrame();
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_GlobalViewModels_Overridden",
+                    panel.RenderTexture
+                );
+            }
+            finally
+            {
+                DestroyObj(panel.gameObject);
+                riveFile?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Globals are bound per state machine, so two widgets can hold different instances of the
+        /// same global types. We start them apart to confirm that, then give both the same instances and
+        /// edit one of them, which should update both widgets together visually.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator DataBinding_GlobalViewModels_SharedInstance_IsVisibleInEveryWidget()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            Asset riveAsset = null;
+            string riveAssetPath = TestAssetReferences.riv_global_variables_test;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                riveAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {riveAssetPath}")
+            );
+
+            // The prefab ships one widget. We add a second and split the panel between them so both
+            // are visible in the same golden.
+            var leftWidget = panel.GetComponentInChildren<RiveWidget>();
+            var rightWidget = RivePanelTestUtils.CreateWidget<RiveWidget>("RightRiveWidget");
+            rightWidget.transform.SetParent(panel.WidgetContainer, false);
+
+            AnchorWidgetHorizontally(leftWidget, 0f, 0.5f);
+            AnchorWidgetHorizontally(rightWidget, 0.5f, 1f);
+
+            leftWidget.Fit = Fit.Contain;
+            rightWidget.Fit = Fit.Contain;
+
+            File riveFile = File.Load(riveAsset);
+
+            try
+            {
+                leftWidget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+                rightWidget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+                leftWidget.Load(riveFile);
+                rightWidget.Load(riveFile);
+
+                yield return new WaitUntil(() =>
+                    leftWidget.Status == WidgetStatus.Loaded && rightWidget.Status == WidgetStatus.Loaded);
+
+                Color32 magenta = new Color32(255, 0, 255, 255);
+                Color32 teal = new Color32(0, 200, 90, 255);
+                var leftColors = CreateColorsGlobal(riveFile, magenta);
+                var leftLabels = riveFile.GetViewModelByName("Labels").CreateInstanceByName("US");
+
+                Assert.IsTrue(BindGlobals(leftWidget, leftColors, leftLabels));
+                Assert.IsTrue(BindGlobals(
+                    rightWidget,
+                    CreateColorsGlobal(riveFile, teal),
+                    riveFile.GetViewModelByName("Labels").CreateInstanceByName("EU")));
+
+                yield return new WaitForEndOfFrame();
+
+                // Each widget holds its own instances, so the two halves should show different colors.
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_GlobalViewModels_DivergentAcrossWidgets",
+                    panel.RenderTexture
+                );
+
+                // We hand the right widget the instances the left one is already using, then edit them
+                // once. Both halves should end up identical and the same color, in this case cyan.
+                Assert.IsTrue(BindGlobals(rightWidget, leftColors, leftLabels));
+                Color32 cyan = new Color32(0, 200, 255, 255);
+                leftColors.GetProperty<ViewModelInstanceColorProperty>("backgroundColor").Value32 =
+                    cyan;
+
+                yield return new WaitForEndOfFrame();
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_GlobalViewModels_SharedAcrossWidgets",
+                    panel.RenderTexture
+                );
+            }
+            finally
+            {
+                DestroyObj(panel.gameObject);
+                riveFile?.Dispose();
+            }
+        }
+
+        private static ViewModelInstance CreateColorsGlobal(File file, Color32 backgroundColor)
+        {
+            var instance = file.GetViewModelByName("Colors").CreateDefaultInstance();
+            instance.GetProperty<ViewModelInstanceColorProperty>("backgroundColor").Value32 = backgroundColor;
+            return instance;
+        }
+
+        /// <summary>
+        /// Rebinds a loaded widget's globals, reusing the main instance it already has so only the
+        /// globals change.
+        /// </summary>
+        private static bool BindGlobals(RiveWidget widget, ViewModelInstance colors, ViewModelInstance labels)
+        {
+            var main = widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(main, "AutoBindDefault should have bound a main instance.");
+
+            return widget.StateMachine.BindViewModelInstance(
+                main,
+                new Dictionary<string, ViewModelInstance>
+                {
+                    { "Colors", colors },
+                    { "Labels", labels }
+                });
+        }
+
+        private static void AnchorWidgetHorizontally(WidgetBehaviour widget, float minX, float maxX)
+        {
+            var rectTransform = widget.RectTransform;
+            rectTransform.anchorMin = new Vector2(minX, 0f);
+            rectTransform.anchorMax = new Vector2(maxX, 1f);
+            rectTransform.sizeDelta = Vector2.zero;
+            rectTransform.anchoredPosition = Vector2.zero;
+        }
+
         private static RenderTexture CropTopHalf(RenderTexture original)
         {
             int width = original.width;

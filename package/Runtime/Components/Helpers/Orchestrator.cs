@@ -249,7 +249,7 @@ namespace Rive.Components
 
         private void TriggerCallbacksForChangedProperties()
         {
-            if (RiveWidget.PropertyCallbackApproach == RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator && m_tickedThisFrame)
+            if (RiveWidget.propertyCallbackApproach == RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator && m_tickedThisFrame)
             {
                 FlushPropertyCallbacksForChangedProperties();
             }
@@ -262,7 +262,7 @@ namespace Rive.Components
         /// </summary>
         private void FlushPropertyCallbacksForChangedProperties()
         {
-            if (RiveWidget.PropertyCallbackApproach != RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator)
+            if (RiveWidget.propertyCallbackApproach != RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator)
             {
                 return;
             }

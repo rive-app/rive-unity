@@ -424,7 +424,7 @@ namespace Rive.Tests
         public void TearDown()
         {
             // Make sure static callback mode does not leak between tests (espescially when domain reload is disabled in editor).
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
 
             foreach (var file in m_loadedFiles)
             {
@@ -917,7 +917,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator TriggerProperty_Orchestrator_AutoMode_FiresOncePerTrigger()
         {
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -958,7 +958,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator TriggerProperty_Orchestrator_ManualMode_FiresOncePerTriggerAfterTick()
         {
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -1006,7 +1006,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator TriggerProperty_Propagation_AutoMode_FiresOncePerTrigger()
         {
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Propagation;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Propagation;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -1050,7 +1050,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator NumberProperty_Orchestrator_AutoMode_FiresOncePerSet()
         {
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -1144,7 +1144,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator BooleanProperty_Orchestrator_AutoMode_FiresOncePerSet()
         {
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -2496,7 +2496,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator PropertyCallbacks_Propagation_DoesNotProcessUnparentedInstanceProperties()
         {
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Propagation;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Propagation;
 
             string testAssetPath = TestAssetReferences.riv_db_list_test;
             Asset riveAsset = null;
@@ -4867,7 +4867,7 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator Orchestrator_ExceptionInOneCallback_DoesNotPreventOtherCallbacksFromFiring()
         {
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -4928,6 +4928,230 @@ namespace Rive.Tests
             Assert.AreEqual(1, healthyCallbackCount,
                 "Healthy callback should still fire despite another callback throwing");
         }
+
+        #endregion
+
+        #region Global View Models
+
+        private const string GlobalsLabelsViewModel = "Labels";
+        private const string GlobalsCurrencyProperty = "currency";
+
+        private const string NoMainArtboardName = "MainArtboard";
+        private const string NoMainStateMachineName = "State Machine 1";
+        private const string NoMainGlobalViewModel = "MyGlobalViewModel";
+        private const string NoMainGlobalTextProperty = "text";
+        private const string NoMainGlobalTextDefault = "My global string";
+
+        /// <summary>
+        /// Loads the globals test asset into the widget in Orchestrator mode. The widget's own
+        /// bind back-fills a default instance into every global slot, so the globals are readable
+        /// as soon as this returns.
+        /// </summary>
+        private IEnumerator LoadWidgetWithGlobals()
+        {
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_global_variables_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_global_variables_test}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+        }
+
+        [UnityTest]
+        public IEnumerator DataBindingMode_AutoBindDefault_NoMainArtboard_BindsGlobalDefaults()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_global_debug_no_main_viewmodel,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_global_debug_no_main_viewmodel}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            CollectionAssert.Contains(riveFile.GlobalViewModelNames, NoMainGlobalViewModel);
+
+            m_widget.BindingMode = RiveWidget.DataBindingMode.AutoBindDefault;
+            m_widget.Load(riveFile, NoMainArtboardName, NoMainStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            Assert.IsNull(m_widget.Artboard.DefaultViewModel,
+                "This artboard is authored without a main view model.");
+            Assert.IsNull(m_widget.StateMachine.ViewModelInstance,
+                "AutoBind should not invent a main instance when the artboard has none.");
+
+            ViewModelInstance global = m_widget.StateMachine.GetGlobalViewModelInstance(NoMainGlobalViewModel);
+            Assert.IsNotNull(global,
+                "AutoBindDefault should still bind default instances for the file's globals.");
+
+            var text = global.GetProperty<ViewModelInstanceStringProperty>(NoMainGlobalTextProperty);
+            Assert.IsNotNull(text, $"Expected a string property named '{NoMainGlobalTextProperty}'.");
+            Assert.AreEqual(NoMainGlobalTextDefault, text.Value);
+        }
+
+        [UnityTest]
+        public IEnumerator DataBindingMode_AutoBindSelected_WithInvalidName_DoesNotBindWhenFileHasGlobals()
+        {
+            // AutoBindSelected + missing name must not call Bind(null), or globals would still
+            // back-fill and hide the typo. Intentional null-main binds remain valid elsewhere.
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_global_variables_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_global_variables_test}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            Assert.Greater(riveFile.GlobalViewModelNames.Count, 0,
+                "This regression only fires on files that declare global view models.");
+
+            mockLogger.Clear();
+            m_widget.BindingMode = RiveWidget.DataBindingMode.AutoBindSelected;
+            m_widget.ViewModelInstanceName = "NonExistentInstance";
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            Assert.IsTrue(mockLogger.LoggedErrors.Count > 0,
+                "AutoBindSelected with a missing instance name should still log an error.");
+            Assert.IsNull(m_widget.StateMachine.ViewModelInstance,
+                "A typo'd AutoBindSelected name must not autocreate a default main.");
+            Assert.IsNull(m_widget.StateMachine.GetGlobalViewModelInstance(GlobalsLabelsViewModel),
+                "A typo'd AutoBindSelected name must not bind/back-fill globals either.");
+        }
+
+        private ViewModelInstance CreateLabelsInstance(string instanceName = null)
+        {
+            ViewModel viewModel = m_widget.File.GetViewModelByName(GlobalsLabelsViewModel);
+            Assert.IsNotNull(viewModel, $"Expected a view model named '{GlobalsLabelsViewModel}'.");
+
+            ViewModelInstance instance = instanceName == null
+                ? viewModel.CreateDefaultInstance()
+                : viewModel.CreateInstanceByName(instanceName);
+            Assert.IsNotNull(instance, $"Failed to create instance '{instanceName ?? "(default)"}'.");
+            return instance;
+        }
+
+        [UnityTest]
+        public IEnumerator GlobalViewModelInstance_Orchestrator_FiresCallbackOnPropertyChange()
+        {
+            yield return LoadWidgetWithGlobals();
+
+            ViewModelInstance labels = m_widget.StateMachine.GetGlobalViewModelInstance(GlobalsLabelsViewModel);
+            Assert.IsNotNull(labels, "Loading the widget should have filled in the Labels global.");
+
+            var currency = labels.GetProperty<ViewModelInstanceStringProperty>(GlobalsCurrencyProperty);
+            Assert.IsNotNull(currency, $"Expected a string property named '{GlobalsCurrencyProperty}'.");
+
+            int callbackCount = 0;
+            string observedValue = null;
+            currency.OnValueChanged += (value) =>
+            {
+                callbackCount++;
+                observedValue = value;
+            };
+
+            currency.Value = "ZAR";
+
+            // One full scheduling cycle plus a spare frame, so a duplicate delivery would show up.
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount,
+                "A property on a global view model should raise exactly one callback per change.");
+            Assert.AreEqual("ZAR", observedValue);
+        }
+
+        [UnityTest]
+        public IEnumerator GlobalViewModelInstance_Orchestrator_FiresCallbackForReboundInstance()
+        {
+            yield return LoadWidgetWithGlobals();
+
+            ViewModelInstance usLabels = CreateLabelsInstance("US");
+
+            // Reuse the widget's own main instance so the rebind swaps the global and nothing else.
+            Assert.IsTrue(m_widget.StateMachine.BindViewModelInstance(
+                m_widget.StateMachine.ViewModelInstance,
+                new Dictionary<string, ViewModelInstance> { { GlobalsLabelsViewModel, usLabels } }));
+
+            var currency = usLabels.GetProperty<ViewModelInstanceStringProperty>(GlobalsCurrencyProperty);
+            Assert.IsNotNull(currency);
+
+            int callbackCount = 0;
+            currency.OnValueChanged += (_) => callbackCount++;
+
+            currency.Value = currency.Value + " (rebound)";
+
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(1, callbackCount,
+                "Callbacks should track the global instance that was directly bound, not just the automatically assigned default.");
+
+        }
+
+        [UnityTest]
+        public IEnumerator GlobalViewModelInstance_Orchestrator_FiresCallbackForEveryChange()
+        {
+            yield return LoadWidgetWithGlobals();
+
+            ViewModelInstance labels = m_widget.StateMachine.GetGlobalViewModelInstance(GlobalsLabelsViewModel);
+            Assert.IsNotNull(labels);
+
+            var currency = labels.GetProperty<ViewModelInstanceStringProperty>(GlobalsCurrencyProperty);
+            int callbackCount = 0;
+            currency.OnValueChanged += (_) => callbackCount++;
+
+            // Three separate changes across three frames, to check delivery keeps working rather
+            // than firing once and going quiet.
+            for (int i = 0; i < 3; i++)
+            {
+                currency.Value = $"cur{i}";
+                yield return null;
+                yield return null;
+            }
+
+            Assert.AreEqual(3, callbackCount,
+                "Each change to a global's property should be delivered, not just the first.");
+        }
+
+#if UNITY_EDITOR
+        [UnityTest]
+        public IEnumerator GlobalViewModelInstance_WidgetDestroyed_ReleasesNativeReferences()
+        {
+            yield return LoadWidgetWithGlobals();
+
+            ViewModelInstance labels = CreateLabelsInstance();
+
+            // 1 means the wrapper that created it is the only holder, so returning to 1 after the
+            // widget goes away is the same as saying the widget handed everything back.
+            Assert.AreEqual(1, labels.DebugNativeRefCount,
+                "A newly created instance should be held only by the wrapper that created it.");
+
+            Assert.IsTrue(m_widget.StateMachine.BindViewModelInstance(
+                m_widget.StateMachine.ViewModelInstance,
+                new Dictionary<string, ViewModelInstance> { { GlobalsLabelsViewModel, labels } }));
+
+            Assert.Greater(labels.DebugNativeRefCount, 1,
+                "Binding a global through the widget should take at least one native reference.");
+
+            Object.Destroy(m_widgetObject);
+            m_widgetObject = null;
+            m_widget = null;
+
+            // Destroy tears down the artboard and state machine over the following frame.
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(1, labels.DebugNativeRefCount,
+                "Destroying the widget should return every native reference it took on a bound global.");
+        }
+#endif
 
         #endregion
     }

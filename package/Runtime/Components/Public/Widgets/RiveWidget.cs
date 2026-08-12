@@ -46,29 +46,39 @@ namespace Rive.Components
         public enum DataBindingPropertyCallbackApproach
         {
             /// <summary>
-            /// Legacy behavior. Callbacks are handled by propagating from the root ViewModelInstance
-            /// after advancing a specific state machine (per-widget).
+            /// Deprecated. Propagates callbacks from the root ViewModelInstance after each
+            /// widget tick. Does not deliver callbacks for global view model properties.
             /// </summary>
             Propagation = 0,
 
             /// <summary>
-            /// Orchestrator behavior. Callbacks are triggered after
-            /// all panels/widgets have ticked.
+            /// Supported path. Flushes callbacks after all panels/widgets have ticked,
+            /// including properties on global view models.
             /// </summary>
             Orchestrator = 1,
         }
 
+        // Package code reads/writes this field to avoid obsolete warnings on the public property.
+        internal static DataBindingPropertyCallbackApproach propertyCallbackApproach =
+            DataBindingPropertyCallbackApproach.Orchestrator;
+
         /// <summary>
-        /// Temporary fallback hatch for callback handling. Defaults to <see cref="DataBindingPropertyCallbackApproach.Orchestrator"/>.
+        /// Temporary fallback for callback handling. Defaults to
+        /// <see cref="DataBindingPropertyCallbackApproach.Orchestrator"/>.
         /// </summary>
-        public static DataBindingPropertyCallbackApproach PropertyCallbackApproach { get; set; } = DataBindingPropertyCallbackApproach.Orchestrator;
+        [Obsolete("PropertyCallbackApproach is deprecated. Orchestrator is the default and supported path; Propagation does not deliver callbacks for new features related to view model instances.")]
+        public static DataBindingPropertyCallbackApproach PropertyCallbackApproach
+        {
+            get => propertyCallbackApproach;
+            set => propertyCallbackApproach = value;
+        }
 
 #if UNITY_EDITOR
         // Account for Editor Domain Reload being disabled (static state persists across play sessions).
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStaticState()
         {
-            PropertyCallbackApproach = DataBindingPropertyCallbackApproach.Orchestrator;
+            propertyCallbackApproach = DataBindingPropertyCallbackApproach.Orchestrator;
         }
 #endif
 
@@ -694,7 +704,7 @@ namespace Rive.Components
 
             bool hasEventListeners = OnRiveEventReported != null;
             Controller.Tick(0f, ReportedEventPoolingMode, Speed, hasEventListeners);
-            if (PropertyCallbackApproach == DataBindingPropertyCallbackApproach.Orchestrator)
+            if (propertyCallbackApproach == DataBindingPropertyCallbackApproach.Orchestrator)
             {
                 Orchestrator.Instance?.FlushPropertyCallbacksForImmediateAdvance();
             }
@@ -847,8 +857,6 @@ namespace Rive.Components
         /// Loads a Rive file and specified artboard and state machine.
         /// </summary>
         /// <param name="file"> The Rive file to load.</param>
-        /// <param name="fit"> The fit mode to use.</param>
-        /// <param name="alignment"> The alignment to use.</param>
         /// <param name="artboardName"> The name of the artboard to load.</param>
         /// <param name="stateMachineName"> The name of the state machine to load.</param>
         public void Load(File file, string artboardName, string stateMachineName)
@@ -860,7 +868,6 @@ namespace Rive.Components
 
             LoadInternal(file, null);
         }
-
 
         /// <summary>
         /// Loads a Rive file using the default artboard and state machine.

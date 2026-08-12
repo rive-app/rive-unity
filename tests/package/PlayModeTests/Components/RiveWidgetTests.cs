@@ -1223,7 +1223,7 @@ namespace Rive.Tests
             const string ArtboardName = "Main";
             const float TapYNormalized = 0.5f;
 
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
 
             Asset riveAsset = null;
             yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
@@ -1263,7 +1263,7 @@ namespace Rive.Tests
 
             RiveWidget.ShouldAdvanceAfterPointerEvent = false;
 
-            RiveWidget.PropertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
 
             Asset riveAsset = null;
             yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(

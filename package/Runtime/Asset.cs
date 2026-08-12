@@ -17,8 +17,11 @@ namespace Rive
     {
 #if UNITY_EDITOR
 
-        private const int CURRENT_VERSION = 1;      // Increment this whenever the structure changes 
-        [SerializeField] private int m_Version = 1; //And also update this so we can check for changes in the future
+        private const int CURRENT_VERSION = 2; // Increment this whenever the structure changes, so previously imported assets regenerate.
+
+        // Stamped when metadata is generated. Deserialized assets keep the version they were written
+        // with, which is what NeedsReload compares against.
+        [SerializeField] private int m_Version = CURRENT_VERSION;
 
         [Serializable]
         public class InputMetadata
@@ -201,6 +204,11 @@ namespace Rive
 
         public List<ViewModelEnumMetadata> Enums = new List<ViewModelEnumMetadata>();
 
+        /// <summary>
+        /// Names of the file's global view models, in file order. Empty when the file has none.
+        /// </summary>
+        public List<string> GlobalViewModelNames = new List<string>();
+
         public string[] GetArtboardNames()
         {
             return Artboards.Select(a => a.Name).ToArray();
@@ -290,6 +298,14 @@ namespace Rive
                     var viewModelMeta = FileMetadata.ViewModelMetadata.FromViewModel(viewModel);
 
                     m_FileMetadata.ViewModels.Add(viewModelMeta);
+                }
+
+                // Global view models (names only; property/instance detail lives on ViewModels)
+
+                IReadOnlyList<string> globalViewModelNames = file.GlobalViewModelNames;
+                for (int i = 0; i < globalViewModelNames.Count; i++)
+                {
+                    m_FileMetadata.GlobalViewModelNames.Add(globalViewModelNames[i]);
                 }
 
                 // Enums

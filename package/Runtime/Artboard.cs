@@ -40,6 +40,11 @@ namespace Rive
         }
 
         /// <summary>
+        /// The file that instanced this artboard, or null if it has already been collected.
+        /// </summary>
+        internal File File => m_file != null && m_file.TryGetTarget(out var file) ? file : null;
+
+        /// <summary>
         /// Dispose of the Artboard and release native resources.
         /// </summary>
         public void Dispose()
@@ -235,7 +240,7 @@ namespace Rive
                 DebugLogger.Instance.Log($"No StateMachine at index {index}.");
                 return null;
             }
-            return new StateMachine(ptr);
+            return new StateMachine(ptr, this);
         }
 
         /// Instance a StateMachine from the Artboard.
@@ -247,7 +252,7 @@ namespace Rive
                 DebugLogger.Instance.Log($"No StateMachine named \"{name}\".");
                 return null;
             }
-            return new StateMachine(ptr);
+            return new StateMachine(ptr, this);
         }
 
         /// Instance the default StateMachine from the Artboard.
@@ -259,7 +264,7 @@ namespace Rive
                 DebugLogger.Instance.Log($"No default StateMachine found.");
                 return null;
             }
-            return new StateMachine(ptr);
+            return new StateMachine(ptr, this);
         }
 
         public void SetAudioEngine(AudioEngine audioEngine)

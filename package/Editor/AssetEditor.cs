@@ -260,9 +260,17 @@ namespace Rive
 
                 root.Add(viewModelsFoldout);
 
+                var globalViewModelNames = riveAsset.EditorOnlyMetadata.GlobalViewModelNames;
+
                 foreach (var viewModel in riveAsset.EditorOnlyMetadata.ViewModels)
                 {
-                    var viewModelFoldout = new Foldout { text = viewModel.Name, value = false };
+                    bool isGlobal = globalViewModelNames != null &&
+                                    globalViewModelNames.Contains(viewModel.Name);
+                    var viewModelFoldout = new Foldout
+                    {
+                        text = isGlobal ? $"{viewModel.Name} (Global)" : viewModel.Name,
+                        value = false
+                    };
                     viewModelFoldout.style.paddingLeft = 8;
                     viewModelFoldout.style.paddingRight = 8;
                     viewModelsFoldout.Add(viewModelFoldout);
@@ -331,7 +339,6 @@ namespace Rive
                     }
                 }
             }
-
 
             // Enums Section
 

@@ -130,10 +130,23 @@ namespace Rive.Components.Utilities
                 return new LoadResult(false, new LoadErrorEventData(LoadErrorType.StateMachineNotFound, $"State machine {stateMachineName} not found in artboard {artboardName}"));
             }
 
-            var viewModelInstance = GetVmInstanceToApply(bindingInfo.BindingMode, m_artboard, bindingInfo.InstanceName);
-            if (viewModelInstance != null)
+            if (bindingInfo.BindingMode != RiveWidget.DataBindingMode.Manual)
             {
-                m_stateMachine.BindViewModelInstance(viewModelInstance);
+                var viewModelInstance = GetVmInstanceToApply(bindingInfo.BindingMode, m_artboard, bindingInfo.InstanceName);
+
+                // With AutoBindSelected, if the requested view model instance name doesn't exist,
+                // we should NOT bind anything. Even if the file has global view models, calling
+                // Bind(null) would accidentally create default instances and hide the mistake.
+                // With AutoBindDefault, if the artboard doesn't have a main view model, it's OK to bind(null)
+                // so that the state machine still sets up any required global view models automatically.
+                bool shouldBind = viewModelInstance != null ||
+                    (bindingInfo.BindingMode != RiveWidget.DataBindingMode.AutoBindSelected &&
+                     m_file.GlobalViewModelNames.Count > 0);
+
+                if (shouldBind)
+                {
+                    m_stateMachine.BindViewModelInstance(viewModelInstance);
+                }
             }
 
             m_renderObject = CreateRenderObject(m_artboard, alignment, fit, scaleFactor);
@@ -193,7 +206,7 @@ namespace Rive.Components.Utilities
             m_stateMachine.Advance(deltaTime * speed);
 
             // Legacy callback propagation behavior
-            if (RiveWidget.PropertyCallbackApproach == RiveWidget.DataBindingPropertyCallbackApproach.Propagation)
+            if (RiveWidget.propertyCallbackApproach == RiveWidget.DataBindingPropertyCallbackApproach.Propagation)
             {
                 m_stateMachine.ViewModelInstance?.HandleCallbacks();
             }
