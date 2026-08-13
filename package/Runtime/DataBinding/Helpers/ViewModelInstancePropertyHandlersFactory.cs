@@ -69,6 +69,7 @@ namespace Rive
                 { typeof(ViewModelInstanceStringProperty), CreateStringPropertyHandler() },
                 { typeof(ViewModelInstanceColorProperty), CreateColorPropertyHandler() },
                 { typeof(ViewModelInstanceImageProperty), CreateImagePropertyHandler() },
+                { typeof(ViewModelInstanceFontProperty), CreateFontPropertyHandler() },
                 { typeof(ViewModelInstanceListProperty), CreateListPropertyHandler() },
                 { typeof(ViewModelInstanceArtboardProperty), CreateArtboardPropertyHandler() }
             };
@@ -226,6 +227,19 @@ namespace Rive
                     getViewModelInstanceImageProperty(instance.NativeSafeHandle, path),
                     rootInstance),
                 (result) => new ViewModelInstanceImageProperty(
+                    result.PropertyPtr,
+                    result.RootViewModelInstance)
+            );
+        }
+
+        private static (PropertyGetter getter,
+            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateFontPropertyHandler()
+        {
+            return (
+                (instance, path, rootInstance) => new PropertyGetterResult(
+                    getViewModelInstanceFontProperty(instance.NativeSafeHandle, path),
+                    rootInstance),
+                (result) => new ViewModelInstanceFontProperty(
                     result.PropertyPtr,
                     result.RootViewModelInstance)
             );
@@ -398,6 +412,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         private static extern IntPtr getViewModelInstanceImageProperty(ViewModelInstanceSafeHandle instanceValue, string path);
+
+        [DllImport(NativeLibrary.name)]
+        private static extern IntPtr getViewModelInstanceFontProperty(ViewModelInstanceSafeHandle instanceValue, string path);
 
         [DllImport(NativeLibrary.name)]
         private static extern IntPtr getViewModelInstanceListProperty(ViewModelInstanceSafeHandle instanceValue, string path);

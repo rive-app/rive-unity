@@ -38,6 +38,7 @@ namespace Rive.Tests.Utils
                 public const string riv_rewards_db = "Packages/app.rive.rive-unity.tests/Shared/Assets/rewards.riv";
 
                 public const string riv_image_db_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/image_db_test.riv";
+                public const string riv_font_databinding_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/font_databinding_test.riv";
                 public const string riv_artboard_db_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/artboard_db_test.riv";
 
                 public const string riv_db_list_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/db_list_test.riv";
@@ -58,6 +59,7 @@ namespace Rive.Tests.Utils
                 public const string imageasset_dog1_asset_swapping = "Packages/app.rive.rive-unity.tests/Shared/Assets/dog-1-asset-swapping.jpg";
                 public const string imageasset_desert = "Packages/app.rive.rive-unity.tests/Shared/Assets/desert.png";
                 public const string imageasset_forest = "Packages/app.rive.rive-unity.tests/Shared/Assets/forest.png";
+                public const string fontasset_sekuya_regular = "Packages/app.rive.rive-unity.tests/Shared/Assets/sekuya_regular_font.ttf";
 
         }
 

@@ -1378,6 +1378,92 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator FontProperty_CanBeSetAndTriggersCallback()
+        {
+            string testAssetPath = TestAssetReferences.riv_font_databinding_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+            var fontProp = viewModelInstance.GetFontProperty("font");
+            Assert.IsNotNull(fontProp, "Font property should exist");
+
+            FontOutOfBandAsset testFont = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<FontOutOfBandAsset>(
+                TestAssetReferences.fontasset_sekuya_regular,
+                (asset) => testFont = asset,
+                () => Assert.Fail($"Failed to load font at {TestAssetReferences.fontasset_sekuya_regular}")
+            );
+
+            testFont.Load();
+
+            try
+            {
+                bool callbackTriggered = false;
+
+                fontProp.OnValueChanged += () =>
+                {
+                    callbackTriggered = true;
+                };
+
+                fontProp.Value = testFont;
+                yield return null;
+
+                Assert.IsTrue(callbackTriggered, "Callback should be triggered when font is set");
+
+                callbackTriggered = false;
+                fontProp.Value = null;
+                yield return null;
+
+                Assert.IsTrue(callbackTriggered, "Callback should be triggered when font is cleared");
+            }
+            finally
+            {
+                if (testFont != null) testFont.Unload();
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator FontProperty_WithUnloadedAsset_LogsWarning()
+        {
+            string testAssetPath = TestAssetReferences.riv_font_databinding_test;
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            var fontProp = viewModelInstance.GetFontProperty("font");
+            Assert.IsNotNull(fontProp, "Font property should exist");
+
+            var unloadedFont = ScriptableObject.CreateInstance<FontOutOfBandAsset>();
+
+            mockLogger.Clear();
+            fontProp.Value = unloadedFont;
+
+            Assert.IsTrue(mockLogger.LoggedWarnings.Any(w => w.Contains("unloaded")),
+                "Should log warning when trying to set unloaded font asset");
+        }
+
+        [UnityTest]
         public IEnumerator ArtboardProperty_CanBeSetAndTriggersCallback()
         {
             string testAssetPath = TestAssetReferences.riv_artboard_db_test;

@@ -671,6 +671,16 @@ namespace Rive
         }
 
         /// <summary>
+        /// Gets a font property of the view model instance.
+        /// </summary>
+        /// <param name="path">The path to the property.</param>
+        /// <returns>The font property, or null if the property doesn't exist or is not a font type.</returns>
+        public ViewModelInstanceFontProperty GetFontProperty(string path)
+        {
+            return GetProperty<ViewModelInstanceFontProperty>(path);
+        }
+
+        /// <summary>
         /// Gets a list property of the view model instance.
         /// </summary>
         /// <param name="path">The path to the property.</param>

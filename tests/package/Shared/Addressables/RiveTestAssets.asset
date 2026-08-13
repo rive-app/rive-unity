@@ -47,6 +47,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 12874d2cd5c5c4a38a2b8b502b7aa168
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_FontDataBinding_NewFont.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 13ccc5d8db0254901a73afb3c1aa0f6b
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_ArtboardDataBinding_CrossFileArtboard.png
     m_ReadOnly: 0
@@ -387,6 +392,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b12781390187144c188482bd6507fcd7
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/sekuya_regular_font.ttf
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: b79678680d1ca4bc18b38d6d38a7d571
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_ArtboardDataBinding_Controlled_CustomInstance1.png
     m_ReadOnly: 0
@@ -414,6 +424,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c2fd37e5d68b044f38671ec8878161e8
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c517675941f3b4fad8af56d19d2af292
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/font_databinding_test.riv
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -519,6 +534,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: f80a05527099b44aaaca37bab0f56a89
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanelWithSingleWidget_Artboard_FitMode_Contain_Alignment_CenterCenter.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f81726488759e42e1ba75d4b306292d5
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RivePanel_FontDataBinding_InitialState.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

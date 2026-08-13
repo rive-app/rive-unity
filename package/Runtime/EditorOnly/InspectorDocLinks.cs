@@ -43,6 +43,7 @@ namespace Rive.EditorTools
         public const string UnityDataBindingProperties = "https://rive.app/docs/runtimes/data-binding?ref=unity-inspector#properties";
         public const string UnityDataBindingViewModel = "https://rive.app/docs/runtimes/data-binding?ref=unity-inspector#view-models";
         public const string UnityDataBindingImages = "https://rive.app/docs/runtimes/data-binding?ref=unity-inspector#images";
+        public const string UnityDataBindingFonts = "https://rive.app/docs/runtimes/data-binding?ref=unity-inspector#fonts";
         public const string UnityDataBindingLists = "https://rive.app/docs/runtimes/data-binding?ref=unity-inspector#lists";
         public const string UnityDataBindingArtboards = "https://rive.app/docs/runtimes/data-binding?ref=unity-inspector#artboards";
         public const string UnityDataBindingEnums = "https://rive.app/docs/runtimes/data-binding?ref=unity-inspector#enums";

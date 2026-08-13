@@ -39,6 +39,12 @@ namespace Rive
         AssetImage = 11,
 
         /// <summary>Artboard.</summary>
-        Artboard = 12
+        Artboard = 12,
+
+        /// <summary>Font.</summary>
+        AssetFont = 13,
+
+        /// <summary>Blob.</summary>
+        AssetBlob = 14
     }
 }

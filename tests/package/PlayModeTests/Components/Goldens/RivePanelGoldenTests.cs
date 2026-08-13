@@ -2046,6 +2046,89 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator RivePanel_Supports_FontDataBinding()
+        {
+            var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
+
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                panelPrefabPath,
+                (prefab) =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(800, 600));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
+            );
+
+            Asset riveAsset = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                TestAssetReferences.riv_font_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_font_databinding_test}")
+            );
+
+            FontOutOfBandAsset sekuyaRegularFont = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<FontOutOfBandAsset>(
+                TestAssetReferences.fontasset_sekuya_regular,
+                (asset) => sekuyaRegularFont = asset,
+                () => Assert.Fail($"Failed to load font at {TestAssetReferences.fontasset_sekuya_regular}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.Fit = Fit.Contain;
+
+            Texture2D initialSnapshot = null;
+            Texture2D boundSnapshot = null;
+
+            try
+            {
+                sekuyaRegularFont.Load();
+
+                using File file = File.Load(riveAsset);
+                widget.Load(file);
+                widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
+
+                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return WaitForPanelRenderSettled(panel, frames: 1);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_FontDataBinding_InitialState",
+                    panel.RenderTexture
+                );
+                initialSnapshot = CaptureRenderTexture(panel.RenderTexture);
+
+                var viewModelInstance = widget.StateMachine.ViewModelInstance;
+                Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+
+                var fontProp = viewModelInstance.GetFontProperty("font");
+                Assert.IsNotNull(fontProp, "Font property should exist");
+
+                fontProp.Value = sekuyaRegularFont;
+                yield return WaitForPanelRenderSettled(panel, frames: 2);
+
+                yield return m_goldenHelper.AssertWithRenderTexture(
+                    "RivePanel_FontDataBinding_NewFont",
+                    panel.RenderTexture
+                );
+                boundSnapshot = CaptureRenderTexture(panel.RenderTexture);
+
+                Assert.IsFalse(
+                    AreTexturesIdentical(initialSnapshot, boundSnapshot),
+                    "Binding a distinct font should change the rendered output"
+                );
+            }
+            finally
+            {
+                if (boundSnapshot != null) DestroyObj(boundSnapshot);
+                if (initialSnapshot != null) DestroyObj(initialSnapshot);
+                sekuyaRegularFont?.Unload();
+                if (panel != null) DestroyObj(panel.gameObject);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator RivePanel_ImageDataBinding_InitialFrameSetup()
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;

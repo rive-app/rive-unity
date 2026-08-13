@@ -41,6 +41,7 @@ namespace Rive.EditorTools
         private FileMetadata.ArtboardMetadata m_artboardMetadata;
         private double m_nextRefreshTime;
         private readonly Dictionary<string, ImageOutOfBandAsset> m_imageSelectionCache = new Dictionary<string, ImageOutOfBandAsset>();
+        private readonly Dictionary<string, FontOutOfBandAsset> m_fontSelectionCache = new Dictionary<string, FontOutOfBandAsset>();
         private readonly Dictionary<string, ArtboardSelection> m_artboardSelectionCache = new Dictionary<string, ArtboardSelection>();
         private readonly Dictionary<string, bool> m_viewModelExpansion = new Dictionary<string, bool>();
 
@@ -852,6 +853,65 @@ namespace Rive.EditorTools
             });
 
             parent.Add(CreatePropertyCard(displayName, pathLabelOverride ?? path, "Image", GetDocUrl(ViewModelDataType.AssetImage),
+                null, field));
+        }
+
+        private void AddFontField(VisualElement parent, string path, string displayName, Func<ViewModelInstance> instanceProvider = null, string cacheKey = null, string pathLabelOverride = null, List<PropertyBinding> bindingList = null)
+        {
+            instanceProvider ??= GetCurrentInstance;
+            cacheKey ??= path;
+            bindingList ??= m_propertyBindings;
+
+            var field = new ObjectField
+            {
+                objectType = typeof(FontOutOfBandAsset),
+                allowSceneObjects = false
+            };
+
+            field.RegisterValueChangedCallback(evt =>
+            {
+                var instance = instanceProvider();
+                var prop = instance?.GetFontProperty(path);
+                if (prop == null)
+                {
+                    return;
+                }
+
+                var asset = evt.newValue as FontOutOfBandAsset;
+                if (asset == null)
+                {
+                    m_fontSelectionCache[cacheKey] = null;
+                    prop.Value = null;
+                    return;
+                }
+
+                m_fontSelectionCache[cacheKey] = asset;
+                asset.Load();
+                prop.Value = asset;
+                asset.Unload();
+            });
+
+            bindingList.Add(new PropertyBinding
+            {
+                Path = cacheKey,
+                Control = field,
+                Sync = instance =>
+                {
+                    var current = instanceProvider();
+                    var prop = current?.GetFontProperty(path);
+                    field.SetEnabled(prop != null);
+                    if (m_fontSelectionCache.TryGetValue(cacheKey, out var cached))
+                    {
+                        field.SetValueWithoutNotify(cached);
+                    }
+                    else
+                    {
+                        field.SetValueWithoutNotify(null);
+                    }
+                }
+            });
+
+            parent.Add(CreatePropertyCard(displayName, pathLabelOverride ?? path, "Font", GetDocUrl(ViewModelDataType.AssetFont),
                 null, field));
         }
 
@@ -1990,6 +2050,9 @@ namespace Rive.EditorTools
                     case ViewModelDataType.AssetImage:
                         AddImageField(container, propertyAccessPath, property.Name, instanceProvider, propertyCachePath, propertyDisplayPath, bindingList);
                         break;
+                    case ViewModelDataType.AssetFont:
+                        AddFontField(container, propertyAccessPath, property.Name, instanceProvider, propertyCachePath, propertyDisplayPath, bindingList);
+                        break;
                     case ViewModelDataType.Artboard:
                         AddArtboardField(container, propertyAccessPath, property.Name, instanceProvider, propertyCachePath, propertyDisplayPath, bindingList);
                         break;
@@ -2083,6 +2146,8 @@ namespace Rive.EditorTools
                     return InspectorDocLinks.UnityDataBindingViewModel;
                 case ViewModelDataType.AssetImage:
                     return InspectorDocLinks.UnityDataBindingImages;
+                case ViewModelDataType.AssetFont:
+                    return InspectorDocLinks.UnityDataBindingFonts;
                 case ViewModelDataType.List:
                     return InspectorDocLinks.UnityDataBindingLists;
                 case ViewModelDataType.ListIndex:
