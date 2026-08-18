@@ -288,9 +288,9 @@ namespace Rive
         /// <summary>
         /// Update the embedded asset reference data in the Rive file. The out-of-band asset must be loaded before calling this method.
         /// </summary>
-        /// <param name="assetIndex"></param>
+        /// <param name="assetId"></param>
         /// <param name="asset"></param>
-        internal void UpdateEmbeddedAssetReference(nuint assetIndex, OutOfBandAsset asset)
+        internal void UpdateEmbeddedAssetReference(uint assetId, OutOfBandAsset asset)
         {
             if (asset == null)
             {
@@ -304,11 +304,11 @@ namespace Rive
                 return;
             }
 
-            bool wasUpdated = NativeFileInterface.updateEmbeddedAssetReferenceInFile(NativeFile, assetIndex, asset.NativeAsset);
+            bool wasUpdated = NativeFileInterface.updateEmbeddedAssetReferenceInFileById(NativeFile, assetId, asset.NativeAsset);
 
             if (!wasUpdated)
             {
-                DebugLogger.Instance.LogError($"{LogCodes.ERROR_ASSET_REFERENCE_UPDATE_FAILED}: - Asset reference with index {assetIndex} not found in the file. Could the Rive file you loaded be different from the one you are trying to update?");
+                DebugLogger.Instance.LogError($"{LogCodes.ERROR_ASSET_REFERENCE_UPDATE_FAILED}: - Asset reference with id {assetId} not found in the file. Could the Rive file you loaded be different from the one you are trying to update?");
             }
 
 
@@ -606,10 +606,10 @@ namespace Rive
         internal static extern IntPtr instanceArtboardWithName(IntPtr riveFile, string name);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern bool updateEmbeddedAssetReferenceInFile(IntPtr riveFile, nuint assetIndex, IntPtr decodedAsset);
+        internal static extern bool updateEmbeddedAssetReferenceInFileById(IntPtr riveFile, uint assetId, IntPtr decodedAsset);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void clearAssignedAssetReferenceValue(IntPtr riveFile, nuint assetIndex);
+        internal static extern void clearAssignedAssetReferenceValueById(IntPtr riveFile, uint assetId);
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr loadRiveFileWithUnityCallback(byte[] riveFileBytes, uint byteCount, NativeUnityAssetLoaderCallback callback);

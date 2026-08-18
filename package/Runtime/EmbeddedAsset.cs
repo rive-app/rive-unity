@@ -13,7 +13,8 @@ namespace Rive
         Image = 105,
         Font = 141,
         Audio = 406,
-        Script = 529
+        Script = 529,
+        Manifest = 642
     }
 
     /// <summary>

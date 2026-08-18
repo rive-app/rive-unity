@@ -66,12 +66,6 @@ namespace Rive
         /// </summary>
         private Dictionary<uint, EmbeddedAssetReference> assetReferenceMap = new Dictionary<uint, EmbeddedAssetReference>();
 
-        /// <summary>
-        /// Tracks the total number of asset callback invocations from the native runtime, including skipped types like Script. 
-        /// This must stay in sync with the native file's asset ordering so that IndexInRiveFile values are correct.
-        /// </summary>
-        private uint m_nativeAssetCallbackCount = 0;
-
 
         public FallbackFileAssetLoader()
         {
@@ -132,7 +126,7 @@ namespace Rive
         }
 
 
-        private EmbeddedAssetReference GenerateAssetReference(uint assetId, ushort assetType, string assetName, uint inBandByteSize, OutOfBandAsset outOfBandAsset, uint indexInRiveFile)
+        private EmbeddedAssetReference GenerateAssetReference(uint assetId, ushort assetType, string assetName, uint inBandByteSize, OutOfBandAsset outOfBandAsset)
         {
 
             EmbeddedAssetType type = (EmbeddedAssetType)assetType;
@@ -142,7 +136,6 @@ namespace Rive
                 id: assetId,
                 name: assetName,
                 inBandBytesSize: inBandByteSize,
-                indexInRiveFile: indexInRiveFile,
                 outOfBandAsset: outOfBandAsset
             );
 
@@ -156,6 +149,10 @@ namespace Rive
                     return new AudioEmbeddedAssetReference(initializationData);
                 case EmbeddedAssetType.Script:
                     return null; // Script assets are handled in-band and don't support out-of-band asset references yet.
+                case EmbeddedAssetType.Manifest:
+                    // Internal name/path table. Reaches this callback via FileAssetImporter
+                    // but is never a user-replaceable asset.
+                    return null;
                 default:
                     DebugLogger.Instance.LogError($"{LogCodes.ERROR_UNSUPPORTED_ASSET_TYPE}: Can't generate asset reference due to unsupported asset type: {type}");
                     return null;
@@ -179,13 +176,10 @@ namespace Rive
             // Don't call any native code from the plugin that uses a lock in this callback, because it will cause a deadlock
             // For example, we can't call decodeFont here because it uses a lock. This is why we use the assetMapArray approach for assets that are known ahead of time, as those don't require a callback and are loaded before the Rive file is loaded.
 
-            var assetIndexInRiveFile = m_nativeAssetCallbackCount;
-            m_nativeAssetCallbackCount++;
-
             var preloadedOutofBandAsset = this.GetLoadedOobAsset(assetId);
 
 
-            var assetReference = GenerateAssetReference(assetId, assetType, assetName, inBandByteSize, preloadedOutofBandAsset, assetIndexInRiveFile);
+            var assetReference = GenerateAssetReference(assetId, assetType, assetName, inBandByteSize, preloadedOutofBandAsset);
 
 
             if (assetReference == null)
@@ -347,6 +341,8 @@ namespace Rive
                     }
                     break;
                 case EmbeddedAssetType.Script:
+                    return false;
+                case EmbeddedAssetType.Manifest:
                     return false;
                 default:
                     DebugLogger.Instance.LogError($"{LogCodes.ERROR_UNSUPPORTED_ASSET_TYPE}: Unable to set asset reference due to unsupported asset type: {assetReference.AssetType}");

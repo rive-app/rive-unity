@@ -42,11 +42,16 @@ namespace Rive
 
                 for (nuint i = 0; i < assetCount; i++)
                 {
-                    string name = Marshal.PtrToStringAnsi(getEmbeddedAssetName(listPtr, i));
                     ushort type = getEmbeddedAssetType(listPtr, i);
                     var assetType = Enum.IsDefined(typeof(EmbeddedAssetType), type)
                             ? (EmbeddedAssetType)type
                             : EmbeddedAssetType.Unknown;
+                    if (assetType == EmbeddedAssetType.Manifest)
+                    {
+                        continue;
+                    }
+
+                    string name = Marshal.PtrToStringAnsi(getEmbeddedAssetName(listPtr, i));
                     uint id = getEmbeddedAssetId(listPtr, i);
                     uint embeddedBytes = (uint)getEmbeddedAssetSize(listPtr, i);
                     var embeddedAsset = new EmbeddedAssetData(assetType, id, name, embeddedBytes);

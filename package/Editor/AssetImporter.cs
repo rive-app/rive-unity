@@ -8,7 +8,7 @@ using Rive.Utils;
 
 namespace Rive
 {
-    [ScriptedImporter(version: 2, ext: "riv")]
+    [ScriptedImporter(version: 3, ext: "riv")]
     public class AssetImporter : ScriptedImporter
     {
 

@@ -238,5 +238,30 @@ namespace Rive.Tests
                 testAssetLoadingManager.ReleaseAsset(testData.AssetPath);
             }
         }
+
+        [UnityTest]
+        public IEnumerator LoadEmbeddedAssetDataFromRiveFileBytes_SkipsManifestAsset()
+        {
+            byte[] riveFileBytes = null;
+
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                TestAssetReferences.riv_global_variables_test,
+                (loadedRiv) => riveFileBytes = loadedRiv.Bytes,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_global_variables_test}"));
+
+            var result = embeddedAssetDataLoader.LoadEmbeddedAssetDataFromRiveFileBytes(riveFileBytes).ToList();
+
+            Assert.IsFalse(result.Any(asset => asset.AssetType == EmbeddedAssetType.Manifest),
+                "ManifestAsset must not appear in the editor/runtime embedded asset listing");
+            Assert.IsFalse(result.Any(asset => asset.AssetType == EmbeddedAssetType.Unknown && asset.Id == 0),
+                "Manifest must not surface as an Unknown asset with id 0");
+
+            var fonts = result.Where(asset => asset.AssetType == EmbeddedAssetType.Font).ToList();
+            Assert.AreEqual(1, fonts.Count, "Fixture should expose a single Inter font");
+            Assert.AreEqual(4228759u, fonts[0].Id);
+            Assert.AreEqual("Inter", fonts[0].Name);
+
+            testAssetLoadingManager.ReleaseAsset(TestAssetReferences.riv_global_variables_test);
+        }
     }
 }

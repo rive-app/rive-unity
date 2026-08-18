@@ -112,7 +112,7 @@ namespace Rive.Tests
 
             Assert.AreEqual(mockAsset.RefCount(), 1);
 
-            EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Image, 1, "test", 100u, 0, mockAsset);
+            EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Image, 1, "test", 100u, mockAsset);
             // We check that if the asset is already loaded, it is not loaded again in the LoadContents method after the Rive File is loaded.
             fallbackLoader.LoadContents(new ImageEmbeddedAssetReference(initializationData));
 
@@ -126,7 +126,7 @@ namespace Rive.Tests
             var mockLoader = new MockFileAssetLoader(true);
             fallbackLoader.AddLoader(mockLoader);
 
-            EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Image, 1, "test", 100u, 0, null);
+            EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Image, 1, "test", 100u, null);
 
             var assetReference = new ImageEmbeddedAssetReference(initializationData);
 
@@ -141,7 +141,7 @@ namespace Rive.Tests
         {
             var mockAsset = CreateOutOfBandAsset<ImageOutOfBandAsset>(new byte[100]);
 
-            EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Image, 1, "test", 100u, 0, mockAsset);
+            EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Image, 1, "test", 100u, mockAsset);
             var assetReference = new ImageEmbeddedAssetReference(initializationData);
 
             // Setup the first loader to fail
@@ -212,7 +212,7 @@ namespace Rive.Tests
         {
             var mockFontAsset = CreateOutOfBandAsset<FontOutOfBandAsset>(new byte[100]);
 
-            EmbeddedAssetReference.InitializationData fontInitializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Font, 1, "test", 100u, 0, mockFontAsset);
+            EmbeddedAssetReference.InitializationData fontInitializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Font, 1, "test", 100u, mockFontAsset);
             var fontReference = new FontEmbeddedAssetReference(fontInitializationData);
 
 
@@ -221,7 +221,7 @@ namespace Rive.Tests
 
             var mockImageAsset = CreateOutOfBandAsset<ImageOutOfBandAsset>(new byte[100]);
 
-            EmbeddedAssetReference.InitializationData imageInitializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Image, 2, "test", 100u, 0, mockImageAsset);
+            EmbeddedAssetReference.InitializationData imageInitializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Image, 2, "test", 100u, mockImageAsset);
 
             var imageReference = new ImageEmbeddedAssetReference(imageInitializationData);
 
@@ -232,7 +232,7 @@ namespace Rive.Tests
 
             var mockAudioAsset = CreateOutOfBandAsset<AudioOutOfBandAsset>(new byte[120]);
 
-            EmbeddedAssetReference.InitializationData audioInitializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Audio, 3, "test", 100u, 0, mockAudioAsset);
+            EmbeddedAssetReference.InitializationData audioInitializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Audio, 3, "test", 100u, mockAudioAsset);
 
             var audioReference = new AudioEmbeddedAssetReference(audioInitializationData);
 
@@ -254,8 +254,28 @@ namespace Rive.Tests
 
             var imageRef = fallbackLoader.GetAssetReference(2);
             Assert.IsNotNull(imageRef);
-            Assert.AreEqual(1u, imageRef.Index, "Image asset index should account for the preceding Script callback");
+            Assert.AreEqual(EmbeddedAssetType.Image, imageRef.AssetType);
             Assert.IsNull(fallbackLoader.GetAssetReference(1), "Script asset should still have no reference");
+        }
+
+        [Test]
+        public void NativeUnityAssetLoaderCallback_ShouldSkipManifestAssetType_WithoutError()
+        {
+            var manifestResult = fallbackLoader.NativeUnityAssetLoaderCallback(0u, (ushort)EmbeddedAssetType.Manifest, "", 0u);
+
+            Assert.AreEqual(IntPtr.Zero, manifestResult);
+            Assert.IsNull(fallbackLoader.GetAssetReference(0));
+            Assert.IsFalse(mockLogger.LoggedErrorsContains(FallbackFileAssetLoader.LogCodes.ERROR_UNSUPPORTED_ASSET_TYPE));
+            Assert.IsFalse(mockLogger.LoggedErrors.Count > 0, "No errors should be logged for the manifest asset type");
+
+            var fontResult = fallbackLoader.NativeUnityAssetLoaderCallback(4228759u, (ushort)EmbeddedAssetType.Font, "Inter", 100u);
+
+            Assert.AreEqual(IntPtr.Zero, fontResult);
+            var fontRef = fallbackLoader.GetAssetReference(4228759u);
+            Assert.IsNotNull(fontRef);
+            Assert.AreEqual(EmbeddedAssetType.Font, fontRef.AssetType);
+            Assert.AreEqual(4228759u, fontRef.Id);
+            Assert.IsNull(fallbackLoader.GetAssetReference(0), "Manifest asset should still have no reference");
         }
 
         [Test]
@@ -263,7 +283,7 @@ namespace Rive.Tests
         {
             var mockImageAsset = CreateOutOfBandAsset<ImageOutOfBandAsset>(new byte[100]);
 
-            EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Font, 1, "test", 100u, 0, mockImageAsset);
+            EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Font, 1, "test", 100u, mockImageAsset);
 
             var fontReference = new FontEmbeddedAssetReference(initializationData);
 

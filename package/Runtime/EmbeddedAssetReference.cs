@@ -18,21 +18,19 @@ namespace Rive
             public string Name { get; }
             public uint InBandBytesSize { get; }
             public OutOfBandAsset OutOfBandAsset { get; }
-            public uint IndexInRiveFile { get; }
 
-            public InitializationData(EmbeddedAssetType assetType, uint id, string name, uint inBandBytesSize, uint indexInRiveFile, OutOfBandAsset outOfBandAsset)
+            public InitializationData(EmbeddedAssetType assetType, uint id, string name, uint inBandBytesSize, OutOfBandAsset outOfBandAsset)
             {
                 AssetType = assetType;
                 Id = id;
                 Name = name;
                 InBandBytesSize = inBandBytesSize;
                 OutOfBandAsset = outOfBandAsset;
-                IndexInRiveFile = indexInRiveFile;
             }
 
-            public static InitializationData FromEmbeddedAssetData(EmbeddedAssetData embeddedAssetData, uint index)
+            public static InitializationData FromEmbeddedAssetData(EmbeddedAssetData embeddedAssetData)
             {
-                return new InitializationData(embeddedAssetData.AssetType, embeddedAssetData.Id, embeddedAssetData.Name, embeddedAssetData.InBandBytesSize, index, embeddedAssetData.OutOfBandAsset);
+                return new InitializationData(embeddedAssetData.AssetType, embeddedAssetData.Id, embeddedAssetData.Name, embeddedAssetData.InBandBytesSize, embeddedAssetData.OutOfBandAsset);
             }
         }
 
@@ -53,12 +51,6 @@ namespace Rive
         private string m_Name;
 
         private uint m_EmbeddededBytesSize;
-
-
-        /// <summary>
-        /// The index of the embedded asset in the Rive file.
-        /// </summary>
-        private uint m_Index;
 
         private WeakReference<Rive.File> loadedFileReference;
 
@@ -91,45 +83,7 @@ namespace Rive
         [Obsolete("Use OutOfBandAsset instead.")]
         public OutOfBandAsset OutOfBandAssetToLoad { get { return m_OutOfBandAssetToLoad; } }
 
-        /// <summary>
-        /// The index of the embedded/referenced asset in the Rive file.
-        /// </summary>
-        [Obsolete]
-        public uint IndexInRiveFile { get { return m_Index; } }
-
-        /// <summary>
-        /// The index of the embedded/referenced asset in the Rive file.
-        /// </summary>
-        internal uint Index { get { return m_Index; } }
-
         public OutOfBandAsset OutOfBandAsset { get { return m_OutOfBandAssetToLoad; } }
-
-
-        [Obsolete]
-        public EmbeddedAssetReference(EmbeddedAssetData embeddedAssetData, uint index)
-        {
-            m_assetType = embeddedAssetData.AssetType;
-            m_Id = embeddedAssetData.Id;
-            m_Name = embeddedAssetData.Name;
-            m_EmbeddededBytesSize = embeddedAssetData.InBandBytesSize;
-            m_Index = index;
-            m_OutOfBandAssetToLoad = embeddedAssetData.OutOfBandAsset;
-        }
-
-        [Obsolete]
-        public EmbeddedAssetReference(EmbeddedAssetType assetType, uint id, string name, uint embeddededBytesSize, uint indexInRiveFile, OutOfBandAsset outOfBandAsset)
-        {
-            m_assetType = assetType;
-            m_Id = id;
-            m_Name = name;
-            m_EmbeddededBytesSize = embeddededBytesSize;
-            m_Index = indexInRiveFile;
-            m_OutOfBandAssetToLoad = outOfBandAsset;
-        }
-
-
-
-
 
         internal EmbeddedAssetReference(InitializationData initializationData)
         {
@@ -137,7 +91,6 @@ namespace Rive
             m_Id = initializationData.Id;
             m_Name = initializationData.Name;
             m_EmbeddededBytesSize = initializationData.InBandBytesSize;
-            m_Index = initializationData.IndexInRiveFile;
             m_OutOfBandAssetToLoad = initializationData.OutOfBandAsset;
         }
 
@@ -169,7 +122,7 @@ namespace Rive
 
             if (loadedFileReference.TryGetTarget(out Rive.File file))
             {
-                file.UpdateEmbeddedAssetReference(m_Index, outOfBandAsset);
+                file.UpdateEmbeddedAssetReference(m_Id, outOfBandAsset);
                 m_OutOfBandAssetToLoad = outOfBandAsset;
 
             }
@@ -205,7 +158,7 @@ namespace Rive
 
             if (loadedFileReference.TryGetTarget(out Rive.File file))
             {
-                NativeFileInterface.clearAssignedAssetReferenceValue(file.NativeFile, m_Index);
+                NativeFileInterface.clearAssignedAssetReferenceValueById(file.NativeFile, m_Id);
 
             }
             else

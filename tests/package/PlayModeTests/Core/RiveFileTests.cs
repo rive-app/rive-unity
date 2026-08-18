@@ -418,6 +418,112 @@ namespace Rive.Tests
             riveFile2WithAssetLoader.Dispose();
         }
 
+        /// <summary>
+        /// In the past, if a file contained a ManifestAsset (type 642), it would cause SetFont
+        /// to match the wrong asset because callback indexes were shifted. This resulted in error 1002.
+        /// Now, assets are matched and updated using their asset id, avoiding this issue.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Load_ManifestFile_SetFontById_DoesNotLogUnsupportedOr1002()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_global_variables_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_global_variables_test}"));
+
+            FontOutOfBandAsset replacementFont = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<FontOutOfBandAsset>(
+                TestAssetReferences.fontasset_sekuya_regular,
+                (asset) => replacementFont = asset,
+                () => Assert.Fail($"Failed to load font at {TestAssetReferences.fontasset_sekuya_regular}"));
+
+            replacementFont.Load();
+            mockLogger.Clear();
+
+            int fontSetCount = 0;
+            const uint expectedFontId = 4228759u;
+
+            try
+            {
+                File riveFile = File.Load(riveAsset, (assetReference) =>
+                {
+                    if (assetReference is FontEmbeddedAssetReference fontRef)
+                    {
+                        Assert.AreEqual(expectedFontId, fontRef.Id, "Font asset id should match the Inter font in the fixture");
+                        fontRef.SetFont(replacementFont);
+                        fontSetCount++;
+                        return true;
+                    }
+                    return false;
+                });
+                m_loadedFiles.Add(riveFile);
+
+                Assert.IsNotNull(riveFile);
+                Assert.AreEqual(1, fontSetCount, "Expected one font asset in the manifest-bearing file");
+                Assert.IsFalse(mockLogger.LoggedErrorsContains(FallbackFileAssetLoader.LogCodes.ERROR_UNSUPPORTED_ASSET_TYPE),
+                    "Manifest must not log UNSUPPORTED_ASSET_TYPE");
+                Assert.IsFalse(mockLogger.LoggedErrorsContains(LogCodes.ERROR_ASSET_REFERENCE_UPDATE_FAILED),
+                    "SetFont must succeed by asset id, not fail with 1002");
+            }
+            finally
+            {
+                replacementFont.Unload();
+            }
+
+            yield return null;
+        }
+
+        /// <summary>
+        /// A file without a ManifestAsset should still accept SetFont on the callback path.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Load_FileWithoutManifest_SetFont_DoesNotLog1002()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_font_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_font_databinding_test}"));
+
+            FontOutOfBandAsset replacementFont = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<FontOutOfBandAsset>(
+                TestAssetReferences.fontasset_sekuya_regular,
+                (asset) => replacementFont = asset,
+                () => Assert.Fail($"Failed to load font at {TestAssetReferences.fontasset_sekuya_regular}"));
+
+            replacementFont.Load();
+            mockLogger.Clear();
+
+            int fontSetCount = 0;
+
+            try
+            {
+                File riveFile = File.Load(riveAsset, (assetReference) =>
+                {
+                    if (assetReference is FontEmbeddedAssetReference fontRef)
+                    {
+                        fontRef.SetFont(replacementFont);
+                        fontSetCount++;
+                        return true;
+                    }
+                    return false;
+                });
+                m_loadedFiles.Add(riveFile);
+
+                Assert.IsNotNull(riveFile);
+                Assert.Greater(fontSetCount, 0, "Expected at least one font asset");
+                Assert.IsFalse(mockLogger.LoggedErrorsContains(FallbackFileAssetLoader.LogCodes.ERROR_UNSUPPORTED_ASSET_TYPE));
+                Assert.IsFalse(mockLogger.LoggedErrorsContains(LogCodes.ERROR_ASSET_REFERENCE_UPDATE_FAILED));
+            }
+            finally
+            {
+                replacementFont.Unload();
+            }
+
+            yield return null;
+        }
+
 
 
 
