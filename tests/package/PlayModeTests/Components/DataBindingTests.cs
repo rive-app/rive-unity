@@ -956,6 +956,87 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator TriggerProperty_HasChanged_IsFalseAfterClearAndStaysFalse()
+        {
+            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
+
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
+
+            var triggerProp = viewModelInstance.GetTriggerProperty("onFormSubmit");
+            Assert.IsNotNull(triggerProp, "Trigger property should exist");
+
+            int callbackCount = 0;
+            triggerProp.OnTriggered += () => callbackCount++;
+
+            triggerProp.Trigger();
+
+            // Give orchestrator at least one full scheduling cycle plus an extra frame
+            // so the initial trigger is delivered.
+            yield return null;
+            yield return null;
+
+            triggerProp.ClearChanges();
+            Assert.IsFalse(triggerProp.HasChanged,
+                "HasChanged should be false immediately after ClearChanges().");
+
+            yield return null;
+            yield return null;
+
+            Assert.IsFalse(triggerProp.HasChanged,
+                "HasChanged should stay false across extra frames after ClearChanges().");
+            Assert.AreEqual(1, callbackCount, "Trigger should not re-fire after ClearChanges().");
+        }
+
+        [UnityTest]
+        public IEnumerator BooleanProperty_FalseValue_ReadsBackAsFalse()
+        {
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
+
+            var boolProp = viewModelInstance.GetBooleanProperty("agreedToTerms");
+            if (boolProp == null)
+            {
+                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Boolean).FirstOrDefault();
+                Assert.IsNotNull(fallback, "Expected at least one boolean property");
+                boolProp = viewModelInstance.GetBooleanProperty(fallback.Name);
+            }
+            Assert.IsNotNull(boolProp, "Boolean property should exist");
+
+            boolProp.Value = false;
+            Assert.IsFalse(boolProp.Value, "Boolean property should read back false after being set to false.");
+        }
+
+        [UnityTest]
         public IEnumerator TriggerProperty_Orchestrator_ManualMode_FiresOncePerTriggerAfterTick()
         {
             RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;

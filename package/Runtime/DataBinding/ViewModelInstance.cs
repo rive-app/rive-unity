@@ -845,6 +845,7 @@ namespace Rive
         /// <returns>True if the view model property was replaced, false otherwise. E.g. If the view model instance provided is for a different view model, the
         /// replacement will fail.</returns>
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool replaceViewModelInstanceViewModelProperty(
             ViewModelInstanceSafeHandle baseInstanceValue,
             string path,

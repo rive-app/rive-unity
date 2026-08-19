@@ -688,6 +688,7 @@ namespace Rive
         internal static extern void unrefStateMachine(IntPtr stateMachine);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool advanceStateMachine(IntPtr stateMachine, float seconds);
 
         [DllImport(NativeLibrary.name)]
@@ -722,6 +723,7 @@ namespace Rive
         internal static extern byte pointerExitStateMachineWithHit(IntPtr smi, float x, float y, int pointerId);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool hitTestStateMachine(IntPtr stateMachine, float x, float y);
 
         [DllImport(NativeLibrary.name)]
@@ -742,6 +744,7 @@ namespace Rive
         private static extern void setViewModelInstanceOnStateMachine(IntPtr stateMachine, ViewModelInstanceSafeHandle viewModelInstance);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool setGlobalViewModelInstanceOnStateMachine(
             IntPtr stateMachine,
             string name,

@@ -361,6 +361,7 @@ namespace Rive
         internal static extern IntPtr getCustomString(IntPtr nativeProperty);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool getCustomBool(IntPtr nativeProperty);
 
         [DllImport(NativeLibrary.name)]

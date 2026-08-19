@@ -31,9 +31,12 @@ namespace Rive
 
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool getViewModelInstanceBooleanValue(IntPtr instanceProperty);
 
         [DllImport(NativeLibrary.name)]
-        private static extern void setViewModelInstanceBooleanValue(IntPtr instanceProperty, bool value);
+        private static extern void setViewModelInstanceBooleanValue(
+            IntPtr instanceProperty,
+            [MarshalAs(UnmanagedType.U1)] bool value);
     }
 }

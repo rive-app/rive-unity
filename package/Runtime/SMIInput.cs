@@ -55,12 +55,15 @@ namespace Rive
         internal static extern IntPtr getSMIInputName(IntPtr nativeSMI);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool isSMIBoolean(IntPtr nativeSMI);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool isSMITrigger(IntPtr nativeSMI);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool isSMINumber(IntPtr nativeSMI);
         #endregion
     }
@@ -115,10 +118,13 @@ namespace Rive
         #region Native Methods
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool getSMIBoolValueStateMachine(IntPtr nativeSMI);
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void setSMIBoolValueStateMachine(IntPtr nativeSMI, bool newValue);
+        internal static extern void setSMIBoolValueStateMachine(
+            IntPtr nativeSMI,
+            [MarshalAs(UnmanagedType.U1)] bool newValue);
 
         #endregion
     }

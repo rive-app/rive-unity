@@ -457,7 +457,7 @@ namespace Rive
         [DllImport(NativeLibrary.name)]
         private static extern void enqueueBuildRenderImageCommand(
             uint handle, IntPtr nativeTexture, uint width, uint height,
-            [MarshalAs(UnmanagedType.I1)] bool isSRGB, IntPtr[] propertyPtrs, int propertyCount);
+            [MarshalAs(UnmanagedType.U1)] bool isSRGB, IntPtr[] propertyPtrs, int propertyCount);
 
         [DllImport(NativeLibrary.name)]
         private static extern void enqueueDestroyRenderImageCommand(uint handle);

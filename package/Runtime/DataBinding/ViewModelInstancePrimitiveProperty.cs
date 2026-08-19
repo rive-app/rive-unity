@@ -112,6 +112,7 @@ namespace Rive
         }
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool viewModelInstancePropertyValueHasChanged(IntPtr instanceValue);
 
         [DllImport(NativeLibrary.name)]

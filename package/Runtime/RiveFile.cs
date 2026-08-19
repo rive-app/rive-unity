@@ -589,6 +589,7 @@ namespace Rive
         internal static extern void unrefRiveFile(IntPtr riveFile);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool isRiveFileValid(IntPtr riveFile);
         [DllImport(NativeLibrary.name)]
         internal static extern uint getArtboardCount(IntPtr riveFile);
@@ -606,6 +607,7 @@ namespace Rive
         internal static extern IntPtr instanceArtboardWithName(IntPtr riveFile, string name);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool updateEmbeddedAssetReferenceInFileById(IntPtr riveFile, uint assetId, IntPtr decodedAsset);
 
         [DllImport(NativeLibrary.name)]

@@ -70,6 +70,7 @@ namespace Rive
         }
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool setViewModelInstanceFontValue(IntPtr instanceProperty,
             IntPtr fontAsset);
     }

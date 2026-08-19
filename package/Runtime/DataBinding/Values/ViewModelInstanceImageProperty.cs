@@ -122,6 +122,7 @@ namespace Rive
         }
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool setViewModelInstanceImageValue(IntPtr instanceProperty,
             IntPtr imageAsset);
     }

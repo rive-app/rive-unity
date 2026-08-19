@@ -76,6 +76,7 @@ namespace Rive
         }
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool setViewModelInstanceArtboardValue(
             IntPtr instanceProperty,
             IntPtr artboard,

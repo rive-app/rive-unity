@@ -335,7 +335,7 @@ namespace Rive
         [DllImport(NativeLibrary.name)]
         internal static extern void setRenderQueueArtboardDirtCheckEnabled(
             IntPtr renderQueue,
-            bool enabled
+            [MarshalAs(UnmanagedType.U1)] bool enabled
         );
 
 
@@ -622,7 +622,7 @@ namespace Rive
             IntPtr renderTexture,
             uint width,
             uint height,
-            bool clear
+            [MarshalAs(UnmanagedType.U1)] bool clear
         );
 
         [DllImport(NativeLibrary.name)]
@@ -637,6 +637,7 @@ namespace Rive
         );
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         public static extern bool supportsDrawingToScreen();
         #endregion
     }

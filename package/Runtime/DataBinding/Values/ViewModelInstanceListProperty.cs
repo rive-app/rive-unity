@@ -314,6 +314,7 @@ namespace Rive
         private static extern void addViewModelInstanceToList(IntPtr listProperty, IntPtr instance);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool addViewModelInstanceToListAt(IntPtr listProperty, IntPtr instance, int index);
 
         [DllImport(NativeLibrary.name)]

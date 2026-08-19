@@ -486,6 +486,7 @@ namespace Rive
         internal static extern float getArtboardHeight(IntPtr artboard);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool artboardDidChange(IntPtr artboard);
 
 
@@ -530,12 +531,14 @@ namespace Rive
         internal static extern void setArtboardAudioEngine(IntPtr artboard, IntPtr audioEngine);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool artboardHasAudio(IntPtr artboard);
 
         [DllImport(NativeLibrary.name)]
         internal static extern IntPtr artboardComponentNamed(IntPtr artboard, string name);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool artboardSetRunValue(
             IntPtr artboard,
             string runName,
@@ -549,6 +552,7 @@ namespace Rive
         internal static extern IntPtr artboardGetTextRunValue(IntPtr artboard, string runName);
 
         [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool artboardSetTextRunValueAtPath(IntPtr artboard, string runName, string path, string text);
 
         [DllImport(NativeLibrary.name)]
