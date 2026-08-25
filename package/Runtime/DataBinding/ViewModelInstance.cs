@@ -51,6 +51,7 @@ namespace Rive
         internal bool IsDisposed => m_disposed;
 
         private string m_viewModelName = null;
+        private string m_name = null;
 
 
         internal File RiveFile
@@ -93,21 +94,46 @@ namespace Rive
         }
 #endif
 
-        internal string ViewModelName
+        /// <summary>
+        /// The name of the view model that defines this instance.
+        /// </summary>
+        /// <remarks>
+        /// Unlike <see cref="Name"/>, which is this specific instance's editor-assigned name,
+        /// this is the name of the view model definition. Multiple instances can share the
+        /// same view model name while having different instance names.
+        /// </remarks>
+        public string ViewModelName
         {
             get
             {
                 if (m_viewModelName == null && !m_disposed)
                 {
-                    m_viewModelName = Marshal.PtrToStringAnsi(getViewModelNameFromViewModelInstance(NativeSafeHandle));
+                    m_viewModelName = Marshal.PtrToStringAnsi(getViewModelNameFromViewModelInstance(NativeSafeHandle)) ?? string.Empty;
                 }
 
-                return m_viewModelName;
+                return m_viewModelName ?? string.Empty;
             }
         }
 
+        /// <summary>
+        /// The Rive editor-assigned name of this view model instance.
+        /// </summary>
+        /// <remarks>
+        /// Returns an empty string for instances without a name, such as those created with
+        /// <see cref="ViewModel.CreateInstance"/>.
+        /// </remarks>
+        public string Name
+        {
+            get
+            {
+                if (m_name == null && !m_disposed)
+                {
+                    m_name = Marshal.PtrToStringAnsi(getNameFromViewModelInstance(NativeSafeHandle)) ?? string.Empty;
+                }
 
-
+                return m_name ?? string.Empty;
+            }
+        }
 
         private ViewModelInstance(IntPtr instanceValue, CoreViewModelInstancePtr coreInstancePtr, File riveFile)
         {
@@ -824,6 +850,9 @@ namespace Rive
 
         [DllImport(NativeLibrary.name)]
         private static extern IntPtr getViewModelNameFromViewModelInstance(ViewModelInstanceSafeHandle instanceValue);
+
+        [DllImport(NativeLibrary.name)]
+        private static extern IntPtr getNameFromViewModelInstance(ViewModelInstanceSafeHandle instanceValue);
 
         // Returns the borrowed core ViewModelInstance*. Wrap in CoreViewModelInstancePtr at the call
         // site rather than typing the extern, so nothing depends on struct return marshalling.

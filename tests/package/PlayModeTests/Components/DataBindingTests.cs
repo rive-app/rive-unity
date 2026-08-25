@@ -4345,6 +4345,114 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator ViewModelInstance_Names_MatchDefinitionAndCreationSource()
+        {
+            foreach (var testAsset in GetTestAssetInfo())
+            {
+                Asset riveAsset = null;
+
+                yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                    testAsset.addressableAssetPath,
+                    (asset) => riveAsset = asset,
+                    () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+                );
+
+                File riveFile = LoadAndTrackFile(riveAsset);
+
+                foreach (var vmodelinfo in testAsset.expectedViewModelsInFile)
+                {
+                    var viewModel = riveFile.GetViewModelByName(vmodelinfo.Name);
+                    Assert.IsNotNull(viewModel, $"ViewModel '{vmodelinfo.Name}' should exist in {testAsset.addressableAssetPath}");
+
+                    var blankInstance = viewModel.CreateInstance();
+                    Assert.IsNotNull(blankInstance, $"Should create a blank instance of '{vmodelinfo.Name}'");
+                    Assert.AreEqual(vmodelinfo.Name, blankInstance.ViewModelName,
+                        $"Blank instance of '{vmodelinfo.Name}' should report that view model name in {testAsset.addressableAssetPath}");
+                    Assert.AreEqual(string.Empty, blankInstance.Name,
+                        $"Blank instance of '{vmodelinfo.Name}' should have an empty instance name in {testAsset.addressableAssetPath}");
+                    blankInstance.Dispose();
+
+                    var defaultInstance = viewModel.CreateDefaultInstance();
+                    Assert.IsNotNull(defaultInstance, $"Should create a default instance of '{vmodelinfo.Name}'");
+                    Assert.AreEqual(vmodelinfo.Name, defaultInstance.ViewModelName,
+                        $"Default instance of '{vmodelinfo.Name}' should report that view model name in {testAsset.addressableAssetPath}");
+                    CollectionAssert.Contains(vmodelinfo.InstanceNames, defaultInstance.Name,
+                        $"Default instance of '{vmodelinfo.Name}' should use one of the editor instance names in {testAsset.addressableAssetPath}");
+                    defaultInstance.Dispose();
+
+                    foreach (var instanceName in vmodelinfo.InstanceNames)
+                    {
+                        if (string.IsNullOrEmpty(instanceName))
+                        {
+                            continue;
+                        }
+
+                        var namedInstance = viewModel.CreateInstanceByName(instanceName);
+                        Assert.IsNotNull(namedInstance,
+                            $"Should create instance '{instanceName}' of '{vmodelinfo.Name}' in {testAsset.addressableAssetPath}");
+                        Assert.AreEqual(vmodelinfo.Name, namedInstance.ViewModelName,
+                            $"Instance '{instanceName}' should report view model '{vmodelinfo.Name}' in {testAsset.addressableAssetPath}");
+                        Assert.AreEqual(instanceName, namedInstance.Name,
+                            $"Instance created as '{instanceName}' should report that name in {testAsset.addressableAssetPath}");
+                        namedInstance.Dispose();
+                    }
+                }
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator ViewModelInstance_Names_AreAvailableOnNestedAndListInstances()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load data binding test asset")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var personViewModel = riveFile.GetViewModelByName("PersonViewModel");
+            Assert.IsNotNull(personViewModel, "PersonViewModel should exist");
+
+            var personInstance = personViewModel.CreateInstanceByName("Steve");
+            Assert.IsNotNull(personInstance, "Should create the Steve instance");
+            Assert.AreEqual("PersonViewModel", personInstance.ViewModelName);
+            Assert.AreEqual("Steve", personInstance.Name);
+
+            var nestedDrink = personInstance.GetViewModelInstanceProperty("favDrink");
+            Assert.IsNotNull(nestedDrink, "favDrink nested instance should exist");
+            Assert.AreEqual("DrinkViewModel", nestedDrink.ViewModelName);
+            Assert.IsNotNull(nestedDrink.Name, "Nested instance name should not be null");
+
+            personInstance.Dispose();
+
+            Asset listAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_db_list_test,
+                (asset) => listAsset = asset,
+                () => Assert.Fail("Failed to load list test asset")
+            );
+
+            File listFile = LoadAndTrackFile(listAsset);
+            m_widget.Load(listFile);
+            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+
+            var listOwner = m_widget.StateMachine.ViewModelInstance;
+            Assert.IsNotNull(listOwner, "List owner instance should exist");
+            Assert.IsFalse(string.IsNullOrEmpty(listOwner.ViewModelName),
+                "List owner should report a view model name");
+
+            var listProperty = listOwner.GetListProperty("items");
+            Assert.IsNotNull(listProperty, "items list should exist");
+            Assert.Greater(listProperty.Count, 0, "List should have at least one item");
+
+            var listItem = listProperty.GetInstanceAt(0);
+            Assert.IsNotNull(listItem, "List item instance should exist");
+            Assert.AreEqual("TodoItem", listItem.ViewModelName);
+            Assert.IsNotNull(listItem.Name, "List item instance name should not be null");
+        }
+
+        [UnityTest]
         public IEnumerator ViewModel_NewInstance_HasExpectedDefaultValues()
         {
             foreach (var testAsset in GetTestAssetInfo())
