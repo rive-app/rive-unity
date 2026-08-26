@@ -248,7 +248,7 @@ namespace Rive.Tests
         }
     }
 
-    public class MockPanelRenderer : PanelRenderer
+    public class MockPanelRenderer : RivePanelRenderer
     {
         public int UpdateVisualTargetCallCount { get; private set; }
         public int PointerInputModeChangedCount { get; private set; }

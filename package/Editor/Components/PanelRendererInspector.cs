@@ -4,11 +4,11 @@ using UnityEditor;
 
 namespace Rive.EditorTools
 {
-    [CustomEditor(typeof(PanelRenderer), true)]
+    [CustomEditor(typeof(RivePanelRenderer), true)]
     internal class PanelRendererInspector : RiveBaseEditor
     {
 
-        protected PanelRenderer PanelRenderer => target as PanelRenderer;
+        protected RivePanelRenderer PanelRenderer => target as RivePanelRenderer;
 
     }
 }

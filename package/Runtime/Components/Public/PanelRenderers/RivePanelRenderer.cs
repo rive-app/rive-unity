@@ -20,8 +20,12 @@ namespace Rive.Components
         DisablePointerInput = 1
     }
 
+    /// <summary>
+    /// Base class for components that display a <see cref="RivePanel"/> on a Unity target
+    /// such as a Canvas or a Mesh.
+    /// </summary>
     [DisallowMultipleComponent]
-    public abstract class PanelRenderer : MonoBehaviour
+    public abstract class RivePanelRenderer : MonoBehaviour
     {
 
 #if UNITY_EDITOR
@@ -54,7 +58,7 @@ namespace Rive.Components
         {
             if (RivePanel == null)
             {
-                DebugLogger.Instance.LogWarning($"No {nameof(RivePanel)} component found for this {nameof(PanelRenderer)} - {gameObject.name}");
+                DebugLogger.Instance.LogWarning($"No {nameof(RivePanel)} component found for this {nameof(RivePanelRenderer)} - {gameObject.name}");
                 return;
             }
 

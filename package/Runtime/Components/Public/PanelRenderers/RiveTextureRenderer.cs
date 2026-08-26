@@ -18,7 +18,7 @@ namespace Rive.Components
     [InspectorSection(InspectorSections.RendererSettings, "Renderer Settings", startExpanded: true)]
     [HideComponents(hideFlags: HideFlags.HideInInspector, typeof(TexturePanelInputProvider), typeof(PanelVisibilityOptimizer))]
 #endif
-    public class RiveTextureRenderer : PanelRenderer
+    public class RiveTextureRenderer : RivePanelRenderer
     {
         private static class InspectorSections
         {

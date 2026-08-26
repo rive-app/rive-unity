@@ -11,7 +11,7 @@ namespace Rive.Components
     [AddComponentMenu("Rive/Rive Canvas Renderer")]
     [HideComponents(hideFlags: HideFlags.HideInInspector, typeof(CanvasRendererRawImage), typeof(CanvasPanelInputProvider))]
     [RequireComponent(typeof(CanvasRendererRawImage), typeof(IRivePanel))]
-    public class RiveCanvasRenderer : PanelRenderer
+    public class RiveCanvasRenderer : RivePanelRenderer
     {
         [Tooltip("The RiveRawImage to display the Rive content.")]
         [HideInInspector]
