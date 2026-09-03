@@ -5256,6 +5256,8 @@ namespace Rive.Tests
             m_widget.Load(riveFile, NoMainArtboardName, NoMainStateMachineName);
             yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
 
+            Assert.IsFalse(m_widget.Artboard.HasDefaultViewModel,
+                "This artboard is authored without a main view model.");
             Assert.IsNull(m_widget.Artboard.DefaultViewModel,
                 "This artboard is authored without a main view model.");
             Assert.IsNull(m_widget.StateMachine.ViewModelInstance,

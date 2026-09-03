@@ -206,6 +206,17 @@ namespace Rive
 
 
         /// <summary>
+        /// True if this artboard has a view model linked in the Rive file.
+        /// </summary>
+        internal bool HasDefaultViewModel
+        {
+            get
+            {
+                return artboardHasDefaultViewModel(m_nativeArtboard);
+            }
+        }
+
+        /// <summary>
         /// The default ViewModel for the artboard.
         /// </summary>
         public ViewModel DefaultViewModel
@@ -214,6 +225,11 @@ namespace Rive
             {
                 if (m_defaultViewModel == null)
                 {
+                    if (!HasDefaultViewModel)
+                    {
+                        return null;
+                    }
+
                     var file = m_file.TryGetTarget(out var target) ? target : null;
                     if (file != null)
                     {
@@ -564,6 +580,10 @@ namespace Rive
 
         // Data binding
 
+
+        [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        internal static extern bool artboardHasDefaultViewModel(IntPtr artboard);
 
         [DllImport(NativeLibrary.name)]
         internal static extern void bindViewModelInstanceToArtboard(IntPtr artboard, ViewModelInstanceSafeHandle viewModelInstance);

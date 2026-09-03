@@ -209,6 +209,83 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator HasDefaultViewModel_WhenArtboardHasLinkedViewModel_IsTrue()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_asset_databinding_test}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            Artboard artboard = riveFile.Artboard("Artboard");
+            Assert.IsNotNull(artboard, "Expected artboard named 'Artboard'.");
+
+            Assert.IsTrue(artboard.HasDefaultViewModel,
+                "Artboard with a linked view model should report HasDefaultViewModel.");
+            Assert.IsNotNull(artboard.DefaultViewModel,
+                "DefaultViewModel should resolve when a view model is linked.");
+            Assert.IsFalse(string.IsNullOrEmpty(artboard.DefaultViewModel.Name),
+                "Linked default view model should have a name.");
+        }
+
+        [UnityTest]
+        public IEnumerator HasDefaultViewModel_WhenArtboardHasNoViewModel_IsFalse()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_global_debug_no_main_viewmodel,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_global_debug_no_main_viewmodel}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            Artboard artboard = riveFile.Artboard("MainArtboard");
+            Assert.IsNotNull(artboard, "Expected artboard named 'MainArtboard'.");
+
+            Assert.IsFalse(artboard.HasDefaultViewModel,
+                "Artboard without a linked view model should not report HasDefaultViewModel.");
+            Assert.IsNull(artboard.DefaultViewModel,
+                "DefaultViewModel should be null when no view model is linked.");
+        }
+
+        [UnityTest]
+        public IEnumerator HasDefaultViewModel_MatchesDefaultViewModelPresence_ForEveryArtboard()
+        {
+            string[] assetPaths =
+            {
+                TestAssetReferences.riv_asset_databinding_test,
+                TestAssetReferences.riv_global_debug_no_main_viewmodel,
+                TestAssetReferences.riv_sophiaHud,
+            };
+
+            foreach (string assetPath in assetPaths)
+            {
+                Asset riveAsset = null;
+                yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                    assetPath,
+                    (asset) => riveAsset = asset,
+                    () => Assert.Fail($"Failed to load asset at {assetPath}")
+                );
+
+                File riveFile = LoadAndTrackFile(riveAsset);
+                Assert.Greater(riveFile.ArtboardCount, 0u, $"Expected artboards in {assetPath}");
+
+                for (uint i = 0; i < riveFile.ArtboardCount; i++)
+                {
+                    Artboard artboard = riveFile.Artboard(i);
+                    Assert.IsNotNull(artboard, $"Failed to load artboard {i} in {assetPath}");
+
+                    Assert.AreEqual(
+                        artboard.HasDefaultViewModel,
+                        artboard.DefaultViewModel != null,
+                        $"HasDefaultViewModel should match DefaultViewModel presence for artboard '{artboard.Name}' in {assetPath}");
+                }
+            }
+        }
+
+        [UnityTest]
         public IEnumerator SetWidth_ValidValue_UpdatesWidth()
         {
             foreach (var assetData in GetTestRiveAssetData())
