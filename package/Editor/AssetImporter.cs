@@ -8,7 +8,7 @@ using Rive.Utils;
 
 namespace Rive
 {
-    [ScriptedImporter(version: 3, ext: "riv")]
+    [ScriptedImporter(version: 4, ext: "riv")]
     public class AssetImporter : ScriptedImporter
     {
 
@@ -71,8 +71,14 @@ namespace Rive
             {
                 if (!EditorApplication.isCompiling && !EditorApplication.isUpdating)
                 {
-                    call();
-                    EditorApplication.update -= callback;
+                    try
+                    {
+                        call();
+                    }
+                    finally
+                    {
+                        EditorApplication.update -= callback;
+                    }
                 }
             }
 
@@ -120,14 +126,21 @@ namespace Rive
 
                 if (storedReference != null)
                 {
-                    var oobAssetPath = AssetDatabase.GUIDToAssetPath(storedReference.assetGuid);
-                    if (!string.IsNullOrEmpty(assetPath))
+                    // Depend on the GUID even when the asset is missing so Unity
+                    // reimports this .riv when the artifact appears (fresh clone,
+                    // Library rebuild, deleted-then-restored file). Empty GUID
+                    // (cleared inspector assignment) fails TryParse and is skipped.
+                    if (GUID.TryParse(storedReference.assetGuid, out var oobGuid))
                     {
-                        var referencedAsset = AssetDatabase.LoadAssetAtPath<OutOfBandAsset>(oobAssetPath);
-                        if (referencedAsset != null)
+                        ctx.DependsOnArtifact(oobGuid);
+                        var oobAssetPath = AssetDatabase.GUIDToAssetPath(storedReference.assetGuid);
+                        if (!string.IsNullOrEmpty(oobAssetPath))
                         {
-                            embeddedAsset.OutOfBandAsset = referencedAsset;
-                            ctx.DependsOnArtifact(oobAssetPath);
+                            var referencedAsset = AssetDatabase.LoadAssetAtPath<OutOfBandAsset>(oobAssetPath);
+                            if (referencedAsset != null)
+                            {
+                                embeddedAsset.OutOfBandAsset = referencedAsset;
+                            }
                         }
                     }
                 }
@@ -243,6 +256,11 @@ namespace Rive
 
         private void ImportOutOfBandAssets(string assetPath)
         {
+            if (!System.IO.File.Exists(assetPath))
+            {
+                return;
+            }
+
             var bytes = System.IO.File.ReadAllBytes(assetPath);
             var basePath = System.IO.Path.GetDirectoryName(assetPath);
 

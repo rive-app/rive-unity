@@ -12,6 +12,7 @@ namespace Rive.Tests.Utils
 
 
                 public const string riv_stormtrooper_bird = "Packages/app.rive.rive-unity.tests/Shared/Assets/stormtrooper_bird.riv";
+                public const string imageasset_stormtrooper_bird = "Packages/app.rive.rive-unity.tests/Shared/Assets/michael-myers-trooperbird-266093.png";
 
 
                 public const string riv_cleanTheCar = "Packages/app.rive.rive-unity.tests/Shared/Assets/clean_the_car.riv";
