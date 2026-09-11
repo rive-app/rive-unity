@@ -29,6 +29,7 @@ namespace Rive.EditorTools
     {
         private SerializedObject m_SerializedSettings;
         private static bool s_IsUnity6OrNewer;
+        private static readonly IWebGLEnvironment s_Environment = new DefaultWebGLEnvironment();
 
         private RiveProjectSettingsProvider()
             : base("Project/Rive", SettingsScope.Project)
@@ -65,6 +66,21 @@ namespace Rive.EditorTools
                 {
                     m_SerializedSettings.ApplyModifiedProperties();
                     RiveProjectSettings.instance.SaveSettings();
+                }
+
+                // Otherwise this toggle looks like it's doing something when it isn't. Ask the
+                // resolver instead of re-deriving when no-SIMD applies, so this can't drift from
+                // the variant the build actually picks.
+                var config = WebGLConfigResolver.Resolve(s_Environment);
+                if (RiveProjectSettings.instance.DisableWasmSimd && !config.UseNoSimd)
+                {
+                    string enabled = config.UseThreads
+                        ? "Target WebAssembly 2023 and Native C/C++ Multithreading are"
+                        : "Target WebAssembly 2023 is";
+                    EditorGUILayout.HelpBox(
+                        $"{enabled} enabled in Player Settings, so Rive uses the matching " +
+                        "library variant and this option has no effect.",
+                        MessageType.Info);
                 }
             }
             else

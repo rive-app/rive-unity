@@ -15,6 +15,8 @@ namespace Rive.EditorTools
     {
         public string EmscriptenVersion;
         public bool UseNoSimd;
+        public bool UseWasm2023;
+        public bool UseThreads;
         public string SourcePath;
     }
 
@@ -22,6 +24,11 @@ namespace Rive.EditorTools
     {
         string UnityVersion { get; }
         bool DisableWasmSimd { get; }
+
+        /// Whether the build targets WebAssembly 2023. This is the effective value, not the stored
+        /// Player Setting: enabling Native C/C++ Multithreading turns it on implicitly.
+        bool TargetsWasm2023 { get; }
+        bool UsesThreads { get; }
         string PackageName { get; }
         bool DirectoryExists(string path);
     }
@@ -30,6 +37,27 @@ namespace Rive.EditorTools
     {
         public string UnityVersion => UnityEngine.Application.unityVersion;
         public bool DisableWasmSimd => RiveProjectSettings.instance.DisableWasmSimd;
+
+        public bool TargetsWasm2023
+        {
+            get
+            {
+#if UNITY_6000_0_OR_NEWER
+                // Enabling Native C/C++ Multithreading forces WebAssembly 2023 on: the checkbox
+                // renders ticked but greyed out, while the stored setting stays false. So the
+                // property alone under-reports it, and we have to fold threads in to get the value
+                // the build actually uses.
+                return PlayerSettings.WebGL.wasm2023 || PlayerSettings.WebGL.threadsSupport;
+#else
+                // Player Settings > "Target WebAssembly 2023" doesn't exist before Unity 6.
+                return false;
+#endif
+            }
+        }
+
+        // Player Settings > "Native C/C++ Multithreading".
+        public bool UsesThreads => PlayerSettings.WebGL.threadsSupport;
+
         public string PackageName => PackageInfo.PACKAGE_NAME;
         public bool DirectoryExists(string path) => System.IO.Directory.Exists(path);
     }
@@ -53,28 +81,69 @@ namespace Rive.EditorTools
             bool isUnity6OrNewer = IsUnity6OrNewer(env.UnityVersion);
 
             string emscriptenVersion = isUnity6OrNewer ? "3.1.38" : "3.1.8";
-            bool useNoSimd = isUnity6OrNewer && env.DisableWasmSimd;
-            string simdSuffix = useNoSimd ? "_nosimd" : "";
+            bool useWasm2023 = isUnity6OrNewer && env.TargetsWasm2023;
+            // In Unity, Native C/C++ Multithreading is only available with Target WebAssembly
+            // 2023, and the threaded build is made for both, so we derive it from wasm2023.
+            // threadsSupport exists in older Unity versions too though, where wasm2023 does not.
+            // Validate catches that and shows a clear error rather than failing at link time.
+            bool useThreads = useWasm2023 && env.UsesThreads;
+
+            // No-SIMD is the Safari 15 / iOS 15 variant, and that browser runs neither wasm2023 nor
+            // threads, so it only applies with wasm2023 off (which rules threads out too).
+            bool useNoSimd = isUnity6OrNewer && !useWasm2023 && env.DisableWasmSimd;
+
+            string variantSuffix = "";
+            if (useWasm2023) variantSuffix += "_wasm2023";
+            if (useThreads) variantSuffix += "_mt";
+            if (useNoSimd) variantSuffix += "_nosimd";
             string sourcePath = System.IO.Path.Combine(
                 "Packages", env.PackageName,
                 "Runtime/Libraries/WebGL",
-                $"emscripten_{emscriptenVersion}{simdSuffix}");
+                $"emscripten_{emscriptenVersion}{variantSuffix}");
 
             return new WebGLBuildConfig
             {
                 EmscriptenVersion = emscriptenVersion,
                 UseNoSimd = useNoSimd,
+                UseWasm2023 = useWasm2023,
+                UseThreads = useThreads,
                 SourcePath = sourcePath
             };
         }
 
         public static void Validate(WebGLBuildConfig config, IWebGLEnvironment env)
         {
+            // threadsSupport goes back to 2019, well before wasm2023, so it can be on where we
+            // have no threaded variant to offer. Say so plainly instead of leaving it to wasm-ld.
+            if (env.UsesThreads && !config.UseThreads)
+            {
+                // Report what we actually read: the usual cause is Target WebAssembly 2023 having
+                // been turned back off while multithreading stayed on, which the UI doesn't
+                // obviously surface.
+                throw new BuildFailedException(
+                    "Rive: WebGL builds with Native C/C++ Multithreading require Unity 6 or newer"
+                    + " with Target WebAssembly 2023 enabled in Player Settings. Turn off"
+                    + " multithreading, or enable Target WebAssembly 2023."
+                    + $" (Unity {env.UnityVersion}, Native C/C++ Multithreading"
+                    + $" {(env.UsesThreads ? "on" : "off")}, Target WebAssembly 2023"
+                    + $" {(env.TargetsWasm2023 ? "on" : "off")}.)");
+            }
+
             if (!env.DirectoryExists(config.SourcePath))
             {
-                string extraHint = config.UseNoSimd
-                    ? " The no-SIMD library variant may not be included in this package version."
-                    : "";
+                string extraHint = "";
+                if (config.UseWasm2023)
+                {
+                    string settings = config.UseThreads
+                        ? "Target WebAssembly 2023 and Native C/C++ Multithreading"
+                        : "Target WebAssembly 2023";
+                    extraHint = $" This variant may not be included in this package version."
+                        + $" You can turn off {settings} in Player Settings to use the default libraries.";
+                }
+                else if (config.UseNoSimd)
+                {
+                    extraHint = " The no-SIMD library variant may not be included in this package version.";
+                }
                 throw new BuildFailedException(
                     $"Rive: Could not find WebGL libraries at {config.SourcePath}.{extraHint}");
             }

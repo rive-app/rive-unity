@@ -9,6 +9,8 @@ namespace Rive.Tests.EditorTests
     {
         public string UnityVersion { get; set; } = "6000.0.26f1";
         public bool DisableWasmSimd { get; set; } = false;
+        public bool TargetsWasm2023 { get; set; } = false;
+        public bool UsesThreads { get; set; } = false;
         public string PackageName { get; set; } = "app.rive.rive-unity";
         public bool DirectoryExists(string path) => DirectoryExistsOverride;
         public bool DirectoryExistsOverride { get; set; } = true;
@@ -35,8 +37,7 @@ namespace Rive.Tests.EditorTests
 
             Assert.AreEqual("3.1.38", config.EmscriptenVersion);
             Assert.IsFalse(config.UseNoSimd);
-            Assert.That(config.SourcePath, Does.Contain("emscripten_3.1.38"));
-            Assert.That(config.SourcePath, Does.Not.Contain("_nosimd"));
+            Assert.AreEqual("emscripten_3.1.38", System.IO.Path.GetFileName(config.SourcePath));
         }
 
         [Test]
@@ -49,7 +50,217 @@ namespace Rive.Tests.EditorTests
 
             Assert.AreEqual("3.1.38", config.EmscriptenVersion);
             Assert.IsTrue(config.UseNoSimd);
-            Assert.That(config.SourcePath, Does.Contain("emscripten_3.1.38_nosimd"));
+            Assert.AreEqual("emscripten_3.1.38_nosimd", System.IO.Path.GetFileName(config.SourcePath));
+        }
+
+        [Test]
+        public void Resolve_Unity6_WithWasm2023_ResolvesWasm2023Variant()
+        {
+            env.UnityVersion = "6000.0.26f1";
+            env.TargetsWasm2023 = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.AreEqual("3.1.38", config.EmscriptenVersion);
+            Assert.IsTrue(config.UseWasm2023);
+            Assert.IsFalse(config.UseNoSimd);
+            Assert.AreEqual("emscripten_3.1.38_wasm2023", System.IO.Path.GetFileName(config.SourcePath));
+        }
+
+        [Test]
+        public void Resolve_Unity6_WithWasm2023AndSimdDisabled_PrefersWasm2023()
+        {
+            env.UnityVersion = "6000.0.26f1";
+            env.TargetsWasm2023 = true;
+            env.DisableWasmSimd = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.IsTrue(config.UseWasm2023);
+            Assert.IsFalse(config.UseNoSimd);
+            Assert.AreEqual("emscripten_3.1.38_wasm2023", System.IO.Path.GetFileName(config.SourcePath));
+        }
+
+        [Test]
+        public void Resolve_Unity6_WithoutWasm2023_ResolvesDefaultVariant()
+        {
+            env.UnityVersion = "6000.0.26f1";
+            env.TargetsWasm2023 = false;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.IsFalse(config.UseWasm2023);
+            Assert.AreEqual("emscripten_3.1.38", System.IO.Path.GetFileName(config.SourcePath));
+        }
+
+        [Test]
+        public void Resolve_Unity6_WithWasm2023AndThreads_ResolvesCombinedVariant()
+        {
+            env.UnityVersion = "6000.0.26f1";
+            env.TargetsWasm2023 = true;
+            env.UsesThreads = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.IsTrue(config.UseWasm2023);
+            Assert.IsTrue(config.UseThreads);
+            Assert.AreEqual("emscripten_3.1.38_wasm2023_mt", System.IO.Path.GetFileName(config.SourcePath));
+        }
+
+        [Test]
+        public void Resolve_Unity6_WithThreadsAndSimdDisabled_PrefersThreads()
+        {
+            env.UnityVersion = "6000.0.26f1";
+            env.UsesThreads = true;
+            env.TargetsWasm2023 = true; // Unity forces this on with threads
+            env.DisableWasmSimd = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.IsTrue(config.UseThreads);
+            Assert.IsFalse(config.UseNoSimd);
+            Assert.AreEqual("emscripten_3.1.38_wasm2023_mt", System.IO.Path.GetFileName(config.SourcePath));
+        }
+
+        [Test]
+        public void Resolve_Unity2023_ThreadsWithoutWasm2023_DoesNotResolveMtVariant()
+        {
+            // 2023.2 passes IsUnity6OrNewer but has no wasm2023 setting, while threadsSupport
+            // can still be on. That must not ask for a variant we don't ship.
+            env.UnityVersion = "2023.2.0f1";
+            env.UsesThreads = true;
+            env.TargetsWasm2023 = false;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.IsFalse(config.UseThreads);
+            Assert.AreEqual("emscripten_3.1.38", System.IO.Path.GetFileName(config.SourcePath));
+        }
+
+        [Test]
+        public void Validate_ThreadsWithoutWasm2023_ExplainsRequirement()
+        {
+            env.UnityVersion = "2023.2.0f1";
+            env.UsesThreads = true;
+            env.TargetsWasm2023 = false;
+            env.DirectoryExistsOverride = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            var ex = Assert.Throws<UnityEditor.Build.BuildFailedException>(
+                () => WebGLConfigResolver.Validate(config, env));
+            Assert.That(ex.Message, Does.Contain("Native C/C++ Multithreading"));
+            Assert.That(ex.Message, Does.Contain("Target WebAssembly 2023"));
+        }
+
+        [Test]
+        public void Validate_Unity6_ThreadsWithoutWasm2023_ExplainsRequirement()
+        {
+            // On a real Unity 6 editor this pair can't occur, because enabling multithreading
+            // forces WebAssembly 2023 on and DefaultWebGLEnvironment reports that effective value.
+            // Kept so Validate still refuses the combination rather than picking a variant that
+            // was never built for it.
+            env.UnityVersion = "6000.0.26f1";
+            env.UsesThreads = true;
+            env.TargetsWasm2023 = false;
+            env.DirectoryExistsOverride = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.IsFalse(config.UseThreads);
+            var ex = Assert.Throws<UnityEditor.Build.BuildFailedException>(
+                () => WebGLConfigResolver.Validate(config, env));
+            Assert.That(ex.Message, Does.Contain("Target WebAssembly 2023"));
+        }
+
+        [Test]
+        public void Resolve_ThreadsWithoutWasm2023_StillAppliesNoSimd()
+        {
+            // Threads don't suppress no-SIMD, since without wasm2023 they select no variant of
+            // their own. The build then fails Validate rather than silently using these libs.
+            env.UnityVersion = "6000.0.26f1";
+            env.UsesThreads = true;
+            env.TargetsWasm2023 = false;
+            env.DisableWasmSimd = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.IsTrue(config.UseNoSimd);
+            Assert.IsFalse(config.UseThreads);
+            Assert.AreEqual("emscripten_3.1.38_nosimd", System.IO.Path.GetFileName(config.SourcePath));
+
+            Assert.Throws<UnityEditor.Build.BuildFailedException>(
+                () => WebGLConfigResolver.Validate(config, env));
+        }
+
+        [Test]
+        public void Validate_ThreadsOnOlderUnity_ExplainsRequirement()
+        {
+            env.UnityVersion = "2022.3.10f1";
+            env.UsesThreads = true;
+            env.DirectoryExistsOverride = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            var ex = Assert.Throws<UnityEditor.Build.BuildFailedException>(
+                () => WebGLConfigResolver.Validate(config, env));
+            Assert.That(ex.Message, Does.Contain("Unity 6 or newer"));
+        }
+
+        [Test]
+        public void Resolve_Unity2022_IgnoresThreadsSetting_ResolvesEmscripten318()
+        {
+            env.UnityVersion = "2022.3.10f1";
+            env.UsesThreads = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.AreEqual("3.1.8", config.EmscriptenVersion);
+            Assert.IsFalse(config.UseThreads);
+            Assert.AreEqual("emscripten_3.1.8", System.IO.Path.GetFileName(config.SourcePath));
+        }
+
+        [Test]
+        public void Validate_DirectoryMissing_Threads_IncludesThreadsHint()
+        {
+            env.UnityVersion = "6000.0.26f1";
+            env.UsesThreads = true;
+            env.TargetsWasm2023 = true; // Unity forces this on with threads
+            env.DirectoryExistsOverride = false;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            var ex = Assert.Throws<UnityEditor.Build.BuildFailedException>(
+                () => WebGLConfigResolver.Validate(config, env));
+            Assert.That(ex.Message, Does.Contain("Native C/C++ Multithreading"));
+        }
+
+        [Test]
+        public void Resolve_Unity2022_IgnoresWasm2023Setting_ResolvesEmscripten318()
+        {
+            env.UnityVersion = "2022.3.10f1";
+            env.TargetsWasm2023 = true;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.AreEqual("3.1.8", config.EmscriptenVersion);
+            Assert.IsFalse(config.UseWasm2023);
+            Assert.AreEqual("emscripten_3.1.8", System.IO.Path.GetFileName(config.SourcePath));
+        }
+
+        [Test]
+        public void Validate_DirectoryMissing_Wasm2023_IncludesWasm2023Hint()
+        {
+            env.UnityVersion = "6000.0.26f1";
+            env.TargetsWasm2023 = true;
+            env.DirectoryExistsOverride = false;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            var ex = Assert.Throws<UnityEditor.Build.BuildFailedException>(
+                () => WebGLConfigResolver.Validate(config, env));
+            Assert.That(ex.Message, Does.Contain("Target WebAssembly 2023"));
+            Assert.That(ex.Message, Does.Not.Contain("Native C/C++ Multithreading"));
         }
 
         [Test]
@@ -62,8 +273,7 @@ namespace Rive.Tests.EditorTests
 
             Assert.AreEqual("3.1.8", config.EmscriptenVersion);
             Assert.IsFalse(config.UseNoSimd);
-            Assert.That(config.SourcePath, Does.Contain("emscripten_3.1.8"));
-            Assert.That(config.SourcePath, Does.Not.Contain("_nosimd"));
+            Assert.AreEqual("emscripten_3.1.8", System.IO.Path.GetFileName(config.SourcePath));
         }
 
         [Test]
@@ -87,7 +297,7 @@ namespace Rive.Tests.EditorTests
             var config = WebGLConfigResolver.Resolve(env);
 
             Assert.IsTrue(config.UseNoSimd);
-            Assert.That(config.SourcePath, Does.Contain("emscripten_3.1.38_nosimd"));
+            Assert.AreEqual("emscripten_3.1.38_nosimd", System.IO.Path.GetFileName(config.SourcePath));
         }
 
         [Test]
