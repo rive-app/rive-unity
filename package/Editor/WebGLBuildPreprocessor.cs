@@ -76,11 +76,31 @@ namespace Rive.EditorTools
             return major >= 6000 || major == 2023;
         }
 
+        public static bool IsUnity65OrNewer(string unityVersion)
+        {
+            if (string.IsNullOrEmpty(unityVersion)) return false;
+
+            string[] parts = unityVersion.Split('.');
+            if (!int.TryParse(parts[0], out int major)) return false;
+            if (major != 6000) return major > 6000;
+
+            return parts.Length > 1 && int.TryParse(parts[1], out int minor) && minor >= 5;
+        }
+
+        // Unity 6.5 moved its Web toolchain to Emscripten 4.0.19. Emscripten 3.1.57 renamed the
+        // setjmp runtime functions, so objects built with 3.1.38 leave saveSetjmp/testSetjmp
+        // undefined when linked there.
+        public static string GetEmscriptenVersion(string unityVersion)
+        {
+            if (!IsUnity6OrNewer(unityVersion)) return "3.1.8";
+            return IsUnity65OrNewer(unityVersion) ? "4.0.19" : "3.1.38";
+        }
+
         public static WebGLBuildConfig Resolve(IWebGLEnvironment env)
         {
             bool isUnity6OrNewer = IsUnity6OrNewer(env.UnityVersion);
 
-            string emscriptenVersion = isUnity6OrNewer ? "3.1.38" : "3.1.8";
+            string emscriptenVersion = GetEmscriptenVersion(env.UnityVersion);
             bool useWasm2023 = isUnity6OrNewer && env.TargetsWasm2023;
             // In Unity, Native C/C++ Multithreading is only available with Target WebAssembly
             // 2023, and the threaded build is made for both, so we derive it from wasm2023.
@@ -154,7 +174,8 @@ namespace Rive.EditorTools
     /// Handles WebGL native plugin selection based on Unity version.
     /// Different Unity versions require different Emscripten-compiled libraries:
     /// - Unity 2022.x and earlier use Emscripten 3.1.8
-    /// - Unity 2023.x (Unity 6) uses Emscripten 3.1.38
+    /// - Unity 2023.x and Unity 6.0-6.4 use Emscripten 3.1.38
+    /// - Unity 6.5 and later use Emscripten 4.0.19
     /// If we don't match the emscripten library Unity uses, the build will fail with an error like: 
     ///     - Building Library\Bee\artifacts\WebGL\build\debug_WebGL_wasm\build.js failed with output:
     ///     - wasm-ld: error: Library/PackageCache/app.rive.rive-unity/Runtime/Libraries/WebGL/librive_wasm.a(artboard.o): undefined symbol: std::__2::__vector_base_common<true>::__throw_length_error() const

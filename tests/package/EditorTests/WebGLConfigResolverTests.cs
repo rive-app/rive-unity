@@ -370,6 +370,44 @@ namespace Rive.Tests.EditorTests
             Assert.That(ex.Message, Does.Not.Contain("no-SIMD library variant"));
         }
 
+        [TestCase("2021.3.25f1", "3.1.8")]
+        [TestCase("2022.3.10f1", "3.1.8")]
+        [TestCase("2023.2.0f1", "3.1.38")]
+        [TestCase("6000.0.26f1", "3.1.38")]
+        [TestCase("6000.4.3f1", "3.1.38")]
+        [TestCase("6000.5.1f1", "4.0.19")]
+        [TestCase("6000.6.0f1", "4.0.19")]
+        [TestCase("6000.10.0f1", "4.0.19")]
+        [TestCase("6001.0.0f1", "4.0.19")]
+        [TestCase("7000.0.0f1", "4.0.19")]
+        [TestCase("", "3.1.8")]
+        [TestCase(null, "3.1.8")]
+        [TestCase("not-a-version", "3.1.8")]
+        public void GetEmscriptenVersion_MapsUnityVersion(string unityVersion, string expected)
+        {
+            Assert.AreEqual(expected, WebGLConfigResolver.GetEmscriptenVersion(unityVersion));
+        }
+
+        [TestCase("6000.5.1f1", false, false, false, "emscripten_4.0.19")]
+        [TestCase("6000.5.1f1", false, false, true, "emscripten_4.0.19_nosimd")]
+        [TestCase("6000.6.0f1", true, false, false, "emscripten_4.0.19_wasm2023")]
+        [TestCase("6000.6.0f1", true, true, false, "emscripten_4.0.19_wasm2023_mt")]
+        [TestCase("6000.4.3f1", true, false, false, "emscripten_3.1.38_wasm2023")]
+        public void Resolve_PicksVariantForEmscriptenVersion(
+            string unityVersion, bool wasm2023, bool threads, bool disableSimd, string expectedLeaf)
+        {
+            // The 6000.6 wasm2023 row is the reported configuration: it has to get libraries built
+            // with 4.0.19, since the 3.1.38 ones leave saveSetjmp/testSetjmp undefined there.
+            env.UnityVersion = unityVersion;
+            env.TargetsWasm2023 = wasm2023;
+            env.UsesThreads = threads;
+            env.DisableWasmSimd = disableSimd;
+
+            var config = WebGLConfigResolver.Resolve(env);
+
+            Assert.AreEqual(expectedLeaf, System.IO.Path.GetFileName(config.SourcePath));
+        }
+
         [TestCase("6000.0.26f1", true)]
         [TestCase("6001.0.0f1", true)]
         [TestCase("6100.2.5f1", true)]
