@@ -376,6 +376,7 @@ namespace Rive
     public enum BlendMode : byte
     {
         SrcOver = 3,
+        Additive = 12,
         Screen = 14,
         Overlay = 15,
         Darken = 16,
