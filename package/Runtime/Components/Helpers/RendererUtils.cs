@@ -21,22 +21,10 @@ namespace Rive.Components.Utilities
         /// <returns> The created renderer. </returns>
         public static Renderer CreateRenderer(RenderTexture renderTexture)
         {
-            RendererCleanupHelper cleanupHelper = RendererCleanupHelper.Instance;
-
-            // The cleanup helper doubles as the coroutine host.
-            MonoBehaviour coroutineHelper = cleanupHelper != null
-                ? cleanupHelper
-                : RenderPipelineHelper.CurrentHandler as MonoBehaviour;
-
+            // The pipeline handler hosts the coroutine for delayed Vulkan textures.
+            var coroutineHelper = RenderPipelineHelper.CurrentHandler as MonoBehaviour;
             RenderQueue renderQueue = new RenderQueue(renderTexture, true, coroutineHelper);
-
-            Renderer renderer = renderQueue.Renderer();
-
-            // Track the renderer so it can be disposed deterministically on application/editor quit,
-            // before Unity tears down the graphics device.
-            cleanupHelper?.Register(renderer);
-
-            return renderer;
+            return renderQueue.Renderer();
         }
 
         /// <summary>
@@ -46,21 +34,9 @@ namespace Rive.Components.Utilities
         public static void ReleaseRenderer(Renderer renderer)
         {
             if (renderer?.RenderQueue == null) return;
-
-            RendererCleanupHelper cleanupHelper = RendererCleanupHelper.Instance;
-
-            if (Application.isPlaying && cleanupHelper != null)
-            {
-                // Deferred (end-of-frame) release while playing, or synchronous if already quitting.
-                cleanupHelper.ReleaseRenderer(renderer);
-            }
-            else
-            {
-                // In edit mode (or when no helper exists) we can't use coroutines, so we release the
-                // renderer immediately.
-                cleanupHelper?.Unregister(renderer);
-                renderer.RenderQueue.Dispose();
-            }
+            // Render events already queued keep the native queue alive until
+            // they've run, so this doesn't wait for the end of the frame.
+            renderer.RenderQueue.Dispose();
         }
     }
 }

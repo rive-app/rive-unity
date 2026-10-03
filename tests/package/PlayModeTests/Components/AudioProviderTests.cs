@@ -63,8 +63,9 @@ namespace Rive.Tests
 #if !UNITY_WEBGL || UNITY_EDITOR
 
         [UnityTest]
-        public IEnumerator RiveWidget_WithNoAudioArtboard_DoesNotCreateProvider()
+        public IEnumerator RiveWidget_WithNoAudioArtboard_DoesNotCreateProvider([Values] ThreadingMode mode)
         {
+            m_panel.ThreadingMode = mode;
             // Load a Rive asset known to have no audio
             Asset riveAsset = null;
             yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
@@ -78,9 +79,9 @@ namespace Rive.Tests
 
             m_widget.Load(riveAsset);
 
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
-            Assert.IsFalse(m_widget.Artboard.HasAudio, "Artboard should not have audio");
+            Assert.IsFalse(m_widget.LoadedArtboard.HasAudio, "Artboard should not have audio");
 
             yield return null;
 
@@ -88,8 +89,9 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RiveWidget_WithAudioArtboard_CreatesProvider()
+        public IEnumerator RiveWidget_WithAudioArtboard_CreatesProvider([Values] ThreadingMode mode)
         {
+            m_panel.ThreadingMode = mode;
             // Load a Rive asset known to have audio
             Asset riveAsset = null;
             yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
@@ -103,9 +105,9 @@ namespace Rive.Tests
 
             m_widget.Load(riveAsset);
 
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
-            Assert.IsTrue(m_widget.Artboard.HasAudio, "Artboard should have audio");
+            Assert.IsTrue(m_widget.LoadedArtboard.HasAudio, "Artboard should have audio");
 
             yield return null;
 
@@ -117,8 +119,9 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RiveWidget_SwitchingFromNoAudioToAudio_CreatesProvider()
+        public IEnumerator RiveWidget_SwitchingFromNoAudioToAudio_CreatesProvider([Values] ThreadingMode mode)
         {
+            m_panel.ThreadingMode = mode;
             // First, load a file without audio
             Asset noAudioAsset = null;
             yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
@@ -127,8 +130,8 @@ namespace Rive.Tests
                 () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_cleanTheCar}"));
 
             m_widget.Load(noAudioAsset);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
-            Assert.IsFalse(m_widget.Artboard.HasAudio, "Artboard should not have audio");
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
+            Assert.IsFalse(m_widget.LoadedArtboard.HasAudio, "Artboard should not have audio");
             yield return null;
             Assert.IsNull(ObjectHelper.FindAny<AudioProvider>(), "AudioProvider should not exist after loading no-audio file");
 
@@ -140,17 +143,18 @@ namespace Rive.Tests
                 () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_ping_pong_demo}"));
 
             m_widget.Load(audioAsset);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
-            Assert.IsTrue(m_widget.Artboard.HasAudio, "Artboard should have audio");
+            Assert.IsTrue(m_widget.LoadedArtboard.HasAudio, "Artboard should have audio");
             yield return null;
 
             Assert.IsNotNull(ObjectHelper.FindAny<AudioProvider>(), "AudioProvider should be created after switching to an audio-enabled file");
         }
 
         [UnityTest]
-        public IEnumerator RiveWidget_UsesExplicitCustomAudioProvider_WhenAssignedBeforeLoad()
+        public IEnumerator RiveWidget_UsesExplicitCustomAudioProvider_WhenAssignedBeforeLoad([Values] ThreadingMode mode)
         {
+            m_panel.ThreadingMode = mode;
             var customProviderGO = new GameObject("CustomAudioProvider");
             var customProvider = customProviderGO.AddComponent<AudioProvider>();
 
@@ -171,8 +175,8 @@ namespace Rive.Tests
 
             m_widget.Load(riveAsset);
 
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
-            Assert.IsTrue(m_widget.Artboard.HasAudio, "Artboard should have audio");
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
+            Assert.IsTrue(m_widget.LoadedArtboard.HasAudio, "Artboard should have audio");
 
             yield return null;
 
@@ -187,8 +191,9 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RiveWidget_SwitchingToCustomAudioProvider_ReconfiguresArtboard()
+        public IEnumerator RiveWidget_SwitchingToCustomAudioProvider_ReconfiguresArtboard([Values] ThreadingMode mode)
         {
+            m_panel.ThreadingMode = mode;
             Asset riveAsset = null;
             yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
                 TestAssetReferences.riv_ping_pong_demo,
@@ -199,8 +204,8 @@ namespace Rive.Tests
 
             m_widget.Load(riveAsset);
 
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
-            Assert.IsTrue(m_widget.Artboard.HasAudio, "Artboard should have audio");
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
+            Assert.IsTrue(m_widget.LoadedArtboard.HasAudio, "Artboard should have audio");
 
             yield return null;
 
@@ -224,8 +229,9 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RiveWidget_SettingAudioProviderToNull_RevertsToGlobalProvider()
+        public IEnumerator RiveWidget_SettingAudioProviderToNull_RevertsToGlobalProvider([Values] ThreadingMode mode)
         {
+            m_panel.ThreadingMode = mode;
             // We load an audio-enabled asset so that the default/global provider is created
             Asset riveAsset = null;
             yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
@@ -237,8 +243,8 @@ namespace Rive.Tests
 
             m_widget.Load(riveAsset);
 
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
-            Assert.IsTrue(m_widget.Artboard.HasAudio, "Artboard should have audio");
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
+            Assert.IsTrue(m_widget.LoadedArtboard.HasAudio, "Artboard should have audio");
 
             yield return null;
 
@@ -273,8 +279,9 @@ namespace Rive.Tests
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         [UnityTest]
-        public IEnumerator WebGL_RiveWidget_WithAudioArtboard_DoesNotCreateProvider()
+        public IEnumerator WebGL_RiveWidget_WithAudioArtboard_DoesNotCreateProvider([Values] ThreadingMode mode)
         {
+            m_panel.ThreadingMode = mode;
             // On WebGL, we use system audio (bypassing AudioSource); ensure no provider is spawned even for audio-enabled files
             Asset audioAsset = null;
             yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
@@ -283,9 +290,9 @@ namespace Rive.Tests
                 () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_ping_pong_demo}"));
 
             m_widget.Load(audioAsset);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
-            Assert.IsTrue(m_widget.Artboard.HasAudio, "Artboard should have audio");
+            Assert.IsTrue(m_widget.LoadedArtboard.HasAudio, "Artboard should have audio");
             yield return null;
 
             Assert.IsNull(ObjectHelper.FindAny<AudioProvider>(), "AudioProvider should not be created on WebGL");

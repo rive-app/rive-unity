@@ -1,6 +1,6 @@
 using System;
-using System.Runtime.InteropServices;
 using Rive.Utils;
+using Rive.Host;
 
 namespace Rive
 {
@@ -8,10 +8,13 @@ namespace Rive
     /// A view model instance property for image properties.
     /// </summary>
     public sealed class ViewModelInstanceImageProperty : ViewModelInstancePrimitiveProperty
+#if RIVE_USING_EXPERIMENTAL
+        , IRenderImageTarget
+#endif
     {
 
 
-        public ViewModelInstanceImageProperty(IntPtr instanceValuePtr, ViewModelInstance instance) : base(instanceValuePtr, instance)
+        internal ViewModelInstanceImageProperty(ViewModelInstance instance, string name, int slot) : base(instance, name, slot)
         {
         }
 
@@ -52,13 +55,13 @@ namespace Rive
             }
 #endif
 
-            if (imageAsset != null && imageAsset.NativeAsset == IntPtr.Zero)
+            if (imageAsset != null && !imageAsset.NativeHandle.IsValid)
             {
                 DebugLogger.Instance.LogWarning("Trying to assign an unloaded image asset.");
                 return;
             }
 
-            bool wasSuccess = setViewModelInstanceImageValue(InstancePropertyPtr, imageAsset == null ? IntPtr.Zero : imageAsset.NativeAsset);
+            bool wasSuccess = ViewModelNative.SetAsset(InstanceHandle, Name, ViewModelDataType.AssetImage, imageAsset == null ? default : imageAsset.NativeHandle);
 
             if (!wasSuccess)
             {
@@ -78,7 +81,7 @@ namespace Rive
             if (image == null)
             {
                 RenderTextureImageManager.Instance.Unbind(this);
-                ApplyRenderImagePointer(IntPtr.Zero);
+                ClearRenderImage();
                 return;
             }
             // The manager owns the image to property binding and the per-frame
@@ -90,18 +93,29 @@ namespace Rive
         }
 
         /// <summary>
-        /// Pushes a raw native RenderImage pointer into this property. Used by
-        /// <see cref="RenderTextureImageSource"/> to re-bind its per-frame pointer
-        /// without re-attaching. Returns false if the push failed (e.g. owner
-        /// disposed) so the per-frame path can stay quiet.
+        /// Empties the property. False if that failed, e.g. the owner was disposed.
         /// </summary>
-        internal bool ApplyRenderImagePointer(IntPtr nativeImagePtr)
+        internal bool ClearRenderImage()
         {
             if (RootInstance != null && RootInstance.IsDisposed)
             {
                 return false;
             }
-            return setViewModelInstanceImageValue(InstancePropertyPtr, nativeImagePtr);
+            return ViewModelNative.SetAsset(InstanceHandle, Name, ViewModelDataType.AssetImage, default);
+        }
+
+        bool IRenderImageTarget.IsGone => RootInstance != null && RootInstance.IsDisposed;
+
+        bool IRenderImageTarget.TryResolve(out NativeViewModelInstanceHandle instance, out string path)
+        {
+            instance = InstanceHandle;
+            path = Name;
+            return IsAttached;
+        }
+
+        void IRenderImageTarget.ClearRenderImage()
+        {
+            ClearRenderImage();
         }
 #endif // RIVE_USING_EXPERIMENTAL
 
@@ -120,10 +134,5 @@ namespace Rive
         {
             m_onValueChanged = null;
         }
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        private static extern bool setViewModelInstanceImageValue(IntPtr instanceProperty,
-            IntPtr imageAsset);
     }
 }

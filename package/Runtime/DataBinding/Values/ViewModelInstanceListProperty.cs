@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Rive.Utils;
 
 namespace Rive
@@ -10,10 +9,14 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceListProperty : ViewModelInstancePrimitiveProperty
     {
+        // Held across each operation's native call and its bookkeeping, so two
+        // threads changing the list can't leave native and the tracking out of step.
+        private readonly object m_opLock = new object();
+
+        // Only touched under m_opLock.
         private readonly HashSet<ViewModelInstance> m_trackedInstances = new HashSet<ViewModelInstance>();
 
-        internal ViewModelInstanceListProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance)
-            : base(instanceValuePtr, rootInstance)
+        internal ViewModelInstanceListProperty(ViewModelInstance rootInstance, string name, int slot) : base(rootInstance, name, slot)
         {
         }
 
@@ -26,12 +29,12 @@ namespace Rive
             {
                 ThrowIfOwnerDisposed();
 
-                if (InstancePropertyPtr == IntPtr.Zero)
+                if (!IsAttached)
                 {
                     DebugLogger.Instance.LogWarning("Trying to get length of a null list property.");
                     return 0;
                 }
-                return (int)getViewModelInstanceListSize(InstancePropertyPtr);
+                return GetViewModelInstanceListSize(InstanceHandle, Name);
             }
         }
 
@@ -42,47 +45,32 @@ namespace Rive
         /// <returns>The view model instance at the specified index, or null if the index is out of bounds.</returns>
         public ViewModelInstance GetInstanceAt(int index)
         {
-            ThrowIfOwnerDisposed();
-
-            if (InstancePropertyPtr == IntPtr.Zero)
+            lock (m_opLock)
             {
-                DebugLogger.Instance.LogError("Trying to get item from a null list property.");
-                return null;
+                ThrowIfOwnerDisposed();
+
+                if (!IsAttached)
+                {
+                    DebugLogger.Instance.LogError("Trying to get item from a null list property.");
+                    return null;
+                }
+
+                if (index < 0 || index >= Count)
+                {
+                    DebugLogger.Instance.LogError($"Index {index} is out of bounds for list of length {Count}.");
+                    return null;
+                }
+
+                NativeViewModelInstanceHandle item = GetViewModelInstanceListItemAt(InstanceHandle, Name, index);
+                ViewModelInstance vmi = ViewModelInstance.GetOrCreateFromHandle(item, RootInstance?.RiveFile, RootInstance);
+                if (vmi != null)
+                {
+                    m_trackedInstances.Add(vmi);
+                }
+
+                return vmi;
             }
-
-            if (index < 0 || index >= Count)
-            {
-                DebugLogger.Instance.LogError($"Index {index} is out of bounds for list of length {Count}.");
-                return null;
-            }
-
-            IntPtr instancePtr = getViewModelInstanceListItemAt(InstancePropertyPtr, index);
-            if (instancePtr == IntPtr.Zero)
-            {
-                return null;
-            }
-
-            ViewModelInstance vmi = GetOrCreateVMInstanceFromPtr(instancePtr);
-            if (vmi != null)
-            {
-                m_trackedInstances.Add(vmi);
-            }
-
-            return vmi;
-
         }
-
-        private ViewModelInstance GetOrCreateVMInstanceFromPtr(IntPtr instancePtr)
-        {
-            if (instancePtr == IntPtr.Zero)
-            {
-                return null;
-            }
-
-            return ViewModelInstance.GetOrCreateFromPointer(instancePtr, this.RootInstance?.RiveFile, this.RootInstance);
-        }
-
-
 
         /// <summary>
         /// Adds a view model instance to the end of the list.
@@ -90,25 +78,27 @@ namespace Rive
         /// <param name="instance">The view model instance to add.</param>
         public void Add(ViewModelInstance instance)
         {
-            ThrowIfOwnerDisposed();
-
-            if (InstancePropertyPtr == IntPtr.Zero)
+            lock (m_opLock)
             {
-                DebugLogger.Instance.LogError("Trying to add to a null list property.");
-                return;
+                ThrowIfOwnerDisposed();
+
+                if (!IsAttached)
+                {
+                    DebugLogger.Instance.LogError("Trying to add to a null list property.");
+                    return;
+                }
+
+                if (instance == null || instance.IsDisposed)
+                {
+                    DebugLogger.Instance.LogError("Cannot add null or invalid view model instance to list.");
+                    return;
+                }
+
+                AddViewModelInstanceToList(InstanceHandle, Name, instance.NativeHandle);
+
+                instance.AddParent(this.RootInstance);
+                m_trackedInstances.Add(instance);
             }
-
-            if (instance == null || instance.NativeSafeHandle.IsInvalid)
-            {
-                DebugLogger.Instance.LogError("Cannot add null or invalid view model instance to list.");
-                return;
-            }
-
-            addViewModelInstanceToList(InstancePropertyPtr, instance.NativeSafeHandle.DangerousGetHandle());
-
-            instance.AddParent(this.RootInstance);
-            m_trackedInstances.Add(instance);
-
         }
 
         /// <summary>
@@ -118,34 +108,37 @@ namespace Rive
         /// <param name="index">The index at which to insert the instance.</param>
         public void Insert(ViewModelInstance instance, int index)
         {
-            ThrowIfOwnerDisposed();
-
-            if (instance == null)
+            lock (m_opLock)
             {
-                DebugLogger.Instance.LogError("Cannot insert null or invalid view model instance into list.");
-                return;
-            }
+                ThrowIfOwnerDisposed();
 
-            if (InstancePropertyPtr == IntPtr.Zero)
-            {
-                DebugLogger.Instance.LogError("Trying to insert into a null list property.");
-                return;
-            }
+                if (instance == null)
+                {
+                    DebugLogger.Instance.LogError("Cannot insert null or invalid view model instance into list.");
+                    return;
+                }
 
-            if (index < 0)
-            {
-                DebugLogger.Instance.LogError($"Index {index} is out of bounds for list of length {Count}.");
-                return;
-            }
+                if (!IsAttached)
+                {
+                    DebugLogger.Instance.LogError("Trying to insert into a null list property.");
+                    return;
+                }
 
-            if (!addViewModelInstanceToListAt(InstancePropertyPtr, instance.NativeSafeHandle.DangerousGetHandle(), index))
-            {
-                DebugLogger.Instance.LogError($"Failed to insert view model instance at index {index}.");
-                return;
-            }
+                if (index < 0)
+                {
+                    DebugLogger.Instance.LogError($"Index {index} is out of bounds for list of length {Count}.");
+                    return;
+                }
 
-            instance.AddParent(this.RootInstance);
-            m_trackedInstances.Add(instance);
+                if (!AddViewModelInstanceToListAt(InstanceHandle, Name, instance.NativeHandle, index))
+                {
+                    DebugLogger.Instance.LogError($"Failed to insert view model instance at index {index}.");
+                    return;
+                }
+
+                instance.AddParent(this.RootInstance);
+                m_trackedInstances.Add(instance);
+            }
         }
 
         /// <summary>
@@ -157,25 +150,27 @@ namespace Rive
         /// </remarks>
         public void Remove(ViewModelInstance instance)
         {
-            ThrowIfOwnerDisposed();
-
-            if (InstancePropertyPtr == IntPtr.Zero)
+            lock (m_opLock)
             {
-                DebugLogger.Instance.LogError("Trying to remove from a null list property.");
-                return;
+                ThrowIfOwnerDisposed();
+
+                if (!IsAttached)
+                {
+                    DebugLogger.Instance.LogError("Trying to remove from a null list property.");
+                    return;
+                }
+
+                if (instance == null || instance.IsDisposed)
+                {
+                    DebugLogger.Instance.LogError("Cannot remove null or invalid view model instance from list.");
+                    return;
+                }
+
+                RemoveViewModelInstanceFromList(InstanceHandle, Name, instance.NativeHandle);
+
+                instance.RemoveParent(this.RootInstance);
+                m_trackedInstances.Remove(instance);
             }
-
-            if (instance == null || instance.NativeSafeHandle.IsInvalid)
-            {
-                DebugLogger.Instance.LogError("Cannot remove null or invalid view model instance from list.");
-                return;
-            }
-
-            removeViewModelInstanceFromList(InstancePropertyPtr, instance.NativeSafeHandle.DangerousGetHandle());
-
-            instance.RemoveParent(this.RootInstance);
-            m_trackedInstances.Remove(instance);
-
         }
 
         /// <summary>
@@ -184,30 +179,32 @@ namespace Rive
         /// <param name="index">The index of the item to remove.</param>
         public void RemoveAt(int index)
         {
-            ThrowIfOwnerDisposed();
-
-            if (InstancePropertyPtr == IntPtr.Zero)
+            lock (m_opLock)
             {
-                DebugLogger.Instance.LogError("Trying to remove from a null list property.");
-                return;
+                ThrowIfOwnerDisposed();
+
+                if (!IsAttached)
+                {
+                    DebugLogger.Instance.LogError("Trying to remove from a null list property.");
+                    return;
+                }
+
+                if (index < 0 || index >= Count)
+                {
+                    DebugLogger.Instance.LogError($"Index {index} is out of bounds for list of length {Count}.");
+                    return;
+                }
+
+                ViewModelInstance instance = GetInstanceAt(index);
+                if (instance == null)
+                {
+                    DebugLogger.Instance.LogError($"No instance found at index {index}.");
+                    return;
+                }
+
+                RemoveViewModelInstanceFromListAt(InstanceHandle, Name, index);
+                m_trackedInstances.Remove(instance);
             }
-
-            if (index < 0 || index >= Count)
-            {
-                DebugLogger.Instance.LogError($"Index {index} is out of bounds for list of length {Count}.");
-                return;
-            }
-
-            ViewModelInstance instance = GetInstanceAt(index);
-            if (instance == null)
-            {
-                DebugLogger.Instance.LogError($"No instance found at index {index}.");
-                return;
-            }
-
-            removeViewModelInstanceFromListAt(InstancePropertyPtr, index);
-            m_trackedInstances.Remove(instance);
-
         }
 
         /// <summary>
@@ -215,21 +212,24 @@ namespace Rive
         /// </summary>
         public void Clear()
         {
-            ThrowIfOwnerDisposed();
-
-            if (InstancePropertyPtr == IntPtr.Zero)
+            lock (m_opLock)
             {
-                DebugLogger.Instance.LogError("Trying to clear a null list property.");
-                return;
-            }
+                ThrowIfOwnerDisposed();
 
-            clearViewModelInstanceList(InstancePropertyPtr);
+                if (!IsAttached)
+                {
+                    DebugLogger.Instance.LogError("Trying to clear a null list property.");
+                    return;
+                }
 
-            foreach (var instance in m_trackedInstances)
-            {
-                instance?.RemoveParent(this.RootInstance);
+                ClearViewModelInstanceList(InstanceHandle, Name);
+
+                foreach (var instance in m_trackedInstances)
+                {
+                    instance?.RemoveParent(this.RootInstance);
+                }
+                m_trackedInstances.Clear();
             }
-            m_trackedInstances.Clear();
         }
 
         /// <summary>
@@ -239,33 +239,36 @@ namespace Rive
         /// <param name="indexB">The index of the second item to swap.</param>
         public void Swap(int indexA, int indexB)
         {
-            ThrowIfOwnerDisposed();
-
-            if (InstancePropertyPtr == IntPtr.Zero)
+            lock (m_opLock)
             {
-                DebugLogger.Instance.LogError("Trying to swap instances in a null list property.");
-                return;
-            }
+                ThrowIfOwnerDisposed();
 
-            if (indexA == indexB)
-            {
-                DebugLogger.Instance.LogError("Cannot swap instances at the same index.");
-                return;
-            }
+                if (!IsAttached)
+                {
+                    DebugLogger.Instance.LogError("Trying to swap instances in a null list property.");
+                    return;
+                }
 
-            if (indexA < 0 || indexA >= Count)
-            {
-                DebugLogger.Instance.LogError($"Index {indexA} is out of bounds for list of length {Count}.");
-                return;
-            }
+                if (indexA == indexB)
+                {
+                    DebugLogger.Instance.LogError("Cannot swap instances at the same index.");
+                    return;
+                }
 
-            if (indexB < 0 || indexB >= Count)
-            {
-                DebugLogger.Instance.LogError($"Index {indexB} is out of bounds for list of length {Count}.");
-                return;
-            }
+                if (indexA < 0 || indexA >= Count)
+                {
+                    DebugLogger.Instance.LogError($"Index {indexA} is out of bounds for list of length {Count}.");
+                    return;
+                }
 
-            swapViewModelInstancesInList(InstancePropertyPtr, indexA, indexB);
+                if (indexB < 0 || indexB >= Count)
+                {
+                    DebugLogger.Instance.LogError($"Index {indexB} is out of bounds for list of length {Count}.");
+                    return;
+                }
+
+                SwapViewModelInstancesInList(InstanceHandle, Name, indexA, indexB);
+            }
         }
 
         /// <summary>
@@ -304,29 +307,46 @@ namespace Rive
             m_onTriggered = null;
         }
 
-        [DllImport(NativeLibrary.name)]
-        private static extern nuint getViewModelInstanceListSize(IntPtr listProperty);
+        // Each waits, like the rest of the plain API.
 
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceListItemAt(IntPtr listProperty, int index);
+        private static int GetViewModelInstanceListSize(NativeViewModelInstanceHandle instance, string path)
+        {
+            return ViewModelNative.List(instance, path, ViewModelNative.ListOp.Size).Count;
+        }
 
-        [DllImport(NativeLibrary.name)]
-        private static extern void addViewModelInstanceToList(IntPtr listProperty, IntPtr instance);
+        private static NativeViewModelInstanceHandle GetViewModelInstanceListItemAt(NativeViewModelInstanceHandle instance, string path, int index)
+        {
+            return ViewModelNative.ListItem(instance, path, index);
+        }
 
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        private static extern bool addViewModelInstanceToListAt(IntPtr listProperty, IntPtr instance, int index);
+        private static void AddViewModelInstanceToList(NativeViewModelInstanceHandle instance, string path, NativeViewModelInstanceHandle item)
+        {
+            ViewModelNative.List(instance, path, ViewModelNative.ListOp.Add, item);
+        }
 
-        [DllImport(NativeLibrary.name)]
-        private static extern void removeViewModelInstanceFromList(IntPtr listProperty, IntPtr instance);
+        private static bool AddViewModelInstanceToListAt(NativeViewModelInstanceHandle instance, string path, NativeViewModelInstanceHandle item, int index)
+        {
+            return ViewModelNative.List(instance, path, ViewModelNative.ListOp.InsertAt, item, index).Ok;
+        }
 
-        [DllImport(NativeLibrary.name)]
-        private static extern void removeViewModelInstanceFromListAt(IntPtr listProperty, int index);
+        private static void RemoveViewModelInstanceFromList(NativeViewModelInstanceHandle instance, string path, NativeViewModelInstanceHandle item)
+        {
+            ViewModelNative.List(instance, path, ViewModelNative.ListOp.Remove, item);
+        }
 
-        [DllImport(NativeLibrary.name)]
-        private static extern void clearViewModelInstanceList(IntPtr listProperty);
+        private static void RemoveViewModelInstanceFromListAt(NativeViewModelInstanceHandle instance, string path, int index)
+        {
+            ViewModelNative.List(instance, path, ViewModelNative.ListOp.RemoveAt, default, index);
+        }
 
-        [DllImport(NativeLibrary.name)]
-        private static extern void swapViewModelInstancesInList(IntPtr listProperty, int indexA, int indexB);
+        private static void ClearViewModelInstanceList(NativeViewModelInstanceHandle instance, string path)
+        {
+            ViewModelNative.List(instance, path, ViewModelNative.ListOp.Clear);
+        }
+
+        private static void SwapViewModelInstancesInList(NativeViewModelInstanceHandle instance, string path, int indexA, int indexB)
+        {
+            ViewModelNative.List(instance, path, ViewModelNative.ListOp.Swap, default, indexA, indexB);
+        }
     }
 }

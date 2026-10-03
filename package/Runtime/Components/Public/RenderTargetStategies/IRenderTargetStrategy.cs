@@ -3,27 +3,10 @@ using UnityEngine;
 namespace Rive.Components
 {
     /// <summary>
-    /// Settings for controlling the timing of when render objects are drawn. 
-    /// </summary>
-    public enum DrawTimingOption
-    {
-
-        /// <summary>
-        /// Batch the render objects and draw them all at once. If a panel is requested to be drawn multiple times in a frame, the render objects will be drawn only once on the next frame.
-        /// </summary>
-        DrawBatched = 0,
-        /// <summary>
-        /// Draw the render objects immediately. If a panel is requested to be drawn multiple times in a frame, the render objects will be drawn multiple times.
-        /// </summary>
-        DrawImmediate = 1,
-    }
-    /// <summary>
     /// Interface for classes that provide a strategy for rendering Rive panels to a render target.
     /// </summary>
     public interface IRenderTargetStrategy
     {
-        public DrawTimingOption DrawTiming { get; set; }
-
         /// <summary>
         /// Registers a panel to be rendered by this strategy.
         /// </summary>

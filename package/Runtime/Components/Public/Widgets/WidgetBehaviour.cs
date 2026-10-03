@@ -1,8 +1,10 @@
 using System;
 using Rive.EditorTools;
+using Rive.Producer;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Events;
+using Rive.Host;
 
 
 namespace Rive.Components
@@ -238,7 +240,37 @@ namespace Rive.Components
 
 
 
+        /// <summary>
+        /// Set by the panel while it is gathering every widget's advance into one job. Tick then does its main-thread half and leaves the advance to the panel.
+        /// </summary>
+        internal bool AdvanceHandledByPanel { get; set; }
+
+        private readonly WidgetAdvance m_directAdvance = new WidgetAdvance();
+        private static readonly StateMachineNative.TickSender s_directTick = new StateMachineNative.TickSender();
+
         public virtual bool Tick(float deltaTime)
+        {
+            bool needsRedraw = PrepareTick(deltaTime);
+
+            if (AdvanceHandledByPanel)
+            {
+                return needsRedraw;
+            }
+
+            DispatchAdvanceCallbacks();
+            m_directAdvance.Clear();
+            m_directAdvance.Widget = this;
+            m_directAdvance.Delta = deltaTime;
+            PrepareAdvance(m_directAdvance);
+            m_directAdvance.TickAndWait(s_directTick);
+            ApplyAdvance(m_directAdvance);
+            return needsRedraw;
+        }
+
+        /// <summary>
+        /// The main-thread half of a tick. Layout, ordering and any callbacks the last advance earned.
+        /// </summary>
+        internal virtual bool PrepareTick(float deltaTime)
         {
             bool needsRedraw = false;
 
@@ -270,6 +302,43 @@ namespace Rive.Components
             }
 
             return needsRedraw;
+        }
+
+        /// <summary>
+        /// Fires whatever the last advance reported. Main thread, and only once that advance has landed.
+        /// </summary>
+        internal virtual void DispatchAdvanceCallbacks()
+        {
+        }
+
+        /// <summary>
+        /// A widget's own advance. Main thread, once the tick it went out with has landed.
+        /// </summary>
+        internal virtual void Advance(float deltaTime)
+        {
+        }
+
+        /// <summary>
+        /// Main thread, before an advance goes out. Takes whatever the tick needs, so it never reads this widget's fields.
+        /// </summary>
+        internal virtual void PrepareAdvance(WidgetAdvance slot)
+        {
+        }
+
+        /// <summary>
+        /// Adds the widget's tick entry, reading only the slot. False when it has none.
+        /// </summary>
+        internal virtual bool WriteAdvance(WidgetAdvance slot, PayloadWriter entries)
+        {
+            return false;
+        }
+
+        /// <summary>
+        /// Main thread, once the advance has landed.
+        /// </summary>
+        internal virtual void ApplyAdvance(WidgetAdvance slot)
+        {
+            Advance(slot.Delta);
         }
 
         /// <summary>

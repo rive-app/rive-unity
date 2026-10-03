@@ -566,7 +566,7 @@ namespace Rive.Tests
             Rive.File riveFile = Rive.File.Load(riveAsset);
             m_loadedFiles.Add(riveFile);
 
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(riveFile.NativeFile), "RiveFile should be valid immediately after it is loaded");
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(riveFile.NativeFile), "RiveFile should be valid immediately after it is loaded");
 
             yield return null;
 
@@ -574,7 +574,7 @@ namespace Rive.Tests
 
             yield return null;
 
-            Assert.IsFalse(NativeFileInterface.isRiveFileValid(riveFile.NativeFile), "RiveFile should be invalid after it is disposed");
+            Assert.IsFalse(NativeFileInterface.IsRiveFileValid(riveFile.NativeFile), "RiveFile should be invalid after it is disposed");
 
         }
 
@@ -599,8 +599,8 @@ namespace Rive.Tests
 
             Assert.IsTrue(ReferenceEquals(riveFile1, riveFile2), "File instances should be the same when loading the same asset multiple times without callback");
 
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(riveFile1.NativeFile), "RiveFile should be valid immediately after it is loaded");
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(riveFile2.NativeFile), "RiveFile should be valid immediately after it is loaded");
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(riveFile1.NativeFile), "RiveFile should be valid immediately after it is loaded");
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(riveFile2.NativeFile), "RiveFile should be valid immediately after it is loaded");
 
             yield return null;
 
@@ -609,14 +609,14 @@ namespace Rive.Tests
             yield return null;
 
             // Because we return the same file instance if the same asset is loaded multiple times, the native file should still be valid
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(riveFile1.NativeFile), "RiveFile should be valid after it is disposed if there are other references to it");
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(riveFile1.NativeFile), "RiveFile should be valid after it is disposed if there are other references to it");
 
             riveFile2.Dispose();
 
             yield return null;
 
             // Now that all references are disposed, the native file should be invalid
-            Assert.IsFalse(NativeFileInterface.isRiveFileValid(riveFile1.NativeFile), "RiveFile should be invalid after it is disposed");
+            Assert.IsFalse(NativeFileInterface.IsRiveFileValid(riveFile1.NativeFile), "RiveFile should be invalid after it is disposed");
 
 
         }
@@ -640,8 +640,8 @@ namespace Rive.Tests
 
             Assert.IsFalse(ReferenceEquals(riveFile1, riveFile2), "File instances should be different when loading the same asset multiple times with callback");
 
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(riveFile1.NativeFile), "RiveFile should be valid immediately after it is loaded");
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(riveFile2.NativeFile), "RiveFile should be valid immediately after it is loaded");
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(riveFile1.NativeFile), "RiveFile should be valid immediately after it is loaded");
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(riveFile2.NativeFile), "RiveFile should be valid immediately after it is loaded");
 
             yield return null;
 
@@ -650,13 +650,13 @@ namespace Rive.Tests
             yield return null;
 
             // Because we return different file instances if the same asset is loaded multiple times with a callback, the native file should not be valid
-            Assert.IsFalse(NativeFileInterface.isRiveFileValid(riveFile1.NativeFile), "RiveFile should be invalid after it is disposed");
+            Assert.IsFalse(NativeFileInterface.IsRiveFileValid(riveFile1.NativeFile), "RiveFile should be invalid after it is disposed");
 
             riveFile2.Dispose();
 
             yield return null;
 
-            Assert.IsFalse(NativeFileInterface.isRiveFileValid(riveFile2.NativeFile), "RiveFile should be invalid after it is disposed");
+            Assert.IsFalse(NativeFileInterface.IsRiveFileValid(riveFile2.NativeFile), "RiveFile should be invalid after it is disposed");
         }
 
 
@@ -675,8 +675,8 @@ namespace Rive.Tests
 
             Rive.File riveFile = LoadAndTrackFile(riveAsset);
 
-            IntPtr nativeFile = riveFile.NativeFile;
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(nativeFile), "RiveFile should be alive immediately after it is loaded");
+            NativeFileHandle nativeFile = riveFile.NativeFile;
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(nativeFile), "RiveFile should be alive immediately after it is loaded");
 
             // Load the same asset again to increase the ref count
             Rive.File riveFile2 = LoadAndTrackFile(riveAsset);
@@ -689,14 +689,14 @@ namespace Rive.Tests
 
             yield return null;
 
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(nativeFile), "RiveFile should be alive after one reference is disposed");
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(nativeFile), "RiveFile should be alive after one reference is disposed");
 
             yield return null;
 
 
             TriggerFinalizer(riveFile);
 
-            Assert.IsFalse(NativeFileInterface.isRiveFileValid(nativeFile), "The native file should be disposed after Unity RiveFile is garbage collected if not disposed explicitly");
+            Assert.IsFalse(NativeFileInterface.IsRiveFileValid(nativeFile), "The native file should be disposed after Unity RiveFile is garbage collected if not disposed explicitly");
 
         }
 

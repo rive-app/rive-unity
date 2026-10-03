@@ -1,8 +1,11 @@
 using UnityEngine;
 using System;
 using System.Runtime.InteropServices;
+using Rive.Producer;
 using Rive.Utils;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using Rive.Host;
 
 namespace Rive
 {
@@ -13,7 +16,7 @@ namespace Rive
     /// <remarks>
     /// There are higher level behaviours that you can use directly in the Unity editor. Use this class if you need direct control of the lifecycle of the Rive File.
     /// </remarks>
-    public class File : IDisposable
+    public class File : ILoadedFile
     {
         internal static class LogCodes
         {
@@ -27,8 +30,10 @@ namespace Rive
 
         }
 
-        private IntPtr m_nativeFile;
+        private NativeFileHandle m_nativeFile;
+        private readonly FileContents m_contents;
         private readonly long? m_assetKey;
+        private readonly NativeLifetime m_lifetime;
         private bool m_isDisposed = false;
 
         private ViewModel[] m_viewModels;
@@ -39,10 +44,17 @@ namespace Rive
 
 
 
-        internal IntPtr NativeFile
+        internal NativeFileHandle NativeFile
         {
             get { return m_nativeFile; }
         }
+
+        /// Deletes the native file once the File and every artboard made from
+        /// it let go.
+        internal NativeLifetime Lifetime => m_lifetime;
+
+        /// Everything name shaped in the file, read when it loaded.
+        internal FileContents Contents => m_contents;
 
         /// <summary>
         /// Returns true if the file has been disposed.
@@ -62,6 +74,10 @@ namespace Rive
 
 
         private static FileLoader s_fileLoader = new FileLoader();
+
+        /// The loader behind File.Load. FileHandle and the widget load through
+        /// it without waiting, and share its cache.
+        internal static FileLoader Loader => s_fileLoader;
 
 
         /// <summary>
@@ -172,7 +188,7 @@ namespace Rive
                     s_fileLoader.ReleaseFile(this);
 
                 }
-                m_nativeFile = IntPtr.Zero;
+                m_nativeFile = default;
                 m_isDisposed = true;
             }
         }
@@ -298,13 +314,13 @@ namespace Rive
                 return;
             }
 
-            if (asset.NativeAsset == IntPtr.Zero)
+            if (!asset.NativeHandle.IsValid)
             {
                 DebugLogger.Instance.LogError($"{LogCodes.ERROR_ASSET_REFERENCE_UPDATE_FAILED}: - The provided asset is not loaded in memory. Make sure to load the out-of-band asset before updating the reference.");
                 return;
             }
 
-            bool wasUpdated = NativeFileInterface.updateEmbeddedAssetReferenceInFileById(NativeFile, assetId, asset.NativeAsset);
+            bool wasUpdated = FileNative.UpdateAsset(NativeFile, assetId, asset.NativeHandle);
 
             if (!wasUpdated)
             {
@@ -316,9 +332,11 @@ namespace Rive
 
 
 
-        internal File(IntPtr nativeFile, long? assetKey, IFallbackFileAssetLoader fallbackFileAssetLoader)
+        internal File(NativeFileHandle nativeFile, FileContents contents, long? assetKey, IFallbackFileAssetLoader fallbackFileAssetLoader)
         {
             m_nativeFile = nativeFile;
+            m_lifetime = new NativeLifetime(() => FileNative.Delete(nativeFile));
+            m_contents = contents;
             m_assetKey = assetKey;
             m_fallbackFileAssetLoader = fallbackFileAssetLoader;
         }
@@ -339,7 +357,7 @@ namespace Rive
             get
             {
                 if (!IsNativeFileValid()) return 0;
-                return NativeFileInterface.getArtboardCount(NativeFile);
+                return (uint)m_contents.Artboards.Length;
             }
         }
 
@@ -350,7 +368,23 @@ namespace Rive
         public string ArtboardName(uint index)
         {
             if (!IsNativeFileValid()) return null;
-            return Marshal.PtrToStringAnsi(NativeFileInterface.getArtboardName(NativeFile, index));
+            return index < m_contents.ArtboardNames.Length ? m_contents.ArtboardNames[index] : null;
+        }
+
+        private static void ReportMissingArtboardAt(uint index)
+        {
+            DebugLogger.Instance.LogError($"{LogCodes.ERROR_NO_ARTBOARD_FOUND}: - No Artboard found at index {index}. Could the Rive file you loaded be different from the one you are trying to access? Or is the index possibly out of bounds?");
+        }
+
+        /// With no name it's the first artboard that was missing.
+        internal void ReportMissingArtboard(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                ReportMissingArtboardAt(0);
+                return;
+            }
+            DebugLogger.Instance.LogError($"{LogCodes.ERROR_NO_ARTBOARD_FOUND}: - No Artboard named \"{name}\". It's possible the name is misspelled or the file does not contain the named artboard.");
         }
 
         /// <summary>
@@ -361,13 +395,15 @@ namespace Rive
         public Artboard Artboard(uint index)
         {
             if (!IsNativeFileValid()) return null;
-            IntPtr ptr = NativeFileInterface.instanceArtboardAtIndex(NativeFile, index);
-            if (ptr == IntPtr.Zero)
+            NativeArtboardHandle ptr = index < m_contents.Artboards.Length
+                ? ArtboardNative.Instantiate(NativeFile, m_contents.Artboards[index].Name)
+                : default;
+            if (!ptr.IsValid)
             {
-                DebugLogger.Instance.LogError($"{LogCodes.ERROR_NO_ARTBOARD_FOUND}: - No Artboard found at index {index}. Could the Rive file you loaded be different from the one you are trying to access? Or is the index possibly out of bounds?");
+                ReportMissingArtboardAt(index);
                 return null;
             }
-            return new Artboard(ptr, this);
+            return new Artboard(ptr, this, m_contents.Artboards[index]);
         }
 
 
@@ -379,13 +415,14 @@ namespace Rive
         public Artboard Artboard(string name)
         {
             if (!IsNativeFileValid()) return null;
-            IntPtr ptr = NativeFileInterface.instanceArtboardWithName(NativeFile, name);
-            if (ptr == IntPtr.Zero)
+            int index = m_contents.ArtboardIndex(name);
+            NativeArtboardHandle ptr = index >= 0 ? ArtboardNative.Instantiate(NativeFile, name) : default;
+            if (!ptr.IsValid)
             {
-                DebugLogger.Instance.LogError($"{LogCodes.ERROR_NO_ARTBOARD_FOUND}: - No Artboard named \"{name}\". It's possible the name is misspelled or the file does not contain the named artboard.");
+                ReportMissingArtboard(name);
                 return null;
             }
-            return new Artboard(ptr, this);
+            return new Artboard(ptr, this, m_contents.Artboards[index]);
         }
 
 
@@ -413,14 +450,14 @@ namespace Rive
                 return null;
             }
 
-            IntPtr ptr = NativeFileInterface.getFileBindableArtboardNamed(m_nativeFile, name);
-            if (ptr == IntPtr.Zero)
+            NativeArtboardHandle handle = ArtboardNative.Instantiate(m_nativeFile, name);
+            if (!handle.IsValid)
             {
                 DebugLogger.Instance.Log($"No bindable artboard named \"{name}\".");
                 return null;
             }
 
-            return new BindableArtboard(ptr, viewModelInstance);
+            return new BindableArtboard(handle, name, viewModelInstance);
         }
 
 
@@ -431,7 +468,7 @@ namespace Rive
             get
             {
                 if (!IsNativeFileValid()) return 0;
-                return (int)NativeFileInterface.getViewModelCount(NativeFile);
+                return m_contents.ViewModels.Length;
             }
         }
 
@@ -450,19 +487,13 @@ namespace Rive
             if (!IsNativeFileValid()) return null;
 
 
-            if ((nuint)index >= NativeFileInterface.getViewModelCount(NativeFile))
+            if (index >= m_contents.ViewModels.Length)
             {
                 DebugLogger.Instance.LogError("Index out of bounds: " + index);
                 return null;
             }
 
-            IntPtr ptr = NativeFileInterface.getViewModelAtIndex(NativeFile, (nuint)index);
-            if (ptr == IntPtr.Zero)
-            {
-                DebugLogger.Instance.LogError("Failed to get view model at index: " + index);
-                return null;
-            }
-            return new ViewModel(ptr, this);
+            return new ViewModel(this, index);
         }
 
         /// <summary>
@@ -478,13 +509,13 @@ namespace Rive
                 return null;
             }
             if (!IsNativeFileValid()) return null;
-            IntPtr ptr = NativeFileInterface.getViewModelByName(NativeFile, name);
-            if (ptr == IntPtr.Zero)
+            int index = m_contents.ViewModelIndex(name);
+            if (index < 0)
             {
                 DebugLogger.Instance.LogError("Failed to get view model with name: " + name);
                 return null;
             }
-            return new ViewModel(ptr, this);
+            return new ViewModel(this, index);
         }
 
 
@@ -500,13 +531,7 @@ namespace Rive
             m_viewModels = new ViewModel[count];
             for (nuint i = 0; i < count; i++)
             {
-                IntPtr ptr = NativeFileInterface.getViewModelAtIndex(NativeFile, i);
-                if (ptr == IntPtr.Zero)
-                {
-                    continue;
-                }
-
-                m_viewModels[i] = new ViewModel(ptr, this);
+                m_viewModels[i] = new ViewModel(this, (int)i);
             }
         }
 
@@ -517,56 +542,20 @@ namespace Rive
                 return Array.Empty<string>();
             }
 
-            IntPtr namesList = NativeFileInterface.getGlobalViewModelNamesList(NativeFile);
-            if (namesList == IntPtr.Zero)
-            {
-                return Array.Empty<string>();
-            }
-
-            int count = (int)NativeFileInterface.getGlobalViewModelNamesCount(namesList);
-            string[] names = new string[count];
-            for (int i = 0; i < count; i++)
-            {
-                IntPtr namePtr = NativeFileInterface.getGlobalViewModelNameAtIndex(namesList, (nuint)i);
-                names[i] = Marshal.PtrToStringAnsi(namePtr);
-            }
-
-            NativeFileInterface.freeGlobalViewModelNamesList(namesList);
-            return names;
+            return (string[])m_contents.GlobalViewModelNames.Clone();
         }
 
 
         private ViewModelEnumData[] GetViewModelEnums()
         {
 
-            nuint count = NativeFileInterface.getEnumCountFromFile(NativeFile);
-            var vmEnums = new ViewModelEnumData[count];
-
-            for (nuint i = 0; i < count; i++)
-            {
-                string enumName = Marshal.PtrToStringAnsi(NativeFileInterface.getEnumNameFromFileAtIndex(NativeFile, i));
-                nuint valueCount = NativeFileInterface.getEnumValueCountFromFileEnumIndex(NativeFile, i);
-                string[] values = new string[valueCount];
-                for (nuint j = 0; j < valueCount; j++)
-                {
-                    values[j] = Marshal.PtrToStringAnsi(NativeFileInterface.getEnumValueAtFileEnumIndex(NativeFile, i, j));
-                }
-                vmEnums[i] = new ViewModelEnumData(enumName, values);
-            }
-
-            return vmEnums;
+            return (ViewModelEnumData[])m_contents.Enums.Clone();
         }
 
-        internal ViewModel GetDefaultViewModelForArtboard(IntPtr artboardPtr)
+        /// Null for an index below 0.
+        internal ViewModel ViewModelAt(int index)
         {
-            IntPtr ptr = NativeFileInterface.getDefaultViewModelForArtboard(this.NativeFile, artboardPtr);
-
-            if (ptr == IntPtr.Zero)
-            {
-                return null;
-            }
-
-            return new ViewModel(ptr, this);
+            return index < 0 ? null : new ViewModel(this, index);
         }
 
     }
@@ -576,106 +565,10 @@ namespace Rive
     /// </summary>
     internal class NativeFileInterface
     {
-        internal static IFallbackFileAssetLoader s_NativeFileAssetLoader;
-
-        internal delegate IntPtr NativeUnityAssetLoaderCallback(uint assetId, ushort assetType, string assetName, uint inBandByteSize);
-
-        #region Native Methods
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr loadRiveFile(byte[] bytes, uint byteCount, byte[] assetMapBytes, uint assetMapByteCount);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void unrefRiveFile(IntPtr riveFile);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool isRiveFileValid(IntPtr riveFile);
-        [DllImport(NativeLibrary.name)]
-        internal static extern uint getArtboardCount(IntPtr riveFile);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getArtboardName(IntPtr riveFile, uint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getFileBindableArtboardNamed(IntPtr file, string name);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr instanceArtboardAtIndex(IntPtr riveFile, uint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr instanceArtboardWithName(IntPtr riveFile, string name);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool updateEmbeddedAssetReferenceInFileById(IntPtr riveFile, uint assetId, IntPtr decodedAsset);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void clearAssignedAssetReferenceValueById(IntPtr riveFile, uint assetId);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr loadRiveFileWithUnityCallback(byte[] riveFileBytes, uint byteCount, NativeUnityAssetLoaderCallback callback);
-
-        /// <summary>
-        /// The callback that is called by the native code to load the assets. It should return the native asset pointer to the native code. Don't call any Rive methods from this callback as it may lead to a crash due to deadlocks.
-        /// </summary>
-        /// <param name="assetId"> The unique ID of the asset. </param>
-        /// <param name="assetType"> The type of the asset. </param>
-        /// <param name="assetName"> The name of the asset. </param>
-        /// <param name="inBandByteSize"> The size of the asset embedded in the file. </param>
-        /// <returns> The native asset pointer to set in the Rive file. </returns>
-        [AOT.MonoPInvokeCallback(typeof(NativeUnityAssetLoaderCallback))]
-        internal static IntPtr AssetLoaderCallback(uint assetId, ushort assetType, string assetName, uint inBandByteSize)
+        /// True while the native file is still loaded.
+        internal static bool IsRiveFileValid(NativeFileHandle riveFile)
         {
-
-
-            if (s_NativeFileAssetLoader != null)
-            {
-                return s_NativeFileAssetLoader.NativeUnityAssetLoaderCallback(assetId, assetType, assetName, inBandByteSize);
-            }
-
-            return IntPtr.Zero;
+            return FileNative.IsAlive(riveFile);
         }
-
-
-        // Data binding methods
-        [DllImport(NativeLibrary.name)]
-        internal static extern nuint getViewModelCount(IntPtr riveFile);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getViewModelAtIndex(IntPtr riveFile, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getViewModelByName(IntPtr riveFile, string name);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getDefaultViewModelForArtboard(IntPtr filePtr, IntPtr artboardPtr);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern nuint getEnumCountFromFile(IntPtr riveFile);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getEnumNameFromFileAtIndex(IntPtr riveFile, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern nuint getEnumValueCountFromFileEnumIndex(IntPtr riveFile, nuint enumIndex);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getEnumValueAtFileEnumIndex(IntPtr riveFile, nuint enumIndex, nuint valueIndex);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getGlobalViewModelNamesList(IntPtr riveFile);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern nuint getGlobalViewModelNamesCount(IntPtr namesList);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getGlobalViewModelNameAtIndex(IntPtr namesList, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void freeGlobalViewModelNamesList(IntPtr namesList);
-
-        #endregion
-
     }
 }

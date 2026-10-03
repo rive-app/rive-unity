@@ -1,6 +1,3 @@
-using System;
-using System.Runtime.InteropServices;
-
 namespace Rive
 {
     /// <summary>
@@ -8,23 +5,16 @@ namespace Rive
     /// </summary>
     public class ImageOutOfBandAsset : OutOfBandAsset
     {
-        protected override IntPtr LoadNative(byte[] data)
+        internal override EmbeddedAssetType AssetType => EmbeddedAssetType.Image;
+
+        internal override ulong SendDecode(ulong requestId, byte[] bytes)
         {
-            var inp = loadRiveImage(data, (nuint)data.Length);
-            return inp;
+            return OutOfBandAssetNative.DecodeImage(requestId, bytes);
         }
 
-        protected override void UnloadNative(IntPtr nativePtr)
+        internal override void DeleteNative(ulong handle)
         {
-            unrefRiveImage(nativePtr);
+            OutOfBandAssetNative.DeleteImage(handle);
         }
-
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr loadRiveImage(byte[] bytes, nuint byteCount);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void unrefRiveImage(IntPtr image);
-        #endregion
     }
 }

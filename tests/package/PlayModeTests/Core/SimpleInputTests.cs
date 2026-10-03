@@ -1,3 +1,5 @@
+// Inputs are deprecated but still covered.
+#pragma warning disable CS0618
 using System.Collections;
 using System.Collections.Generic;
 using NUnit.Framework;
@@ -69,6 +71,55 @@ namespace Rive.Tests
             testAssetLoadingManager.UnloadAllAssets();
         }
 
+
+        /// An input points into the state machine that made it. Disposing
+        /// the state machine used to leave the input pointing at freed
+        /// memory, and using it then was a crash or worse.
+        [Test]
+        public void Input_AfterItsStateMachineIsDisposed_IsInert()
+        {
+            SMIBool flag = m_stateMachine.GetBool(BOOL_INPUT_NAME);
+            SMINumber number = m_stateMachine.GetNumber(NUMBER_INPUT_NAME);
+            SMITrigger trigger = m_stateMachine.GetTrigger(TRIGGER_INPUT_NAME);
+            Assert.IsNotNull(flag, "Fixture should have a boolean input");
+            Assert.IsNotNull(number, "Fixture should have a number input");
+            Assert.IsNotNull(trigger, "Fixture should have a trigger input");
+
+            flag.Value = true;
+            Assert.IsTrue(flag.Value, "The input should work while it is alive");
+
+            m_stateMachine.Dispose();
+
+            // None of this should reach the freed state machine.
+            Assert.DoesNotThrow(() =>
+            {
+                flag.Value = true;
+                number.Value = 5f;
+                trigger.Fire();
+            }, "Using an input after its state machine is disposed should do nothing");
+
+            Assert.IsFalse(flag.Value,
+                           "A dead input should read as default, not as whatever "
+                               + "is in the freed memory");
+            Assert.AreEqual(0f, number.Value,
+                            "A dead input should read as default");
+            Assert.IsNull(flag.Name,
+                          "A dead input has no name to report");
+            Assert.IsFalse(flag.IsBoolean,
+                           "A dead input can't answer what type it was");
+        }
+
+        /// The same input asked for twice is the same handle, or a getter in
+        /// a per frame loop would grow the table for the life of the app.
+        [Test]
+        public void Input_AskedForTwice_ReusesTheSameHandle()
+        {
+            SMIBool first = m_stateMachine.GetBool(BOOL_INPUT_NAME);
+            SMIBool second = m_stateMachine.GetBool(BOOL_INPUT_NAME);
+
+            Assert.AreEqual(first.NativeSMI, second.NativeSMI,
+                            "Two lookups of one input should give one handle");
+        }
 
         [Test]
         public void GetAndSet_BooleanInput_InSameFrame_Works()

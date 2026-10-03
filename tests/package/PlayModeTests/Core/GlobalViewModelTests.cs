@@ -6,6 +6,7 @@ using Rive.Tests.Utils;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.TestTools;
+using Rive.Host;
 
 namespace Rive.Tests
 {
@@ -733,6 +734,87 @@ namespace Rive.Tests
             });
         }
 
+        // Main thread waits that block, while body runs.
+        private static List<string> RecordWaits(Action body)
+        {
+            var waits = new List<string>();
+            Rive.Host.CommandTransport.MainThreadWaitsForTests = waits;
+            try
+            {
+                body();
+            }
+            finally
+            {
+                Rive.Host.CommandTransport.MainThreadWaitsForTests = null;
+            }
+            return waits;
+        }
+
+        [UnityTest]
+        public IEnumerator BindViewModelInstance_WithInstance_QueuesAndSetsViewModelInstanceNow()
+        {
+            Artboard artboard = null;
+            StateMachine stateMachine = null;
+            yield return LoadStateMachine((f, a, s) => { artboard = a; stateMachine = s; });
+            ViewModelInstance main = CreateMainInstance(artboard);
+
+            List<string> waits = RecordWaits(() => stateMachine.BindViewModelInstance(main));
+
+            CollectionAssert.IsEmpty(waits, "A bind that returns nothing should only queue.");
+            Assert.AreSame(main, stateMachine.ViewModelInstance);
+            yield return null;
+            Assert.AreSame(main, stateMachine.ViewModelInstance);
+        }
+
+        [UnityTest]
+        public IEnumerator BindViewModelInstance_Null_SetsTheDefaultRightAway()
+        {
+            StateMachine stateMachine = null;
+            yield return LoadStateMachine((f, a, s) => stateMachine = s);
+
+            stateMachine.BindViewModelInstance(null);
+            ViewModelInstance first = stateMachine.ViewModelInstance;
+            Assert.IsNotNull(first, "The artboard has a default view model, so the bind should make one.");
+            yield return null;
+            Assert.AreSame(first, stateMachine.ViewModelInstance);
+        }
+
+        // Also used outside the editor-only leak tests below.
+        private const int LeakProbeIterations = 25;
+
+        [UnityTest]
+        public IEnumerator BindViewModelInstance_NullThenInstance_TheInstanceWins()
+        {
+            Artboard artboard = null;
+            StateMachine stateMachine = null;
+            yield return LoadStateMachine((f, a, s) => { artboard = a; stateMachine = s; });
+            ViewModelInstance main = CreateMainInstance(artboard);
+
+            // Snapshot after a first bind, so the state machine's own refs are counted.
+            stateMachine.BindViewModelInstance(main);
+#if UNITY_EDITOR
+            int refCount = main.DebugNativeRefCount;
+#endif
+
+            for (int i = 0; i < LeakProbeIterations; i++)
+            {
+                stateMachine.BindViewModelInstance(null);
+                stateMachine.BindViewModelInstance(main);
+            }
+            Assert.AreSame(main, stateMachine.ViewModelInstance);
+
+            // Nothing lands later and replaces it.
+            for (int i = 0; i < 3; i++)
+            {
+                yield return null;
+            }
+            Assert.AreSame(main, stateMachine.ViewModelInstance);
+#if UNITY_EDITOR
+            Assert.AreEqual(refCount, main.DebugNativeRefCount,
+                $"Rebinding {LeakProbeIterations} times should let go of the extra count native adds.");
+#endif
+        }
+
         [UnityTest]
         public IEnumerator BindViewModelInstance_CrossViewModelOverride_IsAllowed()
         {
@@ -830,8 +912,6 @@ namespace Rive.Tests
         // Note: What matters is the change in reference count between two checks, not the absolute value,
         // since other parts of the code might also be holding references. Also, we can only read
         // the ref count while our wrapper is still alive, so each check below uses a still-referenced instance.
-
-        private const int LeakProbeIterations = 25;
 
         private const float WaitForCollectionTimeoutSeconds = 5f;
 
@@ -946,7 +1026,7 @@ namespace Rive.Tests
             // Bypass FileLoader's asset cache. File.Load(asset) shares one native file across every
             // load of the same asset, so a Dispose only unrefs when the cache refcount hits zero.
             // Selecting the .riv in the Project window (AssetEditor) or opening the data-binding
-            // playground bumps that count and makes isRiveFileValid stay true after our Dispose.
+            // playground bumps that count and makes IsRiveFileValid stay true after our Dispose.
             // A custom loader always allocates a fresh instance this test alone owns.
             Asset riveAsset = null;
             yield return m_testAssetLoadingManager.LoadAssetCoroutine<Asset>(
@@ -967,7 +1047,7 @@ namespace Rive.Tests
             m_stateMachines.Add(stateMachine);
 
             // Globals are accessed by the artboard referring back to its file. This test checks that releasing everything stops the file from being kept alive through those connections.
-            IntPtr nativeFile = file.NativeFile;
+            NativeFileHandle nativeFile = file.NativeFile;
 
             ViewModelInstance labels = CreateGlobalInstance(file, LabelsViewModel);
             ViewModelInstance main = CreateMainInstance(artboard);
@@ -975,7 +1055,7 @@ namespace Rive.Tests
                 main,
                 new Dictionary<string, ViewModelInstance> { { LabelsViewModel, labels } }));
 
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(nativeFile),
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(nativeFile),
                 "The file should be alive while its artboard and state machine are.");
 
             // Every instance goes too: they outlive the file otherwise, pointing at view models the
@@ -985,7 +1065,7 @@ namespace Rive.Tests
             stateMachine.Dispose();
             artboard.Dispose();
             file.Dispose();
-Assert.IsFalse(NativeFileInterface.isRiveFileValid(nativeFile),
+Assert.IsFalse(NativeFileInterface.IsRiveFileValid(nativeFile),
                 "Binding globals should not keep the native file alive after everything using it is disposed.");
         }
 

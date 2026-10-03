@@ -276,7 +276,7 @@ namespace Rive.Tests
 
             // Verify clipping was applied
             Assert.IsTrue(m_renderer.ClipWasCalled, "Clip should be called when needed");
-            Assert.IsNotNull(m_renderer.LastClipPath, "Clip path should be created");
+            Assert.Greater(m_renderer.LastClipWidth, 0f, "Clip rect should have a size");
         }
 
         [UnityTest]
@@ -295,31 +295,24 @@ namespace Rive.Tests
 
             // Verify clipping was not applied
             Assert.IsFalse(m_renderer.ClipWasCalled, "Clip should not be called when not needed");
-            Assert.IsNull(m_renderer.LastClipPath, "Clip path should not be created");
         }
 
-#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated
         public class MockRenderer : IRenderer
         {
-
-
-
             public bool ClipWasCalled { get; private set; }
-            public Path LastClipPath { get; private set; }
+            public float LastClipWidth { get; private set; }
+            public float LastClipHeight { get; private set; }
 
-            public void Clip(Path path)
+            public void ClipRect(float width, float height)
             {
                 ClipWasCalled = true;
-                LastClipPath = path;
+                LastClipWidth = width;
+                LastClipHeight = height;
             }
 
             public void Draw(Artboard artboard) { }
             public void Align(Fit fit, Alignment alignment, Artboard artboard, AABB frame, float scale = 1) { }
             public void Clear() { }
-
-            public void Draw(Path path, Paint paint)
-            {
-            }
 
             public void Save()
             {
@@ -349,15 +342,10 @@ namespace Rive.Tests
             {
             }
 
-            public void SubmitAndRelease()
-            {
-            }
-
-            public void AddToCommandBuffer(UnityEngine.Rendering.CommandBuffer commandBuffer, bool release = false)
+            public void AddToCommandBuffer(UnityEngine.Rendering.CommandBuffer commandBuffer)
             {
             }
         }
-#pragma warning restore CS0618
     }
 
 

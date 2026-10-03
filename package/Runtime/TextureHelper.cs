@@ -154,6 +154,36 @@ namespace Rive
             return isOpenGL;
         }
 
+        /// <summary>
+        /// Turns PrepareForNativeDrawing off, so a test can show what happens without it.
+        /// </summary>
+        internal static bool PrepareDisabledForTests { get; set; }
+
+        /// <summary>
+        /// On WebGL, clears a texture Rive is about to draw into, once, so Unity has
+        /// set it up as a render target first. Otherwise the first time Unity binds
+        /// it as a target (ReadPixels, a Blit into it) it wipes what Rive drew.
+        /// Does nothing elsewhere. Only for textures Rive creates, since it clears.
+        /// </summary>
+        internal static void PrepareForNativeDrawing(RenderTexture texture)
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (texture == null || PrepareDisabledForTests)
+            {
+                return;
+            }
+            if (!texture.IsCreated())
+            {
+                texture.Create();
+            }
+            var commands = new CommandBuffer { name = "Rive: prepare texture" };
+            commands.SetRenderTarget(texture);
+            commands.ClearRenderTarget(false, true, UnityEngine.Color.clear);
+            Graphics.ExecuteCommandBuffer(commands);
+            commands.Release();
+#endif
+        }
+
         public static bool IsDirect3DPlatform()
         {
             return SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11 || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D12;

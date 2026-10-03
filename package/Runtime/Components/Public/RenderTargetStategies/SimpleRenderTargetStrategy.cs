@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using Rive.Components.Utilities;
+using Rive.Producer;
 using Rive.Utils;
 using UnityEngine;
+using Rive.Host;
 
 namespace Rive.Components
 {
@@ -15,8 +17,6 @@ namespace Rive.Components
 
         [SerializeField] private RivePanel m_panel;
 
-        [Tooltip("Controls when rendering occurs. In Batched mode, panels are rendered once per frame regardless of redraw requests. In Immediate mode, panels are rendered instantly when requested.")]
-        [SerializeField] private DrawTimingOption m_drawTiming = DrawTimingOption.DrawBatched;
 
 
 
@@ -43,8 +43,6 @@ namespace Rive.Components
                 return RenderTargetSpaceOccupancy.Exclusive;
             }
         }
-
-        public override DrawTimingOption DrawTiming { get => m_drawTiming; set => m_drawTiming = value; }
 
         public override bool RegisterPanel(IRivePanel panel)
         {
@@ -198,13 +196,6 @@ namespace Rive.Components
                 return;
             }
 
-            if (DrawTiming == DrawTimingOption.DrawImmediate)
-            {
-                HandlePanelDrawing(panel);
-                return;
-            }
-
-            // For DrawBatched mode
             m_redrawRequested = true;
 
         }
@@ -216,6 +207,10 @@ namespace Rive.Components
                 return;
             }
 
+            using var noWait = CommandTransport.NoWaitIf(
+                RecordThreadingMode(panel) == ThreadingMode.BackgroundThread, "async panel draw");
+            m_renderer.SetRecordsAsynchronously(
+                RecordThreadingMode(panel) == ThreadingMode.BackgroundThread);
             m_renderer.SetArtboardDirtCheckEnabled(panel.DrawOptimization == DrawOptimizationOptions.DrawWhenChanged);
 
             bool wasRefreshed = RefreshRenderTexture(panel);
@@ -249,11 +244,6 @@ namespace Rive.Components
 
         internal protected override void PrepareBatchedRender()
         {
-            if (DrawTiming != DrawTimingOption.DrawBatched)
-            {
-                return;
-            }
-
             if (m_redrawRequested)
             {
                 HandlePanelDrawing(m_panel);

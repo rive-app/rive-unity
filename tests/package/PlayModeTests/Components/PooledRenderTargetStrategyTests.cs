@@ -132,9 +132,8 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator DrawTiming_BatchedMode_DrawsOncePerFrame()
+        public IEnumerator DrawPanel_DrawsOncePerFrame()
         {
-            m_strategy.DrawTiming = DrawTimingOption.DrawBatched;
             m_strategy.RegisterPanel(m_panel);
 
             yield return null;

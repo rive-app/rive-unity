@@ -1,6 +1,3 @@
-using System;
-using System.Runtime.InteropServices;
-
 namespace Rive
 {
     /// <summary>
@@ -8,22 +5,16 @@ namespace Rive
     /// </summary>
     public class FontOutOfBandAsset : OutOfBandAsset
     {
-        protected override IntPtr LoadNative(byte[] data)
+        internal override EmbeddedAssetType AssetType => EmbeddedAssetType.Font;
+
+        internal override ulong SendDecode(ulong requestId, byte[] bytes)
         {
-            return loadRiveFont(data, (nuint)data.Length);
+            return OutOfBandAssetNative.DecodeFont(requestId, bytes);
         }
 
-        protected override void UnloadNative(IntPtr nativePtr)
+        internal override void DeleteNative(ulong handle)
         {
-            unrefRiveFont(nativePtr);
+            OutOfBandAssetNative.DeleteFont(handle);
         }
-
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr loadRiveFont(byte[] bytes, nuint byteCount);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void unrefRiveFont(IntPtr font);
-        #endregion
     }
 }

@@ -11,11 +11,11 @@ namespace Rive.Components
 
 
         private Artboard m_artboard;
+        // Last known size, so drawing doesn't have to ask native.
+        private Vector2 m_artboardSize;
+        private bool m_hasArtboardSize;
 
         private Alignment m_alignment;
-#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
-        private Path m_clipPath;
-#pragma warning restore CS0618
 
         /// <summary>
         /// The fit of the artboard.
@@ -78,26 +78,35 @@ namespace Rive.Components
 
             // Determine if clipping is necessary
             // We do this for performance (as clipping can be expensive), so we only clip if the render object overflows the frame
-            Vector2 artboardSize = new Vector2(m_artboard.Width, m_artboard.Height);
+            // A widget keeps this up to date from its advances. Without one,
+            // ask native.
+            Vector2 artboardSize = m_hasArtboardSize
+                ? m_artboardSize
+                : (Vector2)m_artboard.Size;
             bool needsClipping = NeedsClipping(this.Fit, artboardSize, new Vector2(rect.width, rect.height));
 
             if (needsClipping)
             {
-                if (m_clipPath == null)
-                {
-#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
-                    m_clipPath = new Path();
-#pragma warning restore CS0618
-                }
-                ClippingPathHelper.ConfigureClippingPath(m_clipPath, rect.width, rect.height);
-
-                renderer.Clip(m_clipPath);
+                ClippingPathHelper.ClipToRect(renderer, rect.width, rect.height);
             }
+        }
+
+        internal void SetArtboardSize(Vector2 size)
+        {
+            m_artboardSize = size;
+            m_hasArtboardSize = true;
+        }
+
+        internal bool TryGetArtboardSize(out Vector2 size)
+        {
+            size = m_artboardSize;
+            return m_hasArtboardSize;
         }
 
         internal void Init(Artboard artboard, Alignment alignment, Fit fit, float scaleFactor)
         {
             m_artboard = artboard;
+            m_hasArtboardSize = false;
             m_alignment = alignment;
             m_fit = fit;
             m_scaleFactor = scaleFactor;

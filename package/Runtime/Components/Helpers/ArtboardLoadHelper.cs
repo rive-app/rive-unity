@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Rive.Producer;
 using Rive.Utils;
 using UnityEngine;
 
@@ -44,6 +45,27 @@ namespace Rive.Components.Utilities
             }
         }
 
+        /// What a load builds before it's attached. Made from the replies for
+        /// an async load, on the caller for a sync one.
+        internal sealed class Prepared
+        {
+            internal Artboard Artboard;
+            internal StateMachine StateMachine;
+            internal float Width;
+            internal float Height;
+            internal bool HasAudio;
+            internal LoadErrorEventData Error;
+            // The file's names, when the load asked for them (handle loads).
+            internal FileContents Contents;
+
+            /// For a load that was superseded before it landed.
+            internal void Discard()
+            {
+                StateMachine?.Dispose();
+                Artboard?.Dispose();
+            }
+        }
+
         internal struct LoadResult
         {
             public bool Success { get; }
@@ -69,6 +91,14 @@ namespace Rive.Components.Utilities
 
         private List<ReportedEvent> m_reportedEvents = new List<ReportedEvent>();
 
+        // The producer half of whatever is loaded. A new one per load.
+        private WidgetCore m_core;
+
+        // Bumped by every load and Dispose, so an async load that lands after
+        // a newer one drops what it built.
+        private int m_loadNumber;
+        private bool m_artboardHasAudio;
+
 
 
         public Artboard Artboard => m_artboard;
@@ -76,7 +106,15 @@ namespace Rive.Components.Utilities
 
         public File File { get => m_file; }
 
+        // The file's names, for a handle load. Null otherwise.
+        private FileContents m_contents;
+        internal FileContents Contents => m_contents;
+
         public ArtboardRenderObject RenderObject => m_renderObject;
+
+        internal WidgetCore Core => m_core;
+
+        internal bool ArtboardHasAudio => m_artboardHasAudio;
 
         public float OriginalArtboardWidth => originalArtboardWidth;
         public float OriginalArtboardHeight => originalArtboardHeight;
@@ -110,29 +148,140 @@ namespace Rive.Components.Utilities
                 return new LoadResult(false, new LoadErrorEventData(LoadErrorType.InvalidArguments, "File is null"));
             }
 
+            return Attach(file, Prepare(file, artboardName, stateMachineName, bindingInfo), alignment, fit, scaleFactor);
+        }
+
+        /// <summary>
+        /// Loads without waiting on the main thread. The artboard, state machine and binding are built on the producer and attached here when they land. A newer load or Dispose in between cancels it and drops what was built.
+        /// </summary>
+        internal Future<LoadResult> LoadAsync(File file, Fit fit, Alignment alignment, string artboardName, string stateMachineName, float scaleFactor, DataBindingLoadInfo bindingInfo, bool describeFile = false)
+        {
+            CleanUpBeforeLoad();
+
+            var state = new FutureState<LoadResult>();
+            if (file == null)
+            {
+                IsLoaded = false;
+                state.Succeed(new LoadResult(false, new LoadErrorEventData(LoadErrorType.InvalidArguments, "File is null")));
+                return new Future<LoadResult>(state);
+            }
+
+            return AttachWhenPrepared(
+                file, WidgetCore.PrepareLoad(file, artboardName, stateMachineName, describeFile),
+                fit, alignment, scaleFactor, bindingInfo, state);
+        }
+
+        /// Tests. A load whose preparation the test finishes itself, to decide
+        /// when and how it lands.
+        internal Future<LoadResult> LoadAsync(File file, Future<Prepared> prepared, Fit fit, Alignment alignment, float scaleFactor, DataBindingLoadInfo bindingInfo)
+        {
+            CleanUpBeforeLoad();
+            return AttachWhenPrepared(file, prepared, fit, alignment, scaleFactor, bindingInfo, new FutureState<LoadResult>());
+        }
+
+        private Future<LoadResult> AttachWhenPrepared(File file, Future<Prepared> prepared, Fit fit, Alignment alignment, float scaleFactor, DataBindingLoadInfo bindingInfo, FutureState<LoadResult> state)
+        {
+            // Set now, like the sync path, so a reload while this is out finds it.
             m_file = file;
-            m_artboard = string.IsNullOrEmpty(artboardName) ? m_file.Artboard(0) : m_file.Artboard(artboardName);
-
-            if (m_artboard == null)
+            int loadNumber = m_loadNumber;
+            state.WaitDriver = () =>
             {
-                IsLoaded = false;
-                return new LoadResult(false, new LoadErrorEventData(LoadErrorType.ArtboardNotFound, $"Artboard {artboardName} not found in file"));
-            }
-
-            originalArtboardWidth = m_artboard.Width;
-            originalArtboardHeight = m_artboard.Height;
-
-            m_stateMachine = string.IsNullOrEmpty(stateMachineName) ? m_artboard.StateMachine(0) : m_artboard.StateMachine(stateMachineName);
-
-            if (m_stateMachine == null)
+                if (!prepared.IsDone)
+                {
+                    prepared.WaitInternal();
+                }
+            };
+            prepared.Completed += landed =>
             {
-                IsLoaded = false;
-                return new LoadResult(false, new LoadErrorEventData(LoadErrorType.StateMachineNotFound, $"State machine {stateMachineName} not found in artboard {artboardName}"));
-            }
+                if (landed.Status == FutureStatus.Canceled)
+                {
+                    state.Cancel();
+                    return;
+                }
+                if (loadNumber != m_loadNumber)
+                {
+                    // A newer load or Dispose came in between, so this one was
+                    // cancelled whether it worked or not.
+                    if (landed.Status == FutureStatus.Succeeded)
+                    {
+                        landed.Result.Discard();
+                    }
+                    state.Cancel();
+                    return;
+                }
+                if (landed.Status == FutureStatus.Failed)
+                {
+                    state.Fail(landed.Exception);
+                    return;
+                }
+                Prepared built = landed.Result;
+                try
+                {
+                    Bind(file, built, bindingInfo, waits: false);
+                    state.Succeed(Attach(file, built, alignment, fit, scaleFactor));
+                }
+                catch (System.Exception e)
+                {
+                    built.Discard();
+                    state.Fail(e);
+                }
+            };
+            return new Future<LoadResult>(state);
+        }
 
+        internal static LoadErrorEventData ArtboardNotFound(string artboardName)
+        {
+            return new LoadErrorEventData(LoadErrorType.ArtboardNotFound, $"Artboard {artboardName} not found in file");
+        }
+
+        internal static LoadErrorEventData StateMachineNotFound(string stateMachineName, string artboardName)
+        {
+            return new LoadErrorEventData(LoadErrorType.StateMachineNotFound, $"State machine {stateMachineName} not found in artboard {artboardName}");
+        }
+
+        /// <summary>
+        /// Everything a sync load needs that talks to the runtime. Waits for each call.
+        /// </summary>
+        internal static Prepared Prepare(File file, string artboardName, string stateMachineName, DataBindingLoadInfo bindingInfo)
+        {
+            var prepared = new Prepared();
+            Artboard artboard = string.IsNullOrEmpty(artboardName) ? file.Artboard(0) : file.Artboard(artboardName);
+            if (artboard == null)
+            {
+                prepared.Error = ArtboardNotFound(artboardName);
+                return prepared;
+            }
+            prepared.Artboard = artboard;
+            ArtboardNative.Info info = ArtboardNative.GetInfo(artboard.NativeArtboard);
+            prepared.Width = info.Size.Width;
+            prepared.Height = info.Size.Height;
+            prepared.HasAudio = info.HasAudio;
+
+            StateMachine stateMachine = string.IsNullOrEmpty(stateMachineName) ? artboard.StateMachine(0) : artboard.StateMachine(stateMachineName);
+            if (stateMachine == null)
+            {
+                prepared.Error = StateMachineNotFound(stateMachineName, artboardName);
+                return prepared;
+            }
+            prepared.StateMachine = stateMachine;
+            Bind(file, prepared, bindingInfo, waits: true);
+            return prepared;
+        }
+
+        /// Binds the load's view model instance. Queued, so it lands before
+        /// the first advance. Without waits, a bind with no instance leaves
+        /// the state machine's instance to land after.
+        private static void Bind(File file, Prepared prepared, DataBindingLoadInfo bindingInfo, bool waits)
+        {
+            Artboard artboard = prepared.Artboard;
+            StateMachine stateMachine = prepared.StateMachine;
+            if (artboard == null || stateMachine == null)
+            {
+                return;
+            }
             if (bindingInfo.BindingMode != RiveWidget.DataBindingMode.Manual)
             {
-                var viewModelInstance = GetVmInstanceToApply(bindingInfo.BindingMode, m_artboard, bindingInfo.InstanceName);
+                var viewModelInstance = GetVmInstanceToApply(bindingInfo.BindingMode, artboard, bindingInfo.InstanceName);
 
                 // With AutoBindSelected, if the requested view model instance name doesn't exist,
                 // we should NOT bind anything. Even if the file has global view models, calling
@@ -141,23 +290,55 @@ namespace Rive.Components.Utilities
                 // so that the state machine still sets up any required global view models automatically.
                 bool shouldBind = viewModelInstance != null ||
                     (bindingInfo.BindingMode != RiveWidget.DataBindingMode.AutoBindSelected &&
-                     m_file.GlobalViewModelNames.Count > 0);
+                     file.GlobalViewModelNames.Count > 0);
 
-                if (shouldBind)
+                if (shouldBind && viewModelInstance == null && !waits)
                 {
-                    m_stateMachine.BindViewModelInstance(viewModelInstance);
+                    stateMachine.BindWithoutWaiting();
+                }
+                else if (shouldBind)
+                {
+                    stateMachine.BindViewModelInstance(viewModelInstance);
                 }
             }
+        }
+
+        // Main thread. Nothing here talks to the runtime.
+        private LoadResult Attach(File file, Prepared prepared, Alignment alignment, Fit fit, float scaleFactor)
+        {
+            m_file = file;
+            m_contents = prepared.Contents;
+            if (prepared.Artboard == null)
+            {
+                IsLoaded = false;
+                return new LoadResult(false, prepared.Error);
+            }
+
+            m_artboard = prepared.Artboard;
+            originalArtboardWidth = prepared.Width;
+            originalArtboardHeight = prepared.Height;
+            m_artboardHasAudio = prepared.HasAudio;
+
+            if (prepared.StateMachine == null)
+            {
+                IsLoaded = false;
+                return new LoadResult(false, prepared.Error);
+            }
+            m_stateMachine = prepared.StateMachine;
 
             m_renderObject = CreateRenderObject(m_artboard, alignment, fit, scaleFactor);
+            m_renderObject.SetArtboardSize(new Vector2(originalArtboardWidth, originalArtboardHeight));
 
+            // Work still out for the previous load keeps its own core, so its
+            // events can't reach this one.
+            m_core = new WidgetCore(m_artboard, m_stateMachine);
 
             IsLoaded = true;
 
             return new LoadResult(true);
         }
 
-        private ViewModelInstance GetVmInstanceToApply(RiveWidget.DataBindingMode bindingMode, Artboard artboard, string instanceName = null)
+        private static ViewModelInstance GetVmInstanceToApply(RiveWidget.DataBindingMode bindingMode, Artboard artboard, string instanceName = null)
         {
             ViewModelInstance vmInstance = null;
             switch (bindingMode)
@@ -177,40 +358,38 @@ namespace Rive.Components.Utilities
             return vmInstance;
         }
 
-        public void Tick(float deltaTime, RiveWidget.EventPoolingMode poolingMode, float speed, bool pollEvents = true)
+        /// <summary>
+        /// Fires events published by producer advances. Main thread, before the next panel advance is submitted.
+        /// </summary>
+        public void DispatchCollectedEvents(RiveWidget.EventPoolingMode poolingMode)
         {
-            if (m_stateMachine == null)
+            WidgetCore core = m_core;
+            if (core == null || !core.HasEvents)
             {
                 return;
             }
 
-            if (pollEvents)
+            m_reportedEvents.Clear();
+            while (core.TryTakeEvent(out ReportedEventData data))
             {
-                m_reportedEvents.Clear();
+                m_reportedEvents.Add(ReportedEvent.GetPooled(data));
+            }
 
-                m_stateMachine.ReportedEvents(m_reportedEvents);
-
-                for (int i = 0; i < m_reportedEvents.Count; i++)
+            for (int i = 0; i < m_reportedEvents.Count; i++)
+            {
+                var evt = m_reportedEvents[i];
+                using (UserCallbacks.Scope())
                 {
-                    var evt = m_reportedEvents[i];
                     OnRiveEventReported?.Invoke(evt);
+                }
 
-                    // If pooling is enabled, auto-dispose the event
-                    if (poolingMode == RiveWidget.EventPoolingMode.Enabled)
-                    {
-                        evt.Dispose();
-                    }
+                // If pooling is enabled, auto-dispose the event
+                if (poolingMode == RiveWidget.EventPoolingMode.Enabled)
+                {
+                    evt.Dispose();
                 }
             }
-
-            m_stateMachine.Advance(deltaTime * speed);
-
-            // Legacy callback propagation behavior
-            if (RiveWidget.propertyCallbackApproach == RiveWidget.DataBindingPropertyCallbackApproach.Propagation)
-            {
-                m_stateMachine.ViewModelInstance?.HandleCallbacks();
-            }
-
+            m_reportedEvents.Clear();
         }
 
 
@@ -231,6 +410,13 @@ namespace Rive.Components.Utilities
 
         private void CleanUpBeforeLoad()
         {
+            // This helper can be reused for another artboard or file. Dropping
+            // the core drops whatever the previous state machine reported.
+            m_core = null;
+            m_contents = null;
+            m_loadNumber++;
+            m_artboardHasAudio = false;
+
             m_stateMachine?.Dispose();
             m_stateMachine = null;
 
@@ -241,6 +427,7 @@ namespace Rive.Components.Utilities
             m_file = null;
 
         }
+
 
 
         /// <summary>

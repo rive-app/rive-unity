@@ -47,7 +47,7 @@ namespace Rive.Tests
             m_renderer.OnAddToCommandBuffer += OnAddToCommandBuffer;
         }
 
-        private void OnAddToCommandBuffer(CommandBuffer buffer, bool release)
+        private void OnAddToCommandBuffer(CommandBuffer buffer)
         {
             m_recordedCommandBuffers.Add(buffer);
         }
@@ -146,7 +146,7 @@ namespace Rive.Tests
             m_handler.Register(m_renderer);
 
             int commandBufferCount = 0;
-            m_renderer.OnAddToCommandBuffer += (buffer, release) => commandBufferCount++;
+            m_renderer.OnAddToCommandBuffer += buffer => commandBufferCount++;
 
             UnityEngine.Object.Destroy(m_camera.gameObject);
             yield return null;
@@ -207,7 +207,7 @@ namespace Rive.Tests
             m_handler.Register(m_renderer);
 
             int commandBufferCount = 0;
-            m_renderer.OnAddToCommandBuffer += (buffer, release) => commandBufferCount++;
+            m_renderer.OnAddToCommandBuffer += buffer => commandBufferCount++;
 
             UnityEngine.Object.Destroy(m_camera.gameObject);
             yield return null;
@@ -262,16 +262,44 @@ namespace Rive.Tests
         }
 
 
+        // GPU canvas records in this order and the camera runs the command
+        // buffers in it, so the two have to stay the same list. A dictionary
+        // won't do: unregistering frees a slot the next registration reuses,
+        // and its enumeration order stops matching the camera's. Recording out
+        // of order replays a draw before the frame that created what it draws.
+        [Test]
+        public void RenderOrder_FollowsRegistration_AfterARendererIsReplaced()
+        {
+            var first = new MockRenderer();
+            var second = new MockRenderer();
+            var third = new MockRenderer();
+
+            m_handler.Register(first);
+            m_handler.Register(second);
+            m_handler.Register(third);
+
+            // Frees a slot in the middle, which is what a naive lookup would
+            // hand to the next registration.
+            m_handler.Unregister(second);
+
+            var fourth = new MockRenderer();
+            m_handler.Register(fourth);
+
+            CollectionAssert.AreEqual(
+                new IRenderer[] { first, third, fourth },
+                m_handler.RenderOrder,
+                "Renderers should record in the order they registered, which " +
+                "is the order the camera runs their command buffers.");
+
+            m_handler.Unregister(first);
+            m_handler.Unregister(third);
+            m_handler.Unregister(fourth);
+        }
+
         [UnityTest]
         public IEnumerator Cleanup_ClearsAllCommandBuffers()
         {
             int initialCameraBufferCount = m_camera.commandBufferCount;
-
-            List<CommandBuffer> destroyedBuffers = new List<CommandBuffer>();
-            m_renderer.OnAddToCommandBuffer += (buffer, release) =>
-            {
-                if (release) destroyedBuffers.Add(buffer);
-            };
 
             m_handler.Register(m_renderer);
 

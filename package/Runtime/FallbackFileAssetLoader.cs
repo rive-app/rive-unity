@@ -9,7 +9,7 @@ namespace Rive
     internal interface IFallbackFileAssetLoader
     {
         void AddLoader(IFileAssetLoader loader);
-        IntPtr NativeUnityAssetLoaderCallback(uint assetId, ushort assetType, string assetName, uint inBandByteSize);
+        void AddAssetReference(uint assetId, ushort assetType, string assetName, uint inBandByteSize);
         void LoadOutOfBandAssets(File riveFile);
         void UnloadInternallyLoadedAssets();
     }
@@ -113,7 +113,8 @@ namespace Rive
                     // Load the asset if it isn't in the cache
                     if (!m_loadedOobAssets.ContainsKey(assetData.Id))
                     {
-                        assetData.OutOfBandAsset.Load();
+                        // The decode runs ahead of the import, so there's no wait here.
+                        assetData.OutOfBandAsset.LoadWithoutWaiting();
                         // Add the asset to the cache so we can unload it when the Rive file is unloaded
                         this.AddToOobAssetCache(assetData.Id, assetData.OutOfBandAsset);
                     }
@@ -160,58 +161,16 @@ namespace Rive
         }
 
         /// <summary>
-        /// The native callback that is called when the Rive runtime needs to load an embedded asset. This is used to get information about the embedded assets.
+        /// Makes a reference for an asset the file reported, to be loaded once the file is.
         /// </summary>
-        /// <param name="assetId"></param>
-        /// <param name="assetType"></param>
-        /// <param name="assetName"></param>
-        /// <param name="inBandByteSize"></param>
-        /// <returns> A pointer to the native asset to use, otherwise a null pointer. </returns>
-        public IntPtr NativeUnityAssetLoaderCallback(uint assetId, ushort assetType, string assetName, uint inBandByteSize)
+        public void AddAssetReference(uint assetId, ushort assetType, string assetName, uint inBandByteSize)
         {
-            // We use the native callback to get information about the embedded/referenced assets.
-            // Even though we have this information when an asset is imported into the Unity Editor, this is needed because we don't have the details about embedded assets when they're loaded remotely
-            // This gives us that information so we can load and set the assets at runtime right after the Rive file is loaded.
-
-            // Don't call any native code from the plugin that uses a lock in this callback, because it will cause a deadlock
-            // For example, we can't call decodeFont here because it uses a lock. This is why we use the assetMapArray approach for assets that are known ahead of time, as those don't require a callback and are loaded before the Rive file is loaded.
-
-            var preloadedOutofBandAsset = this.GetLoadedOobAsset(assetId);
-
-
-            var assetReference = GenerateAssetReference(assetId, assetType, assetName, inBandByteSize, preloadedOutofBandAsset);
-
-
-            if (assetReference == null)
+            var assetReference = GenerateAssetReference(assetId, assetType, assetName, inBandByteSize, GetLoadedOobAsset(assetId));
+            if (assetReference != null)
             {
-                return System.IntPtr.Zero;
-
+                assetReferenceMap[assetId] = assetReference;
             }
-
-            // Add the asset reference to the map so we can load the asset data when the Rive file is loaded if needed.
-            assetReferenceMap[assetId] = assetReference;
-
-
-
-            // If no asset was preloaded, then return a null native asset. This tells the native runtime to handle the asset loading.
-            if (preloadedOutofBandAsset == null || assetReference == null)
-            {
-                return System.IntPtr.Zero;
-
-            }
-
-
-
-            // If the asset was preloaded, then return the native asset to the runtime.
-            return assetReference.OutOfBandAsset == null ? System.IntPtr.Zero : assetReference.OutOfBandAsset.NativeAsset;
-
-
-
-
         }
-
-
-
 
         /// <summary>
         /// Load the contents of the asset reference. If the asset is not loaded by any of the loaders, then it will handle the loading itself.

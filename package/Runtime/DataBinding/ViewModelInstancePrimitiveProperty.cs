@@ -1,23 +1,48 @@
 using System;
-using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using Rive.Producer;
 using Rive.Utils;
+using Rive.Host;
 
 namespace Rive
 {
     /// <summary>
     /// Base class for all primitive properties of a ViewModelInstance. This is usually used for types like numbers, strings, etc. that have a value change event.
     /// </summary>
-    public abstract class ViewModelInstancePrimitiveProperty : ViewModelInstanceProperty
+    public abstract class ViewModelInstancePrimitiveProperty : ViewModelInstanceProperty, IWatchedValue
     {
-        private IntPtr m_instanceValuePropertyPtr;
-        private ViewModelInstance m_instance; // The instance this property belongs to
+        private static long s_nextCallbackKey;
 
-        internal IntPtr InstancePropertyPtr => m_instanceValuePropertyPtr;
+        private readonly ViewModelInstance m_instance;
+        private readonly string m_name;
+        private readonly int m_slot;
+
+        /// <summary>
+        /// Unique per property object. What the callbacks hub keys on.
+        /// </summary>
+        internal readonly long CallbackKey = System.Threading.Interlocked.Increment(ref s_nextCallbackKey);
 
         /// <summary>
         /// The instance this property belongs to.
         /// </summary>
         internal ViewModelInstance RootInstance => m_instance;
+
+        /// <summary>
+        /// The property's name on <see cref="RootInstance"/>. One level, never a path.
+        /// </summary>
+        internal string Name => m_name;
+
+        /// <summary>
+        /// Where native keeps this property on its instance. Calls pass this rather than the name.
+        /// </summary>
+        internal int Slot => m_slot;
+
+        /// <summary>
+        /// False for a property that was never found natively. Every read and write on it does nothing.
+        /// </summary>
+        internal bool IsAttached => m_instance != null && m_slot >= 0;
+
+        internal NativeViewModelInstanceHandle InstanceHandle => m_instance != null ? m_instance.NativeHandle : default;
 
         /// <summary>
         /// Throws <see cref="ObjectDisposedException"/> if the owning <see cref="ViewModelInstance"/> has been disposed.
@@ -32,37 +57,64 @@ namespace Rive
             }
         }
 
-        /// <summary>
-        /// Whether the value has changed since the last time it was read.
-        /// </summary>
-        internal bool HasChanged => viewModelInstancePropertyValueHasChanged(m_instanceValuePropertyPtr);
+        // The newest change this property has reported. Other subscribers to
+        // the same value keep their own, so nobody clears another's change.
+        // Set in the drain, or when callbacks start.
+        private ulong m_seenChange = ViewModelNative.NotWatching;
+
+        /// Set by the factory that made it.
+        internal ViewModelDataType PropertyType { get; set; }
+
+        /// Waits for the value. fallback when the property isn't there.
+        private protected T ReadNative<T>(ViewModelNative.ValueReader<T> read, T fallback)
+        {
+            return ViewModelNative.Read(InstanceHandle, m_name, PropertyType, read, fallback);
+        }
+
+        /// Held, and sent in order ahead of the next thing that's sent.
+        private protected void WriteNative(float number, int integer, string text)
+        {
+            ViewModelNative.Set(InstanceHandle, m_name, PropertyType, number, integer, text);
+        }
+
+        NativeViewModelInstanceHandle IWatchedValue.WatchInstance => InstanceHandle;
+
+        string IWatchedValue.WatchPath => m_name;
+
+        ViewModelDataType IWatchedValue.WatchType => PropertyType;
+
+        ulong IWatchedValue.SeenChange
+        {
+            get => m_seenChange;
+            set => m_seenChange = value;
+        }
+
+        bool IWatchedValue.Gone => !IsAttached || (m_instance != null && m_instance.IsDisposed);
 
         /// <summary>
-        /// Constructor for a ViewModelInstanceProperty.
+        /// Whether the value has changed since this property last reported a change.
         /// </summary>
-        /// <param name="instanceValuePtr"> Pointer to the instance property value.</param>
+        internal bool HasChanged => IsAttached && ViewModelNative.ChangedSince(InstanceHandle, m_name, PropertyType, m_seenChange);
+
         /// <param name="instance"> The instance this property belongs to.</param>
-        internal ViewModelInstancePrimitiveProperty(IntPtr instanceValuePtr, ViewModelInstance instance)
+        /// <param name="name"> The property's name on that instance.</param>
+        /// <param name="slot"> Where native keeps it.</param>
+        internal ViewModelInstancePrimitiveProperty(ViewModelInstance instance, string name, int slot)
         {
-            m_instanceValuePropertyPtr = instanceValuePtr;
             m_instance = instance;
-        }
-
-        ~ViewModelInstancePrimitiveProperty()
-        {
-            if (m_instanceValuePropertyPtr != IntPtr.Zero)
-            {
-                ViewModelInstanceProperty.RemoveCachedPropertyForPointer(m_instanceValuePropertyPtr);
-                m_instanceValuePropertyPtr = IntPtr.Zero;
-            }
+            m_name = name;
+            m_slot = slot;
         }
 
         /// <summary>
-        /// Reset the changed flag for this value.
+        /// Counts every change so far as seen by this property.
         /// </summary>
         internal void ClearChanges()
         {
-            clearViewModelInstancePropertyValueChanges(m_instanceValuePropertyPtr);
+            if (IsAttached)
+            {
+                m_seenChange = ViewModelNative.ChangeSequence();
+            }
         }
 
         /// <summary>
@@ -71,6 +123,12 @@ namespace Rive
         internal virtual void RaiseChangedEvent()
         {
             // no-op in non-generic base; override in subclasses
+        }
+
+        /// With the value the capture saw. Types without a value ignore it.
+        internal virtual void RaiseChangedEvent(in PropertyValue capturedValue)
+        {
+            RaiseChangedEvent();
         }
 
         /// <summary>
@@ -100,23 +158,15 @@ namespace Rive
         internal void RegisterForCallbacks()
         {
 
-            // Since we don't clean the changed flag for properties that don't have listeners,
-            // we clean it the first time we add a listener to it
+            // Changes from before the first listener don't count.
             ClearChanges();
-            m_instance.RegisterPropertyForCallbacks(this);
+            m_instance?.RegisterPropertyForCallbacks(this);
         }
 
         internal void UnregisterForCallbacks()
         {
-            m_instance.UnregisterPropertyForCallbacks(this);
+            m_instance?.UnregisterPropertyForCallbacks(this);
         }
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        private static extern bool viewModelInstancePropertyValueHasChanged(IntPtr instanceValue);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void clearViewModelInstancePropertyValueChanges(IntPtr instanceValue);
 
         // Helpers to add/remove managed callbacks and register/unregister native notifications
         /// <summary>
@@ -195,13 +245,21 @@ namespace Rive
         }
         private Action<T> m_onValueChanged;
 
-        internal ViewModelInstancePrimitiveProperty(IntPtr instanceValuePtr, ViewModelInstance instance)
-            : base(instanceValuePtr, instance) { }
+        internal ViewModelInstancePrimitiveProperty(ViewModelInstance instance, string name, int slot)
+            : base(instance, name, slot) { }
 
         internal override void RaiseChangedEvent()
         {
             m_onValueChanged?.Invoke(Value);
         }
+
+        internal override void RaiseChangedEvent(in PropertyValue capturedValue)
+        {
+            m_onValueChanged?.Invoke(FromValue(capturedValue));
+        }
+
+        /// This type's value, from what a read or capture replied with.
+        internal abstract T FromValue(in PropertyValue value);
 
         internal override void ClearAllCallbacks()
         {
@@ -215,5 +273,32 @@ namespace Rive
         }
 
         public abstract T Value { get; set; }
+
+        /// <summary>
+        /// Reads the value without blocking the caller.
+        /// </summary>
+        /// <remarks>
+        /// The result comes back in order with <see cref="OnValueChanged"/>, so after <c>OnValueChanged += Show; Show(await GetValueAsync());</c> an older value never follows a newer one. A value can repeat: a read that lands between an advance and its capture returns the new value, then OnValueChanged reports the same value. Reading doesn't count as seeing the change, so OnValueChanged still fires. To read every frame, subscribe to OnValueChanged instead.
+        /// </remarks>
+        /// <returns>A Future that finishes on the main thread with the value, or fails with ObjectDisposedException if the owning instance is disposed first.</returns>
+        /// <exception cref="ObjectDisposedException">The owning ViewModelInstance has been disposed.</exception>
+        internal Future<T> GetValueAsync()
+        {
+            ThrowIfOwnerDisposed();
+            return PropertyCallbacksHub.Instance.ReadAsync(this);
+        }
+
+        /// <summary>
+        /// Writes the value without blocking the caller.
+        /// </summary>
+        /// <param name="value">The value to write.</param>
+        /// <returns>An operation that finishes on the main thread once the write has gone out.</returns>
+        /// <exception cref="ObjectDisposedException">The owning ViewModelInstance has been disposed.</exception>
+        internal Future SetValueAsync(T value)
+        {
+            ThrowIfOwnerDisposed();
+            Value = value;
+            return ViewModelNative.FenceAsync();
+        }
     }
 }

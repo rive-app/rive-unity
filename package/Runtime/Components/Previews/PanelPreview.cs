@@ -161,8 +161,7 @@ namespace Rive.Components
                             m_riveViewController.RenderObject.EffectiveLayoutScaleFactor = effectiveScaleFactor;
                             if (ArtboardLoadHelper.CalculateArtboardDimensionsForLayout(m_riveWidget.RectTransform.rect, effectiveScaleFactor, out float width, out float height))
                             {
-                                m_riveViewController.Artboard.Width = width;
-                                m_riveViewController.Artboard.Height = height;
+                                m_riveViewController.Artboard.Size = new Size(width, height);
 
                             }
 

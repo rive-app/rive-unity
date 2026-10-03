@@ -27,16 +27,40 @@ namespace Rive
         [SerializeField]
         private byte[] bytes;
 
+        // Guards the count and the handle, so Load and Unload can come from any thread.
+        [NonSerialized]
+        private readonly object m_lock = new object();
+
         [NonSerialized]
         private int m_refCount;
 
         [NonSerialized]
-        private IntPtr m_nativeAsset = IntPtr.Zero;
+        private NativeAssetHandle m_nativeHandle;
 
-        protected abstract IntPtr LoadNative(byte[] bytes);
-        protected abstract void UnloadNative(IntPtr nativePtr);
+        // The decode that's out for the current handle.
+        private sealed class Decode
+        {
+            internal volatile bool Landed;
+            internal bool Ok;
+            internal readonly FutureState<bool> State = new FutureState<bool>();
+        }
 
-        internal IntPtr NativeAsset { get { return m_nativeAsset; } }
+        [NonSerialized]
+        private Decode m_decode;
+
+        /// Queues the decode with requestId and returns its handle.
+        internal abstract ulong SendDecode(ulong requestId, byte[] bytes);
+        internal abstract void DeleteNative(ulong handle);
+
+        /// <summary>
+        /// Which kind of embedded asset this one can stand in for.
+        /// </summary>
+        internal abstract EmbeddedAssetType AssetType { get; }
+
+        internal NativeAssetHandle NativeHandle
+        {
+            get { lock (m_lock) { return m_nativeHandle; } }
+        }
 
         /// <summary>
         /// The raw bytes of the out-of-band asset.
@@ -64,7 +88,8 @@ namespace Rive
         internal void LoadIntoByteAssetMap(uint embeddedAssetId, EmbeddedAssetType embeddedAssetType, List<byte> assetMap)
         {
             // Write it into the asset map if the native asset was succesfully loaded.
-            if (NativeAsset != IntPtr.Zero)
+            NativeAssetHandle handle = NativeHandle;
+            if (handle.IsValid)
             {
                 var bytes = BitConverter.GetBytes(embeddedAssetId);
                 for (int j = 0; j < bytes.Length; j++)
@@ -76,13 +101,7 @@ namespace Rive
                 {
                     assetMap.Add(bytes[j]);
                 }
-#if UNITY_WEBGL && !UNITY_EDITOR
-                // nint is incorrectly reported as 64 bit on wasm which would
-                // break Rive's native code.
-                bytes = BitConverter.GetBytes((int)NativeAsset);
-#else
-                bytes = BitConverter.GetBytes((nint)NativeAsset);
-#endif
+                bytes = BitConverter.GetBytes(handle.Value);
                 for (int j = 0; j < bytes.Length; j++)
                 {
                     assetMap.Add(bytes[j]);
@@ -94,24 +113,126 @@ namespace Rive
         /// <summary>
         /// Load the out-of-band asset. Call this before using the asset.
         /// </summary>
+        /// <remarks>
+        /// Waits for the decode. Handle code, in a BackgroundThread panel, uses <see cref="LoadAsync"/>.
+        /// </remarks>
         public void Load()
         {
-            if (m_nativeAsset == IntPtr.Zero)
+            if (Retain())
             {
-                if (bytes == null || bytes.Length == 0)
+                // A second caller waits on the first one's decode.
+                Decode decode = StartDecode();
+                OutOfBandAssetNative.Wait(() => decode.Landed);
+            }
+        }
+
+        /// Load without waiting for the decode. Its handle is good to send
+        /// straight away, since commands run in order.
+        internal void LoadWithoutWaiting()
+        {
+            if (Retain())
+            {
+                StartDecode();
+            }
+        }
+
+        /// <summary>
+        /// Loads the out-of-band asset without waiting. Pair it with <see cref="Unload"/> like <see cref="Load"/>.
+        /// </summary>
+        /// <remarks>
+        /// A handle's <c>SetValue(asset)</c> can follow straight away; it runs after the decode.
+        /// </remarks>
+        /// <returns>An operation that finishes on the main thread once the asset is ready. It fails with <see cref="RiveErrorCode.LoadFailed"/> if it has no bytes or a font can't be decoded. Images decode when they're first drawn, so a bad image isn't caught here.</returns>
+        public Future LoadAsync()
+        {
+            var state = new FutureState<bool>();
+            if (!Retain())
+            {
+                state.Fail(new RiveException(RiveErrorCode.LoadFailed, $"Out-of-band asset '{name}' has no bytes."));
+                return new Future(state);
+            }
+            new Future<bool>(StartDecode().State).Completed += decode =>
+            {
+                if (decode.Status != FutureStatus.Succeeded)
                 {
-                    DebugLogger.Instance.LogError("Cannot load out-of-band asset: no serialized bytes are present.");
-                    return;
+                    state.Fail(decode.Exception ?? new RiveException(RiveErrorCode.LoadFailed, "The decode was cancelled."));
                 }
+                else if (!decode.Result)
+                {
+                    state.Fail(new RiveException(RiveErrorCode.LoadFailed, $"Out-of-band asset '{name}' couldn't be decoded."));
+                }
+                else
+                {
+                    state.Succeed(true);
+                }
+            };
+            return new Future(state);
+        }
 
-                m_nativeAsset = LoadNative(bytes);
-
+        /// Counts a use. False, with an error, when there's nothing to decode.
+        internal bool Retain()
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                DebugLogger.Instance.LogError("Cannot load out-of-band asset: no serialized bytes are present.");
+                return false;
+            }
+            lock (m_lock)
+            {
                 if (m_refCount < 0)
                 {
                     m_refCount = 0;
                 }
+                m_refCount++;
             }
-            m_refCount++;
+            return true;
+        }
+
+        /// For a caller that already holds a retain.
+        internal void DecodeIfNeeded()
+        {
+            StartDecode();
+        }
+
+        /// Sends the decode unless one is already out for the current handle.
+        private Decode StartDecode()
+        {
+            lock (m_lock)
+            {
+                if (m_decode != null)
+                {
+                    return m_decode;
+                }
+                var decode = new Decode();
+                ulong handle = OutOfBandAssetNative.Decode(
+                    id => SendDecode(id, bytes),
+                    ok => Landed(decode, ok),
+                    decode.State);
+                m_nativeHandle = new NativeAssetHandle(handle);
+                m_decode = decode;
+                return decode;
+            }
+        }
+
+        private void Landed(Decode decode, bool ok)
+        {
+            ulong failed = 0;
+            lock (m_lock)
+            {
+                // A failed decode leaves nothing to use, so the next load tries again.
+                if (!ok && m_decode == decode)
+                {
+                    failed = m_nativeHandle.Value;
+                    m_nativeHandle = default;
+                    m_decode = null;
+                }
+            }
+            if (failed != 0)
+            {
+                DeleteNative(failed);
+            }
+            decode.Ok = ok;
+            decode.Landed = true;
         }
 
         /// <summary>
@@ -119,18 +240,32 @@ namespace Rive
         /// </summary>
         public void Unload()
         {
-            if (m_refCount <= 0)
+            NativeAssetHandle released = default;
+            lock (m_lock)
             {
-                m_refCount = 0;
-                return;
+                if (m_refCount <= 0)
+                {
+                    m_refCount = 0;
+                    return;
+                }
+
+                m_refCount--;
+                if (m_refCount == 0 && m_nativeHandle.IsValid)
+                {
+                    released = m_nativeHandle;
+                    m_nativeHandle = default;
+                    m_decode = null;
+                }
             }
 
-            m_refCount--;
-            if (m_refCount == 0 && m_nativeAsset != IntPtr.Zero)
+            if (released.IsValid)
             {
-                IntPtr nativeAsset = m_nativeAsset;
-                m_nativeAsset = IntPtr.Zero;
-                UnloadNative(nativeAsset);
+                DeleteNative(released.Value);
+
+                // Releasing the asset queues its GPU resources for destruction,
+                // and there may be no panel left to render a frame that would
+                // carry them.
+                GpuCanvasResources.RequestFlush();
             }
         }
 
@@ -140,7 +275,10 @@ namespace Rive
         /// <returns></returns>
         internal int RefCount()
         {
-            return m_refCount;
+            lock (m_lock)
+            {
+                return m_refCount;
+            }
         }
     }
 }

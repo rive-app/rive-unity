@@ -20,6 +20,7 @@ namespace Rive.Samples
             RenderTextureImageSource.TextureProcessingMode.Auto;
 
         private RenderTextureImageSource m_riveImage;
+        private ViewModelInstanceHandle m_viewModelInstance;
 
         void Start()
         {
@@ -42,30 +43,40 @@ namespace Rive.Samples
 
         private IEnumerator BindAndPlay()
         {
-            while (riveWidget.Status != WidgetStatus.Loaded ||
-                   riveWidget.StateMachine == null)
+            while (riveWidget.Status != WidgetStatus.Loaded)
             {
                 yield return null;
             }
 
             m_riveImage = new RenderTextureImageSource(videoTexture, processingMode);
 
-            var vmi = riveWidget.StateMachine.ViewModelInstance;
-            if (vmi == null)
+            // A BackgroundThread panel gives handles, a MainThread panel the plain objects.
+            if (riveWidget.StateMachineHandle != null)
             {
-                Debug.LogWarning("VideoBindingSample: no ViewModelInstance on the widget.");
-                yield break;
+                // Usable straight away. If nothing is bound, or the path is wrong,
+                // it's reported once Rive gets to it and the write is skipped.
+                m_viewModelInstance = riveWidget.StateMachineHandle.GetViewModelInstance();
+                m_viewModelInstance.GetImageProperty(viewModelImagePath).SetFromRenderTextureImageSource(m_riveImage);
             }
-
-            var imageProp = vmi.GetImageProperty(viewModelImagePath);
-            if (imageProp == null)
+            else
             {
-                Debug.LogWarning(
-                    $"VideoBindingSample: image property '{viewModelImagePath}' not found.");
-                yield break;
-            }
+                var vmi = riveWidget.StateMachine?.ViewModelInstance;
+                if (vmi == null)
+                {
+                    Debug.LogWarning("VideoBindingSample: no ViewModelInstance on the widget.");
+                    yield break;
+                }
 
-            imageProp.SetFromRenderTextureImageSource(m_riveImage);
+                var imageProp = vmi.GetImageProperty(viewModelImagePath);
+                if (imageProp == null)
+                {
+                    Debug.LogWarning(
+                        $"VideoBindingSample: image property '{viewModelImagePath}' not found.");
+                    yield break;
+                }
+
+                imageProp.SetFromRenderTextureImageSource(m_riveImage);
+            }
             m_videoPlayer.Play();
         }
 
@@ -76,6 +87,7 @@ namespace Rive.Samples
                 m_videoPlayer.prepareCompleted -= OnVideoPrepared;
             }
             m_riveImage?.Dispose();
+            m_viewModelInstance?.Dispose();
         }
     }
 }

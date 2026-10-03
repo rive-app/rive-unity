@@ -60,14 +60,14 @@ namespace Rive
     internal static class TextureFrameProvider
     {
         /// <summary>
-        /// Returns true when any transform is needed, i.e. we need an intermediate.
+        /// Returns true when any transform is needed.
         /// </summary>
         /// <param name="mode">The processing mode to use.</param>
         /// <param name="backendNeedsFlip">Whether the backend needs to flip the texture.</param>
         /// <param name="projectNeedsColorFix">Whether the project needs to color-correct the texture.</param>
         /// <param name="flip">Whether to flip the texture.</param>
         /// <param name="color">Whether to color-correct the texture.</param>
-        /// <returns>True when any transform is needed, i.e. we need an intermediate.</returns>
+        /// <returns>True when any transform is needed.</returns>
         internal static bool ResolveTransforms(
             RenderTextureImageSource.TextureProcessingMode mode,
             bool backendNeedsFlip,
@@ -93,22 +93,25 @@ namespace Rive
             RenderTexture source,
             RenderTextureImageSource.TextureProcessingMode mode)
         {
-            bool needsIntermediate = ResolveTransforms(
+            // Anything but None copies, even with nothing to transform, so Rive only
+            // ever draws a texture we own and the source can change freely.
+            if (mode == RenderTextureImageSource.TextureProcessingMode.None)
+            {
+                return new DirectTextureFrameProvider(source);
+            }
+            ResolveTransforms(
                 mode,
                 SystemInfo.graphicsUVStartsAtTop,
                 TextureHelper.ProjectNeedsColorSpaceFix,
                 out bool flip,
                 out bool color);
-
-            return needsIntermediate
-                ? (ITextureFrameProvider)new ProcessedTextureFrameProvider(source, flip, color)
-                : new DirectTextureFrameProvider(source);
+            return new ProcessedTextureFrameProvider(source, flip, color);
         }
     }
 
     /// <summary>
-    /// Binds the user's texture straight through, no intermediate or blit. Used
-    /// when there's nothing to flip or color-correct.
+    /// Binds the user's texture straight through, no intermediate or blit. Only
+    /// for <see cref="RenderTextureImageSource.TextureProcessingMode.None"/>.
     /// </summary>
     internal sealed class DirectTextureFrameProvider : ITextureFrameProvider
     {
@@ -170,6 +173,8 @@ namespace Rive
         }
 
         public RenderTexture Source => m_source;
+
+        internal RenderTexture IntermediateForTests => m_intermediate;
 
         public bool IsSourceAlive => m_source != null && m_source.IsCreated();
 
@@ -275,9 +280,9 @@ namespace Rive
                 {
                     RenderTexture.active = null;
                 }
-                // A build referencing this handle may still be draining on
-                // the render thread, so we defer releasing it until the next frame.
-                RenderTextureImageManager.Instance.DeferRelease(m_intermediate);
+                // Frames already recorded may still draw it.
+                RenderTextureImageManager.Instance.DeferRelease(
+                    m_intermediate, m_intermediateHandle);
                 m_intermediate = null;
             }
             m_intermediateHandle = IntPtr.Zero;

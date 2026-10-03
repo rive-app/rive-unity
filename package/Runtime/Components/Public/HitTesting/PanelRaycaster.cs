@@ -72,12 +72,6 @@ namespace Rive.Components
                         return isWithinWidgetBounds;
                     }
                     break;
-#pragma warning disable CS0618 // Transparent hit testing is deprecated but kept for backward compatibility
-                case HitTestBehavior.Transparent:
-                    raycastResults.Add(widget);
-                    // Continue checking other widgets
-                    return false;
-#pragma warning restore CS0618
                 case HitTestBehavior.None:
                     // Do not add to raycastResults
                     return false;

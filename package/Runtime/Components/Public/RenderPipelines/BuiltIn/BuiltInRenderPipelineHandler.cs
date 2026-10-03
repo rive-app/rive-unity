@@ -14,6 +14,13 @@ namespace Rive.Components.BuiltIn
     {
 
         private Dictionary<IRenderer, CommandBuffer> m_activeRenderCommandBuffers = new Dictionary<IRenderer, CommandBuffer>();
+        // The camera runs its command buffers in the order they were added, and
+        // GPU canvas records in this order, so the two agree. A Dictionary
+        // can't stand in for it: removing a renderer frees a slot that the next
+        // one reuses, and the enumeration order stops matching the camera's.
+        // Out of order recording replays a draw before the frame that created
+        // what it draws.
+        private readonly List<IRenderer> m_renderOrder = new List<IRenderer>();
 
 
         [Tooltip("The cameras that will render the Rive content. If not provided, the main camera will be used.")]
@@ -92,7 +99,7 @@ namespace Rive.Components.BuiltIn
             var orchestrator = Orchestrator.Instance;
             if (orchestrator != null)
             {
-                orchestrator.OnPostRenderPreparation += ValidateRenderCamera;
+                orchestrator.OnPostRenderPreparation += HandlePostRenderPreparation;
                 m_registeredWithOrchestrator = true;
             }
         }
@@ -107,9 +114,32 @@ namespace Rive.Components.BuiltIn
             var orchestrator = Orchestrator.Instance;
             if (orchestrator != null)
             {
-                orchestrator.OnPostRenderPreparation -= ValidateRenderCamera;
+                orchestrator.OnPostRenderPreparation -= HandlePostRenderPreparation;
             }
             m_registeredWithOrchestrator = false;
+        }
+
+        private void HandlePostRenderPreparation()
+        {
+            ValidateRenderCamera();
+            RecordRenderersForGpuCanvas();
+        }
+
+        /// <summary>
+        /// Our command buffers are registered with the camera once and replayed
+        /// every frame, so nothing re-enters the renderer per frame to record with.
+        /// The strategies have just rebuilt their command lists, so this is the
+        /// point where recording sees the frame the camera is about to draw.
+        /// </summary>
+        private void RecordRenderersForGpuCanvas()
+        {
+            for (int i = 0; i < m_renderOrder.Count; i++)
+            {
+                if (m_renderOrder[i] is Renderer renderer)
+                {
+                    renderer.RecordForGpuCanvas();
+                }
+            }
         }
 
         private void ValidateRenderCamera()
@@ -199,9 +229,13 @@ namespace Rive.Components.BuiltIn
             if (m_renderCamera != null)
             {
 
-                foreach (var kvp in m_activeRenderCommandBuffers)
+                for (int i = 0; i < m_renderOrder.Count; i++)
                 {
-                    SafeRemoveCommandBuffer(m_renderCamera, kvp.Value);
+                    if (m_activeRenderCommandBuffers.TryGetValue(
+                            m_renderOrder[i], out var commandBuffer))
+                    {
+                        SafeRemoveCommandBuffer(m_renderCamera, commandBuffer);
+                    }
                 }
             }
 
@@ -210,10 +244,15 @@ namespace Rive.Components.BuiltIn
             if (m_renderCamera != null)
             {
 
-                // Add existing command buffers to the new camera
-                foreach (var kvp in m_activeRenderCommandBuffers)
+                // Added in the same order, so the new camera runs them in the
+                // order recording expects.
+                for (int i = 0; i < m_renderOrder.Count; i++)
                 {
-                    AddCommandBufferToCamera(m_renderCamera, kvp.Value);
+                    if (m_activeRenderCommandBuffers.TryGetValue(
+                            m_renderOrder[i], out var commandBuffer))
+                    {
+                        AddCommandBufferToCamera(m_renderCamera, commandBuffer);
+                    }
                 }
 
             }
@@ -259,6 +298,7 @@ namespace Rive.Components.BuiltIn
 
 
             m_activeRenderCommandBuffers.Add(renderer, commandBuffer);
+            m_renderOrder.Add(renderer);
             TrySubscribeToOrchestrator();
 
             if (renderer is Renderer r && r.RenderQueue != null && r.RenderQueue.Texture != null)
@@ -350,6 +390,7 @@ namespace Rive.Components.BuiltIn
                 SafeRemoveCommandBuffer(m_renderCamera, commandBuffer);
 
                 m_activeRenderCommandBuffers.Remove(renderer);
+                m_renderOrder.Remove(renderer);
                 m_commandBufferPool.Release(commandBuffer);
 
                 if (m_activeRenderCommandBuffers.Count == 0)
@@ -387,7 +428,7 @@ namespace Rive.Components.BuiltIn
             }
 
             m_rendererCleanupList.Clear();
-            m_rendererCleanupList.AddRange(m_activeRenderCommandBuffers.Keys);
+            m_rendererCleanupList.AddRange(m_renderOrder);
 
             for (int i = 0; i < m_rendererCleanupList.Count; i++)
             {
@@ -405,6 +446,13 @@ namespace Rive.Components.BuiltIn
         {
             return m_activeRenderCommandBuffers.ContainsKey(renderer);
         }
+
+        /// <summary>
+        /// The order GPU canvas records in, which is also the order the camera
+        /// runs the command buffers. Exposed so a test can hold the two
+        /// together; nothing else should need it.
+        /// </summary>
+        internal IReadOnlyList<IRenderer> RenderOrder => m_renderOrder;
 
         public void ReleaseRenderTexture(RenderTexture renderTexture)
         {

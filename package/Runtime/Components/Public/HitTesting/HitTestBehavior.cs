@@ -1,5 +1,3 @@
-using System;
-
 namespace Rive.Components
 {
     /// <summary>
@@ -9,21 +7,15 @@ namespace Rive.Components
     {
 
         /// <summary>
-        /// The bounds of the RiveWidget will consume all hits, even if there is no listener (hit area) at the target point. Content behind the RiveWidget will not receive hits.
+        /// The bounds of the RiveWidget will consume all hits, even if there is no listener (hit area) at the target point. Content behind the RiveWidget will not receive hits. Recommended for non-blocking pointer input on asynchronous panels.
         /// </summary>
         Opaque = 0,
 
         /// <summary>
-        /// The RiveWidget will only consume hits where there is a listener (hit area) at the target point. Content behind the RiveWidget will only receive hits if no listener was hit.
+        /// The RiveWidget will only consume hits where there is a listener (hit area) at the target point. Content behind the RiveWidget will only receive hits if no listener was hit. This requires synchronous Rive hit testing and pointer handling, even on asynchronous panels, so Unity can resolve raycasts immediately.
         /// </summary>
         Translucent = 1,
 
-
-        /// <summary>   
-        /// All hits will pass through the RiveWidget, regardless of whether a Rive listener was hit. Rive listeners will still receive hits.
-        /// </summary>
-        [Obsolete("Transparent hit testing is deprecated, please use Translucent instead.")]
-        Transparent = 2,
 
         /// <summary>
         /// No hit testing will be performed on the RiveWidget.

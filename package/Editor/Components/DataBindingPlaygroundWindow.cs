@@ -1492,7 +1492,7 @@ namespace Rive.EditorTools
             cacheKey ??= path;
             listBindingList ??= m_listBindings;
             metadataContext ??= m_fileMetadata;
-            viewModelResolver ??= name => string.IsNullOrEmpty(name) ? null : m_widget?.File?.GetViewModelByName(name);
+            viewModelResolver ??= name => string.IsNullOrEmpty(name) ? null : m_widget?.LoadedFile?.GetViewModelByName(name);
 
             var listContainer = new VisualElement();
             listContainer.style.flexDirection = FlexDirection.Column;
@@ -1808,13 +1808,13 @@ namespace Rive.EditorTools
                 return PlaygroundState.NoDefaultViewModel;
             }
 
-            if (m_widget.Status != WidgetStatus.Loaded || m_widget.StateMachine == null)
+            if (m_widget.Status != WidgetStatus.Loaded || m_widget.LoadedStateMachine == null)
             {
                 message = "Widget is not loaded yet.";
                 return PlaygroundState.WidgetNotLoaded;
             }
 
-            if (m_widget.StateMachine.ViewModelInstance == null && !hasGlobals)
+            if (m_widget.LoadedStateMachine.ViewModelInstance == null && !hasGlobals)
             {
                 message = "No ViewModel instance bound to the state machine.";
                 return PlaygroundState.NoViewModelInstance;
@@ -1904,7 +1904,7 @@ namespace Rive.EditorTools
 
         private ViewModelInstance GetCurrentInstance()
         {
-            return m_widget?.StateMachine?.ViewModelInstance;
+            return m_widget?.LoadedStateMachine?.ViewModelInstance;
         }
 
         /// <summary>
@@ -1913,7 +1913,7 @@ namespace Rive.EditorTools
         /// </summary>
         private ViewModelInstance GetGlobalInstance(string name)
         {
-            var stateMachine = m_widget?.StateMachine;
+            var stateMachine = m_widget?.LoadedStateMachine;
             if (stateMachine == null || stateMachine.IsDisposed)
             {
                 return null;
@@ -1940,7 +1940,7 @@ namespace Rive.EditorTools
             bindingList ??= m_propertyBindings;
             listBindingList ??= m_listBindings;
             metadataContext ??= m_fileMetadata;
-            viewModelResolver ??= name => string.IsNullOrEmpty(name) ? null : m_widget?.File?.GetViewModelByName(name);
+            viewModelResolver ??= name => string.IsNullOrEmpty(name) ? null : m_widget?.LoadedFile?.GetViewModelByName(name);
 
             string resolvedDisplayPrefix = displayPathPrefix ?? accessPathPrefix;
             string resolvedCachePrefix = cachePathPrefix ?? accessPathPrefix;

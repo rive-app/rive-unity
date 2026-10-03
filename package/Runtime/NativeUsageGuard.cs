@@ -26,6 +26,22 @@ namespace Rive
         private static string s_failureMessage;
         private static bool s_loggedNativeLoadFailure;
 
+#if UNITY_EDITOR
+        // SessionState is main thread only, and IsNativeAvailable gets called
+        // from wherever a caller happens to be. Read it once on the main
+        // thread and keep the answer. Don't initialise it inline: a static
+        // initialiser runs on whichever thread touches the class first.
+        private static bool s_restartRequired;
+
+        [InitializeOnLoadMethod]
+        [UnityEngine.RuntimeInitializeOnLoadMethod(
+            UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void PrimeRestartRequired()
+        {
+            s_restartRequired = SessionState.GetBool(RESTART_REQUIRED_KEY, false);
+        }
+#endif
+
         /// <summary>
         /// Whether the native plugin is available for use. Cheap check suitable for hot paths like editor repainting.
         /// </summary>
@@ -44,7 +60,7 @@ namespace Rive
                 }
 
 #if UNITY_EDITOR
-                return !SessionState.GetBool(RESTART_REQUIRED_KEY, false);
+                return !s_restartRequired;
 #else
                 return true;
 #endif
@@ -105,6 +121,7 @@ namespace Rive
         private static void MarkRestartRequired()
         {
 #if UNITY_EDITOR
+            s_restartRequired = true;
             SessionState.SetBool(RESTART_REQUIRED_KEY, true);
 #endif
         }

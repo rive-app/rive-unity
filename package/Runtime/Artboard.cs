@@ -1,6 +1,8 @@
 using UnityEngine;
 using System;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using Rive.Producer;
 using Rive.Utils;
 
 namespace Rive
@@ -10,15 +12,16 @@ namespace Rive
     /// </summary>
     public class Artboard : IDisposable
     {
-        private readonly IntPtr m_nativeArtboard;
-        private string m_artboardName;
+        private readonly NativeArtboardHandle m_nativeArtboard;
+        private readonly FileContents.ArtboardInfo m_info;
+        private readonly NativeLifetime m_lifetime;
         private ViewModelInstance m_currentViewModelInstance;
         private ViewModel m_defaultViewModel;
 
         private WeakReference<File> m_file;
         private bool m_isDisposed = false;
 
-        internal IntPtr NativeArtboard
+        internal NativeArtboardHandle NativeArtboard
         {
             get { return m_nativeArtboard; }
         }
@@ -33,11 +36,16 @@ namespace Rive
         /// </summary>
         /// <param name="nativeArtboard"> Pointer to the native artboard.</param>
         /// <param name="file"> The file that instanced the artboard.</param>
-        internal Artboard(IntPtr nativeArtboard, File file)
+        /// <param name="info"> The artboard's names, from the file.</param>
+        internal Artboard(NativeArtboardHandle nativeArtboard, File file, FileContents.ArtboardInfo info)
         {
             m_nativeArtboard = nativeArtboard;
             m_file = new WeakReference<File>(file);
+            m_info = info;
+            m_lifetime = ArtboardNative.Lifetime(new NativeSlot<NativeArtboardHandle>(nativeArtboard), file?.Lifetime);
         }
+
+        internal NativeLifetime Lifetime => m_lifetime;
 
         /// <summary>
         /// The file that instanced this artboard, or null if it has already been collected.
@@ -57,10 +65,7 @@ namespace Rive
         {
             if (!m_isDisposed)
             {
-                if (m_nativeArtboard != IntPtr.Zero)
-                {
-                    unrefArtboard(m_nativeArtboard);
-                }
+                m_lifetime.ReleaseOwner();
                 m_isDisposed = true;
             }
         }
@@ -70,6 +75,9 @@ namespace Rive
             Dispose(false);
         }
 
+        /// <summary>
+        /// Converts a screen position to the artboard's coordinates.
+        /// </summary>
         public Vector2 LocalCoordinate(
             Vector2 screenPosition,
             Rect screen,
@@ -77,7 +85,8 @@ namespace Rive
             Alignment alignment
         )
         {
-            Vec2D vec = screenToRive(
+            Vec2D vec = ArtboardNative.ScreenToRive(
+                m_nativeArtboard,
                 screenPosition.x,
                 screenPosition.y,
                 screen.xMin,
@@ -86,36 +95,15 @@ namespace Rive
                 screen.yMax,
                 (byte)fit,
                 alignment.X,
-                alignment.Y,
-                m_nativeArtboard
+                alignment.Y
             );
             return new Vector2(vec.x, vec.y);
         }
 
-        [Obsolete("Component is deprecated and will be removed in a future release. Please use Databinding instead.")]
-        public Component Component(string name)
-        {
-            var ptr = artboardComponentNamed(m_nativeArtboard, name);
-            if (ptr == IntPtr.Zero)
-            {
-                return null;
-            }
-            return new Component(ptr);
-        }
-
-
-        public string Name
-        {
-            get
-            {
-                if (m_artboardName == null)
-                {
-                    m_artboardName = Marshal.PtrToStringAnsi(artboardGetName(m_nativeArtboard));
-                }
-
-                return m_artboardName;
-            }
-        }
+        /// <summary>
+        /// The artboard's name.
+        /// </summary>
+        public string Name => m_info.Name;
 
         /// <summary>
         /// Returns true if the artboard has audio.
@@ -124,7 +112,7 @@ namespace Rive
         {
             get
             {
-                return artboardHasAudio(m_nativeArtboard);
+                return ArtboardNative.GetInfo(m_nativeArtboard).HasAudio;
             }
         }
 
@@ -133,10 +121,10 @@ namespace Rive
         /// </summary>
         /// <param name="name">The name of the text run.</param>
         /// <param name="value"> The new value for the text run.</param>
-        /// <returns></returns>
+        /// <returns>True if the text run was found and set.</returns>
         public bool SetTextRun(string name, string value)
         {
-            return artboardSetRunValue(m_nativeArtboard, name, value);
+            return ArtboardNative.SetTextRun(m_nativeArtboard, name, null, value);
         }
 
         /// <summary>
@@ -146,7 +134,7 @@ namespace Rive
         /// <returns>The value of the text run, or null if not found.</returns>
         public string GetTextRunValue(string runName)
         {
-            return Marshal.PtrToStringAnsi(artboardGetTextRunValue(m_nativeArtboard, runName));
+            return ArtboardNative.GetTextRun(m_nativeArtboard, runName, null);
         }
 
         /// <summary>
@@ -158,7 +146,11 @@ namespace Rive
         /// <returns>True if the text run was successfully set, false otherwise.</returns>
         public bool SetTextRunValueAtPath(string runName, string path, string value)
         {
-            return artboardSetTextRunValueAtPath(m_nativeArtboard, runName, path, value);
+            if (path == null || value == null)
+            {
+                return false;
+            }
+            return ArtboardNative.SetTextRun(m_nativeArtboard, runName, path, value);
         }
 
         /// <summary>
@@ -169,7 +161,18 @@ namespace Rive
         /// <returns>The value of the text run, or null if not found.</returns>
         public string GetTextRunValueAtPath(string runName, string path)
         {
-            return Marshal.PtrToStringAnsi(artboardGetTextRunValueAtPath(m_nativeArtboard, runName, path));
+            if (path == null)
+            {
+                return null;
+            }
+            return ArtboardNative.GetTextRun(m_nativeArtboard, runName, path);
+        }
+
+        // Both at once, in one call to Rive's thread.
+        internal Size Size
+        {
+            get => ArtboardNative.GetInfo(m_nativeArtboard).Size;
+            set => ArtboardNative.SetSize(m_nativeArtboard, value);
         }
 
         /// <summary>
@@ -177,8 +180,8 @@ namespace Rive
         /// </summary>
         public float Width
         {
-            get => getArtboardWidth(m_nativeArtboard);
-            set => setArtboardWidth(m_nativeArtboard, value);
+            get => ArtboardNative.GetInfo(m_nativeArtboard).Size.Width;
+            set => ArtboardNative.SetWidth(m_nativeArtboard, value);
         }
 
         /// <summary>
@@ -186,8 +189,8 @@ namespace Rive
         /// </summary>
         public float Height
         {
-            get => getArtboardHeight(m_nativeArtboard);
-            set => setArtboardHeight(m_nativeArtboard, value);
+            get => ArtboardNative.GetInfo(m_nativeArtboard).Size.Height;
+            set => ArtboardNative.SetHeight(m_nativeArtboard, value);
         }
 
         /// <summary>
@@ -195,13 +198,15 @@ namespace Rive
         /// </summary>
         public bool DidChange()
         {
-            return artboardDidChange(m_nativeArtboard);
+            return ArtboardNative.GetInfo(m_nativeArtboard).DidChange;
         }
 
-        /// Returns the number of StateMachines stored in the artboard.
+        /// <summary>
+        /// The number of StateMachines stored in the artboard.
+        /// </summary>
         public uint StateMachineCount
         {
-            get { return getStateMachineCount(m_nativeArtboard); }
+            get { return (uint)m_info.StateMachineNames.Length; }
         }
 
 
@@ -212,7 +217,7 @@ namespace Rive
         {
             get
             {
-                return artboardHasDefaultViewModel(m_nativeArtboard);
+                return m_info.DefaultViewModelIndex >= 0;
             }
         }
 
@@ -233,7 +238,7 @@ namespace Rive
                     var file = m_file.TryGetTarget(out var target) ? target : null;
                     if (file != null)
                     {
-                        m_defaultViewModel = file.GetDefaultViewModelForArtboard(this.m_nativeArtboard);
+                        m_defaultViewModel = file.ViewModelAt(m_info.DefaultViewModelIndex);
                     }
                 }
 
@@ -241,72 +246,108 @@ namespace Rive
             }
         }
 
+        /// <summary>
         /// Returns the name of the StateMachine at the given index.
+        /// </summary>
         public string StateMachineName(uint index)
         {
-            return Marshal.PtrToStringAnsi(getStateMachineName(m_nativeArtboard, index));
+            return index < m_info.StateMachineNames.Length ? m_info.StateMachineNames[index] : null;
+        }
+
+        /// With no name it's the first one that was missing.
+        internal static void LogMissingStateMachine(string name)
+        {
+            DebugLogger.Instance.Log(name != null ? $"No StateMachine named \"{name}\"." : "No StateMachine at index 0.");
         }
 
         /// Instance a StateMachine from the Artboard.
         public StateMachine StateMachine(uint index)
         {
-            IntPtr ptr = instanceStateMachineAtIndex(m_nativeArtboard, index);
-            if (ptr == IntPtr.Zero)
+            string name = StateMachineName(index);
+            NativeStateMachineHandle ptr = name != null ? StateMachineNative.Instantiate(m_nativeArtboard, name) : default;
+            if (!ptr.IsValid)
             {
                 DebugLogger.Instance.Log($"No StateMachine at index {index}.");
                 return null;
             }
-            return new StateMachine(ptr, this);
+            return new StateMachine(ptr, this, name);
         }
 
         /// Instance a StateMachine from the Artboard.
         public StateMachine StateMachine(string name)
         {
-            IntPtr ptr = instanceStateMachineWithName(m_nativeArtboard, name);
-            if (ptr == IntPtr.Zero)
+            NativeStateMachineHandle ptr = !string.IsNullOrEmpty(name) ? StateMachineNative.Instantiate(m_nativeArtboard, name) : default;
+            if (!ptr.IsValid)
             {
                 DebugLogger.Instance.Log($"No StateMachine named \"{name}\".");
                 return null;
             }
-            return new StateMachine(ptr, this);
+            return new StateMachine(ptr, this, name);
         }
 
         /// Instance the default StateMachine from the Artboard.
         public StateMachine StateMachine()
         {
-            IntPtr ptr = instanceStateMachineDefault(m_nativeArtboard);
-            if (ptr == IntPtr.Zero)
+            // The file's default, or the first when it has none.
+            string name = m_info.DefaultStateMachineIndex >= 0 ? StateMachineName((uint)m_info.DefaultStateMachineIndex) : null;
+            NativeStateMachineHandle ptr = name != null ? StateMachineNative.Instantiate(m_nativeArtboard, name) : default;
+            if (!ptr.IsValid)
             {
                 DebugLogger.Instance.Log($"No default StateMachine found.");
                 return null;
             }
-            return new StateMachine(ptr, this);
+            return new StateMachine(ptr, this, name);
         }
 
+        /// <summary>
+        /// Sets the audio engine the artboard plays through.
+        /// </summary>
         public void SetAudioEngine(AudioEngine audioEngine)
         {
-            setArtboardAudioEngine(m_nativeArtboard, audioEngine.m_nativeAudioEngine);
+            if (audioEngine == null)
+            {
+                DebugLogger.Instance.LogError("AudioEngine is null.");
+                return;
+            }
+            ArtboardNative.SetAudioEngine(m_nativeArtboard, audioEngine);
         }
 
-        internal IntPtr GetInputAtPath(string inputName, string path)
+        private static bool HasInputNameAndPath(string inputName, string path)
         {
-            // Validate the input parameters
             if (string.IsNullOrEmpty(inputName))
             {
                 DebugLogger.Instance.LogWarning($"No input name provided for path '{path}' .");
-                return IntPtr.Zero;
+                return false;
             }
 
             if (string.IsNullOrEmpty(path))
             {
                 DebugLogger.Instance.LogWarning($"No path provided for input '{inputName}'.");
-                return IntPtr.Zero;
+                return false;
             }
 
+            return true;
+        }
 
-            IntPtr ptr = getSMIInputAtPathArtboard(m_nativeArtboard, inputName, path);
-
-            return ptr;
+        // Reads the input. False, with a warning, when it's missing or another kind.
+        private bool TryGetInputAtPath(string inputName, string path, ArtboardNative.InputKind kind, string kindName, out float value)
+        {
+            value = 0f;
+            if (!HasInputNameAndPath(inputName, path))
+            {
+                return false;
+            }
+            if (!ArtboardNative.GetInputAtPath(m_nativeArtboard, inputName, path, out ArtboardNative.InputKind found, out value))
+            {
+                LogMissingInputWarning(inputName, path);
+                return false;
+            }
+            if (found != kind)
+            {
+                LogIncorrectInputTypeWarning(inputName, path, kindName);
+                return false;
+            }
+            return true;
         }
 
         private void LogMissingInputWarning(string inputName, string path)
@@ -327,25 +368,15 @@ namespace Rive
         /// <param name="inputName">The name of the input to set.</param>
         /// <param name="value">The value to set the input to.</param>
         /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
+        /// <remarks>If the input isn't found, the warning comes on a later frame.</remarks>
+        [Obsolete(ObsoleteMessages.Inputs)]
         public void SetBooleanInputStateAtPath(string inputName, bool value, string path)
         {
-            var nativeSmi = GetInputAtPath(inputName, path);
-            if (nativeSmi == IntPtr.Zero)
+            if (!HasInputNameAndPath(inputName, path))
             {
-                LogMissingInputWarning(inputName, path);
                 return;
             }
-
-            if (SMIInput.isSMIBoolean(nativeSmi))
-            {
-
-                SMIBool.setSMIBoolValueStateMachine(nativeSmi, value);
-            }
-            else
-            {
-                LogIncorrectInputTypeWarning(inputName, path, "boolean");
-            }
-
+            ArtboardNative.SetInputAtPath(this, inputName, path, ArtboardNative.InputKind.Boolean, value ? 1f : 0f);
         }
 
         /// <summary>
@@ -354,25 +385,14 @@ namespace Rive
         /// <param name="inputName">The state machine input name</param>
         /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
         /// <returns>The value of the boolean input.</returns>
+        [Obsolete(ObsoleteMessages.Inputs)]
         public bool? GetBooleanInputStateAtPath(string inputName, string path)
         {
-            var nativeSmi = GetInputAtPath(inputName, path);
-            if (nativeSmi == IntPtr.Zero)
-            {
-                LogMissingInputWarning(inputName, path);
-                return null;
-            }
-
-            if (SMIInput.isSMIBoolean(nativeSmi))
-            {
-                return SMIBool.getSMIBoolValueStateMachine(nativeSmi);
-            }
-            else
-            {
-                LogIncorrectInputTypeWarning(inputName, path, "boolean");
-                return null;
-            }
+            return TryGetInputAtPath(inputName, path, ArtboardNative.InputKind.Boolean, "boolean", out float value)
+                ? value != 0f
+                : (bool?)null;
         }
+
 
         /// <summary>
         /// Set the number input with the provided name at the given path with value.
@@ -380,23 +400,15 @@ namespace Rive
         /// <param name="inputName"The state machine input name</param>
         /// <param name="value">The number value to set the input to.</param>
         /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
+        /// <remarks>If the input isn't found, the warning comes on a later frame.</remarks>
+        [Obsolete(ObsoleteMessages.Inputs)]
         public void SetNumberInputStateAtPath(string inputName, float value, string path)
         {
-            var nativeSmi = GetInputAtPath(inputName, path);
-            if (nativeSmi == IntPtr.Zero)
+            if (!HasInputNameAndPath(inputName, path))
             {
-                LogMissingInputWarning(inputName, path);
                 return;
             }
-
-            if (SMIInput.isSMINumber(nativeSmi))
-            {
-                SMINumber.setSMINumberValueStateMachine(nativeSmi, value);
-            }
-            else
-            {
-                LogIncorrectInputTypeWarning(inputName, path, "number");
-            }
+            ArtboardNative.SetInputAtPath(this, inputName, path, ArtboardNative.InputKind.Number, value);
         }
 
         /// <summary>
@@ -405,48 +417,29 @@ namespace Rive
         /// <param name="inputName">The state machine input name</param>
         /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
         /// <returns>The value of the number input.</returns>
+        [Obsolete(ObsoleteMessages.Inputs)]
         public float? GetNumberInputStateAtPath(string inputName, string path)
         {
-            var nativeSmi = GetInputAtPath(inputName, path);
-            if (nativeSmi == IntPtr.Zero)
-            {
-                LogMissingInputWarning(inputName, path);
-                return null;
-            }
-
-            if (SMIInput.isSMINumber(nativeSmi))
-            {
-                return SMINumber.getSMINumberValueStateMachine(nativeSmi);
-            }
-            else
-            {
-                LogIncorrectInputTypeWarning(inputName, path, "number");
-                return null;
-            }
+            return TryGetInputAtPath(inputName, path, ArtboardNative.InputKind.Number, "number", out float value)
+                ? value
+                : (float?)null;
         }
+
 
         /// <summary>
         /// Fire the trigger input with the provided name at the given path
         /// </summary>
         /// <param name="inputName">The state machine input name</param>
         /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
+        /// <remarks>If the input isn't found, the warning comes on a later frame.</remarks>
+        [Obsolete(ObsoleteMessages.Inputs)]
         public void FireInputStateAtPath(string inputName, string path)
         {
-            var nativeSmi = GetInputAtPath(inputName, path);
-            if (nativeSmi == IntPtr.Zero)
+            if (!HasInputNameAndPath(inputName, path))
             {
-                LogMissingInputWarning(inputName, path);
                 return;
             }
-
-            if (SMIInput.isSMITrigger(nativeSmi))
-            {
-                SMITrigger.fireSMITriggerStateMachine(nativeSmi);
-            }
-            else
-            {
-                LogIncorrectInputTypeWarning(inputName, path, "trigger");
-            }
+            ArtboardNative.SetInputAtPath(this, inputName, path, ArtboardNative.InputKind.Trigger, 1f);
         }
 
         /// <summary>
@@ -454,8 +447,7 @@ namespace Rive
         /// </summary>
         public void ResetArtboardSize()
         {
-            Width = getArtboardOriginalWidth(m_nativeArtboard);
-            Height = getArtboardOriginalHeight(m_nativeArtboard);
+            ArtboardNative.ResetSize(m_nativeArtboard);
         }
 
 
@@ -474,120 +466,15 @@ namespace Rive
                 DebugLogger.Instance.LogError("ViewModelInstance is null.");
                 return;
             }
+            if (viewModelInstance.IsDisposed)
+            {
+                DebugLogger.Instance.LogError($"{nameof(ViewModelInstance)} has been disposed.");
+                return;
+            }
 
-
-            bindViewModelInstanceToArtboard(NativeArtboard, viewModelInstance.NativeSafeHandle);
-
+            ArtboardNative.BindViewModelInstanceToArtboard(NativeArtboard, viewModelInstance.NativeHandle);
             m_currentViewModelInstance = viewModelInstance;
-
         }
-
-
-
-
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        internal static extern void unrefArtboard(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern uint getStateMachineCount(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getStateMachineName(IntPtr artboard, uint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern float getArtboardWidth(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern float getArtboardHeight(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool artboardDidChange(IntPtr artboard);
-
-
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern float getArtboardOriginalWidth(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern float getArtboardOriginalHeight(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void setArtboardWidth(IntPtr artboard, float width);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void setArtboardHeight(IntPtr artboard, float height);
-
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr instanceStateMachineAtIndex(IntPtr artboard, uint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr instanceStateMachineWithName(IntPtr artboard, string name);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr instanceStateMachineDefault(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern Vec2D screenToRive(
-            float x,
-            float y,
-            float screenX,
-            float screenY,
-            float screenWidth,
-            float screenHeight,
-            byte fit,
-            float alignX,
-            float alignY,
-            IntPtr artboard
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void setArtboardAudioEngine(IntPtr artboard, IntPtr audioEngine);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool artboardHasAudio(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr artboardComponentNamed(IntPtr artboard, string name);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool artboardSetRunValue(
-            IntPtr artboard,
-            string runName,
-            string text
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getSMIInputAtPathArtboard(IntPtr artboard, string inputName, string path);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr artboardGetTextRunValue(IntPtr artboard, string runName);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool artboardSetTextRunValueAtPath(IntPtr artboard, string runName, string path, string text);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr artboardGetTextRunValueAtPath(IntPtr artboard, string runName, string path);
-
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr artboardGetName(IntPtr artboard);
-
-        // Data binding
-
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool artboardHasDefaultViewModel(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void bindViewModelInstanceToArtboard(IntPtr artboard, ViewModelInstanceSafeHandle viewModelInstance);
-        #endregion
     }
 }
 

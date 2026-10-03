@@ -4,6 +4,9 @@ using System.Runtime.CompilerServices;
 using UnityEngine.Rendering;
 using UnityEngine;
 using Rive.Utils;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 [assembly: InternalsVisibleTo("Rive.Runtime.Components")]
 [assembly: InternalsVisibleTo("Rive.Editor")]
@@ -29,6 +32,9 @@ namespace Rive
         internal class NativeLibrary
         {
                 private delegate void LogDelegate(IntPtr message);
+
+                // Held, or the GC collects what native calls through.
+                private static LogDelegate s_logDelegate;
                 private static bool s_loggedUnsupportedGraphicsApi;
 
 #if (UNITY_IOS || UNITY_TVOS || UNITY_WEBGL || UNITY_SWITCH || UNITY_VISIONOS) && !UNITY_EDITOR
@@ -39,6 +45,9 @@ namespace Rive
 
                 [DllImport(NativeLibrary.name)]
                 private static extern void setUnityLog(LogDelegate callback);
+
+                [DllImport(NativeLibrary.name)]
+                private static extern void riveDrainLogs();
 
                 // Explicit registration entry point for platforms (like iOS/tvOS/visionOS/WebGL)
                 // where we can't rely solely on Unity calling UnityPluginLoad
@@ -84,7 +93,7 @@ namespace Rive
 
                         try
                         {
-                                setUnityLog(UnityLog);
+                                RegisterUnityLog();
                         }
                         catch (DllNotFoundException)
                         {
@@ -117,10 +126,83 @@ namespace Rive
                         LogUnsupportedGraphicsAPIIfNeeded();
                 }
 
+#if UNITY_EDITOR
+                // Every editor domain load, play mode or not. Hooking
+                // afterAssemblyReload from the old domain would not fire,
+                // subscriptions don't survive a reload.
+                [InitializeOnLoadMethod]
+                static void OnEditorDomainLoad()
+                {
+                        try
+                        {
+                                RegisterUnityLog();
+                        }
+                        catch (DllNotFoundException) { return; }
+                        catch (EntryPointNotFoundException) { return; }
+
+                        AssemblyReloadEvents.beforeAssemblyReload -= DropUnityLog;
+                        AssemblyReloadEvents.beforeAssemblyReload += DropUnityLog;
+                }
+#endif
+
+                static void RegisterUnityLog()
+                {
+                        // Native takes the new one before the old loses
+                        // its root, or the old can be collected while
+                        // native still points at it.
+                        LogDelegate replacement = UnityLog;
+                        setUnityLog(replacement);
+                        s_logDelegate = replacement;
+
+                        Application.onBeforeRender -= DrainLogs;
+                        Application.onBeforeRender += DrainLogs;
+#if UNITY_EDITOR
+                        EditorApplication.update -= DrainLogs;
+                        EditorApplication.update += DrainLogs;
+#endif
+                }
+
+                // Where native's queued logs come out.
+                static void DrainLogs()
+                {
+                        try
+                        {
+                                riveDrainLogs();
+                        }
+                        catch (DllNotFoundException) { }
+                        catch (EntryPointNotFoundException) { }
+                }
+
+#if UNITY_EDITOR
+                // The plugin outlives the domain, so a delegate from
+                // this one would be a dangling call after the reload.
+                static void DropUnityLog()
+                {
+                        Application.onBeforeRender -= DrainLogs;
+                        EditorApplication.update -= DrainLogs;
+                        try
+                        {
+                                setUnityLog(null);
+                        }
+                        catch (DllNotFoundException) { }
+                        catch (EntryPointNotFoundException) { }
+                        s_logDelegate = null;
+                }
+#endif
+
+#if UNITY_EDITOR
+                // Tests only. A real domain reload takes the test with it,
+                // so they drive the same drop and re-register by hand.
+                internal static void DropUnityLogForTests() => DropUnityLog();
+
+                internal static void RegisterUnityLogForTests() =>
+                        RegisterUnityLog();
+#endif
+
                 [AOT.MonoPInvokeCallback(typeof(LogDelegate))]
                 static void UnityLog(IntPtr message)
                 {
-                        DebugLogger.Instance.Log("RiveNative: " + Marshal.PtrToStringAnsi(message));
+                        DebugLogger.Instance.Log("RiveNative: " + NativeText.FromNative(message));
                 }
 
                 private static void LogUnsupportedGraphicsAPIIfNeeded()

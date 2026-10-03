@@ -186,9 +186,8 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator DrawTiming_BatchedMode_HandlesMultipleUpdates()
+        public IEnumerator DrawPanel_HandlesMultipleUpdates()
         {
-            m_strategy.DrawTiming = DrawTimingOption.DrawBatched;
             m_strategy.Configure(new Vector2Int(512, 512), new Vector2Int(1024, 1024));
 
             m_panel.SetDimensions(new Vector2(100, 100));

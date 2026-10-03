@@ -1,0 +1,7 @@
+<!-- The test player loads its assets through Addressables, which makes some
+     of its operations by reflection. Keeps them from being stripped.
+     EditorTests/TestLinkXml hands this to the linker. -->
+<linker>
+  <assembly fullname="Unity.ResourceManager" preserve="all" />
+  <assembly fullname="Unity.Addressables" preserve="all" />
+</linker>

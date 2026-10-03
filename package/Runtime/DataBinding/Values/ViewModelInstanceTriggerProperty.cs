@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using Rive.Utils;
 
 namespace Rive
@@ -9,7 +8,7 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceTriggerProperty : ViewModelInstancePrimitiveProperty
     {
-        internal ViewModelInstanceTriggerProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance) : base(instanceValuePtr, rootInstance)
+        internal ViewModelInstanceTriggerProperty(ViewModelInstance rootInstance, string name, int slot) : base(rootInstance, name, slot)
         {
         }
 
@@ -30,17 +29,14 @@ namespace Rive
         {
             ThrowIfOwnerDisposed();
 
-            if (InstancePropertyPtr == IntPtr.Zero)
+            if (!IsAttached)
             {
                 DebugLogger.Instance.LogWarning("Trying to trigger a null trigger property.");
                 return;
             }
 
-            fireViewModelInstanceTrigger(InstancePropertyPtr);
+            WriteNative(0f, 0, null);
         }
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void fireViewModelInstanceTrigger(IntPtr instanceProperty);
 
         internal override void RaiseChangedEvent()
         {

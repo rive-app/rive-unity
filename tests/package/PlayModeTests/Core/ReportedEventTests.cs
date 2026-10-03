@@ -396,6 +396,36 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator EventValues_RemainReadableAfterNativeOwnersAreDisposed()
+        {
+            var trigger = m_stateMachine.GetTrigger(TRIGGER_WITH_PROPS_TRUE);
+            m_stateMachine.Advance(0);
+            trigger.Fire();
+
+            ReportedEvent report = null;
+            yield return EventTestUtils.WaitForEvent(
+                m_stateMachine,
+                evt =>
+                {
+                    if (evt.Name == EVENT_WITH_PROPS)
+                    {
+                        report = evt;
+                    }
+                });
+
+            Assert.IsNotNull(report);
+            m_stateMachine.Dispose();
+            m_loadedArtboard.Dispose();
+            m_loadedFile.Dispose();
+
+            Assert.That(report.Name, Is.EqualTo(EVENT_WITH_PROPS));
+            Assert.That(report.PropertyCount, Is.EqualTo(3));
+            Assert.That(report[PROP_EVENT_BOOL_FIELD], Is.EqualTo(true));
+            Assert.That(report.GetProperty(0).Name, Is.Not.Empty);
+            report.Dispose();
+        }
+
+        [UnityTest]
         public IEnumerator MultipleEvents_InSameFrame_AreHandled()
         {
             var multiTrigger = m_stateMachine.GetTrigger(TRIGGER_MULTI_EVENT);

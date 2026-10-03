@@ -1,6 +1,6 @@
 using System;
-using System.Runtime.InteropServices;
 using Rive.Utils;
+using Rive.Host;
 
 namespace Rive
 {
@@ -9,7 +9,7 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceFontProperty : ViewModelInstancePrimitiveProperty
     {
-        public ViewModelInstanceFontProperty(IntPtr instanceValuePtr, ViewModelInstance instance) : base(instanceValuePtr, instance)
+        internal ViewModelInstanceFontProperty(ViewModelInstance instance, string name, int slot) : base(instance, name, slot)
         {
         }
 
@@ -37,15 +37,13 @@ namespace Rive
 
         private void SetFont(FontOutOfBandAsset fontAsset)
         {
-            if (fontAsset != null && fontAsset.NativeAsset == IntPtr.Zero)
+            if (fontAsset != null && !fontAsset.NativeHandle.IsValid)
             {
                 DebugLogger.Instance.LogWarning("Trying to assign an unloaded font asset.");
                 return;
             }
 
-            bool wasSuccess = setViewModelInstanceFontValue(
-                InstancePropertyPtr,
-                fontAsset == null ? IntPtr.Zero : fontAsset.NativeAsset);
+            bool wasSuccess = ViewModelNative.SetAsset(InstanceHandle, Name, ViewModelDataType.AssetFont, fontAsset == null ? default : fontAsset.NativeHandle);
 
             if (!wasSuccess)
             {
@@ -68,10 +66,5 @@ namespace Rive
         {
             m_onValueChanged = null;
         }
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        private static extern bool setViewModelInstanceFontValue(IntPtr instanceProperty,
-            IntPtr fontAsset);
     }
 }

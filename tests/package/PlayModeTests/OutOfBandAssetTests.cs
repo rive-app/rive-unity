@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using NUnit.Framework;
 using UnityEngine;
 using Rive.Tests.Utils;
@@ -82,7 +83,7 @@ namespace Rive.Tests
         [Test]
         public void Load_AfterTooManyUnload_ReinitializesNativeAsset()
         {
-            var validNativePointer = new IntPtr(12345);
+            var validNativePointer = new NativeAssetHandle(12345);
             var asset = OutOfBandAsset.Create<TestOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
             asset.TestNativeAsset = validNativePointer;
 
@@ -92,7 +93,7 @@ namespace Rive.Tests
 
             asset.Load();   // native is null, so it's recreated regardless of ref count
 
-            Assert.AreNotEqual(IntPtr.Zero, asset.NativeAsset,
+            Assert.IsTrue(asset.NativeHandle.IsValid,
                 "After Load(), the native asset must be valid so SetFont/SetImage does not fail with error 1002.");
             Assert.AreEqual(1, asset.RefCount());
         }
@@ -101,31 +102,114 @@ namespace Rive.Tests
         public void Load_WithNoBytes_LogsErrorAndDoesNotLoad()
         {
             var asset = ScriptableObject.CreateInstance<TestOutOfBandAsset>();
-            asset.TestNativeAsset = new IntPtr(12345);
+            asset.TestNativeAsset = new NativeAssetHandle(12345);
 
             asset.Load();
 
-            Assert.AreEqual(IntPtr.Zero, asset.NativeAsset);
+            Assert.IsFalse(asset.NativeHandle.IsValid);
             Assert.AreEqual(0, asset.RefCount());
             Assert.IsTrue(mockLogger.LoggedErrorsContains("no serialized bytes"));
         }
 
         private class TestOutOfBandAsset : OutOfBandAsset
         {
-            public IntPtr TestNativeAsset { get; set; }
+            public NativeAssetHandle TestNativeAsset { get; set; }
 
-            protected override IntPtr LoadNative(byte[] bytes) => TestNativeAsset;
-            protected override void UnloadNative(IntPtr nativePtr) { }
+            internal override ulong SendDecode(ulong requestId, byte[] bytes)
+            {
+                ReplyDecoded(requestId);
+                return TestNativeAsset.Value;
+            }
 
-            public new IntPtr NativeAsset => base.NativeAsset;
+            internal override void DeleteNative(ulong handle) { }
+            internal override EmbeddedAssetType AssetType => EmbeddedAssetType.Image;
+
+        }
+
+        private class CountingOutOfBandAsset : OutOfBandAsset
+        {
+            public int Loads;
+            public int Unloads;
+
+            internal override ulong SendDecode(ulong requestId, byte[] bytes)
+            {
+                Interlocked.Increment(ref Loads);
+                ReplyDecoded(requestId);
+                return 12345;
+            }
+
+            internal override void DeleteNative(ulong handle)
+            {
+                Interlocked.Increment(ref Unloads);
+            }
+
+            internal override EmbeddedAssetType AssetType => EmbeddedAssetType.Image;
+        }
+
+        // Answers the way a decode that worked does.
+        private static void ReplyDecoded(ulong requestId)
+        {
+            byte[] ok = BitConverter.GetBytes(1u);
+            Rive.Host.HostNative.riveHostEcho(requestId, ok, (uint)ok.Length);
+        }
+
+        private static void RunOnThreads(int count, ThreadStart work)
+        {
+            var threads = new Thread[count];
+            for (int i = 0; i < count; i++)
+            {
+                threads[i] = new Thread(work);
+            }
+            foreach (var thread in threads)
+            {
+                thread.Start();
+            }
+            foreach (var thread in threads)
+            {
+                thread.Join();
+            }
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [Test]
+        public void Load_FromManyThreads_DecodesOnce()
+        {
+            var asset = OutOfBandAsset.Create<CountingOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
+
+            RunOnThreads(8, () => asset.Load());
+
+            Assert.AreEqual(1, asset.Loads, "Only the first Load should decode.");
+            Assert.AreEqual(8, asset.RefCount());
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [Test]
+        public void LoadAndUnload_FromManyThreads_KeepTheCountRight()
+        {
+            var asset = OutOfBandAsset.Create<CountingOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
+
+            RunOnThreads(8, () =>
+            {
+                for (int i = 0; i < 1000; i++)
+                {
+                    asset.Load();
+                    asset.Unload();
+                }
+            });
+
+            Assert.AreEqual(0, asset.RefCount());
+            Assert.IsFalse(asset.NativeHandle.IsValid);
+            Assert.AreEqual(asset.Loads, asset.Unloads, "Every decode should be released exactly once.");
         }
 
         [Test]
         public void LoadIntoByteAssetMap_WithValidNativeAsset_AddsCorrectBytesToMap()
         {
             var asset = OutOfBandAsset.Create<TestOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
-            asset.TestNativeAsset = new IntPtr(12345);
-            asset.Load(); // This will set the NativeAsset
+            asset.TestNativeAsset = new NativeAssetHandle(12345);
+            asset.Load(); // This will set the NativeHandle
 
             // We're using an arbitrary ID for testing. This could be any uint value.
             uint embeddedAssetId = 1000;
@@ -139,15 +223,9 @@ namespace Rive.Tests
             var expectedIdBytes = BitConverter.GetBytes(embeddedAssetId);
             var expectedTypeBytes = BitConverter.GetBytes((ushort)embeddedAssetType);
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-    // For WebGL, we always use a 32-bit integer to represent the pointer
-    var expectedPointerBytes = BitConverter.GetBytes((int)asset.NativeAsset);
-#else
-            // For other platforms, we use nint (native int), which varies based on architecture (32-bit or 64-bit)
-            var expectedPointerBytes = BitConverter.GetBytes((nint)asset.NativeAsset);
-#endif
+            var expectedHandleBytes = BitConverter.GetBytes(asset.NativeHandle.Value);
 
-            int expectedTotalSizeInBytes = expectedIdBytes.Length + expectedTypeBytes.Length + expectedPointerBytes.Length;
+            int expectedTotalSizeInBytes = expectedIdBytes.Length + expectedTypeBytes.Length + expectedHandleBytes.Length;
 
             Assert.AreEqual(expectedTotalSizeInBytes, assetMap.Count,
                 $"Expected {expectedTotalSizeInBytes} bytes, but got {assetMap.Count}");
@@ -160,9 +238,9 @@ namespace Rive.Tests
             // The next couple of bytes should represent our embeddedAssetType
             CollectionAssert.AreEqual(expectedTypeBytes, assetMap.GetRange(expectedIdBytes.Length, expectedTypeBytes.Length));
 
-            // The remaining bytes should represent our pointer
-            var pointerStartIndex = expectedIdBytes.Length + expectedTypeBytes.Length;
-            CollectionAssert.AreEqual(expectedPointerBytes, assetMap.GetRange(pointerStartIndex, expectedPointerBytes.Length));
+            // The last eight bytes are the handle
+            var handleStartIndex = expectedIdBytes.Length + expectedTypeBytes.Length;
+            CollectionAssert.AreEqual(expectedHandleBytes, assetMap.GetRange(handleStartIndex, expectedHandleBytes.Length));
         }
 
 
@@ -170,7 +248,7 @@ namespace Rive.Tests
         public void LoadIntoByteAssetMap_WithUnloadedNativeAsset_DoesNotAddToMap()
         {
             var asset = OutOfBandAsset.Create<TestOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
-            asset.TestNativeAsset = IntPtr.Zero;
+            asset.TestNativeAsset = default;
             asset.Load();
 
             uint embeddedAssetId = 42;
@@ -187,7 +265,7 @@ namespace Rive.Tests
         public void LoadIntoByteAssetMap_WithDifferentAssetTypes_AddsCorrectType()
         {
             var asset = OutOfBandAsset.Create<TestOutOfBandAsset>(new byte[] { 1, 2, 3, 4 });
-            asset.TestNativeAsset = new IntPtr(12345);
+            asset.TestNativeAsset = new NativeAssetHandle(12345);
             asset.Load();
 
             uint embeddedAssetId = 42;

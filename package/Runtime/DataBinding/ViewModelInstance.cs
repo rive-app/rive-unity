@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using Microsoft.Win32.SafeHandles;
 using Rive.Utils;
+using Rive.Host;
 
 namespace Rive
 {
@@ -13,18 +12,18 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstance : ViewModelInstanceProperty, IDisposable
     {
-        private ViewModelInstanceSafeHandle m_safeHandle;
-
-        // This holds a pointer to the underlying native ViewModelInstance*, used for identity caching. 
-        // It’s set when the object is created so that Dispose and the finalizer don't need to call native code to find it.
-        // Note: This is not the same pointer as the ViewModelInstanceRuntime* that the SafeHandle uses—this one points to the core object.
-        private readonly CoreViewModelInstancePtr m_coreInstancePtr;
+        // Native gives the same handle for the same instance, so this is also the identity key.
+        private readonly NativeViewModelInstanceHandle m_handle;
 
         private WeakReference<File> m_riveFile;
 
-        // Strong references to subscribed properties keyed by native pointer.
+        // Strong references to subscribed properties, by name.
         // The VMI owns these so that properties survive even when the user drops their reference.
-        private readonly Dictionary<IntPtr, ViewModelInstancePrimitiveProperty> m_subscribedProperties = new Dictionary<IntPtr, ViewModelInstancePrimitiveProperty>();
+        private readonly Dictionary<string, ViewModelInstancePrimitiveProperty> m_subscribedProperties = new Dictionary<string, ViewModelInstancePrimitiveProperty>();
+
+        // Every property object handed out, by name, so asking twice gives the same one.
+        private readonly Dictionary<string, WeakReference<ViewModelInstancePrimitiveProperty>> m_properties =
+            new Dictionary<string, WeakReference<ViewModelInstancePrimitiveProperty>>();
 
         private readonly List<WeakReference<ViewModelInstance>> m_parents = new List<WeakReference<ViewModelInstance>>(); private readonly List<ViewModelInstance> m_children = new List<ViewModelInstance>();
 
@@ -39,14 +38,23 @@ namespace Rive
         private static readonly ConcurrentDictionary<string, string[]> s_pathSegmentsCache = new ConcurrentDictionary<string, string[]>();
 
         /// <summary>
-        /// Identity cache keyed on the core ViewModelInstance* (not the ViewModelInstanceRuntime*).
-        /// Separate from the primitive property cache so the key spaces do not mix.
+        /// One wrapper per native instance, so every path to it gives the same object.
         /// </summary>
-        private static readonly ConcurrentDictionary<CoreViewModelInstancePtr, WeakReference<ViewModelInstance>> s_viewModelInstanceCache =
-            new ConcurrentDictionary<CoreViewModelInstancePtr, WeakReference<ViewModelInstance>>();
+        private static readonly Dictionary<NativeViewModelInstanceHandle, WeakReference<ViewModelInstance>> s_viewModelInstanceCache =
+            new Dictionary<NativeViewModelInstanceHandle, WeakReference<ViewModelInstance>>();
 
+        // Guards the wrapper cache and the links between instances: parents,
+        // children, nested instances and subscribed properties. Never held
+        // across a native call or a user callback.
+        private static readonly object s_lock = new object();
 
-        private bool m_disposed = false;
+        // Held across a replace or a nested lookup, native call and graph update
+        // together, so two of them on this instance can't land in a different
+        // order natively than in the graph. Taken before s_lock, never after.
+        private readonly object m_opLock = new object();
+
+        // Set under s_lock, read anywhere.
+        private volatile bool m_disposed = false;
 
         internal bool IsDisposed => m_disposed;
 
@@ -66,7 +74,7 @@ namespace Rive
             }
         }
 
-        internal ViewModelInstanceSafeHandle NativeSafeHandle => m_safeHandle;
+        internal NativeViewModelInstanceHandle NativeHandle => m_handle;
 
 #if UNITY_EDITOR
         /// <summary>
@@ -84,12 +92,12 @@ namespace Rive
         {
             get
             {
-                if (m_disposed || m_coreInstancePtr.IsNull)
+                if (m_disposed)
                 {
                     return 0;
                 }
 
-                return getCoreViewModelInstanceRefCount(m_coreInstancePtr.DebuggingPtrValue);
+                return GetViewModelInstanceRefCount(m_handle);
             }
         }
 #endif
@@ -108,7 +116,7 @@ namespace Rive
             {
                 if (m_viewModelName == null && !m_disposed)
                 {
-                    m_viewModelName = Marshal.PtrToStringAnsi(getViewModelNameFromViewModelInstance(NativeSafeHandle)) ?? string.Empty;
+                    m_viewModelName = ViewModelNative.GetInfo(NativeHandle).ViewModelName ?? string.Empty;
                 }
 
                 return m_viewModelName ?? string.Empty;
@@ -128,17 +136,16 @@ namespace Rive
             {
                 if (m_name == null && !m_disposed)
                 {
-                    m_name = Marshal.PtrToStringAnsi(getNameFromViewModelInstance(NativeSafeHandle)) ?? string.Empty;
+                    m_name = ViewModelNative.GetInfo(NativeHandle).Name ?? string.Empty;
                 }
 
                 return m_name ?? string.Empty;
             }
         }
 
-        private ViewModelInstance(IntPtr instanceValue, CoreViewModelInstancePtr coreInstancePtr, File riveFile)
+        private ViewModelInstance(NativeViewModelInstanceHandle handle, File riveFile)
         {
-            m_safeHandle = new ViewModelInstanceSafeHandle(instanceValue);
-            m_coreInstancePtr = coreInstancePtr;
+            m_handle = handle;
             m_riveFile = new WeakReference<File>(riveFile);
         }
 
@@ -206,6 +213,7 @@ namespace Rive
         }
 
 
+        // Call inside s_lock.
         private bool HasParent(ViewModelInstance parent)
         {
             for (int i = 0; i < m_parents.Count; i++)
@@ -220,23 +228,26 @@ namespace Rive
 
         private ViewModelInstance GetInternalViewModelInstance(string name)
         {
-            if (m_viewModelInstances.TryGetValue(name, out var instance))
+            lock (m_opLock)
             {
-                return instance;
-            }
+                lock (s_lock)
+                {
+                    if (m_viewModelInstances.TryGetValue(name, out var instance))
+                    {
+                        return instance;
+                    }
+                }
 
-            // Otherwise, create and cache it
-            var ptr = getViewModelInstanceViewModelProperty(NativeSafeHandle, name);
-            if (ptr != IntPtr.Zero)
-            {
-                // GetOrCreateFromPointer owns cache lookup, ref balancing, and parent linking.
-                var newInstance = GetOrCreateFromPointer(ptr, RiveFile, this);
-                m_viewModelInstances[name] = newInstance;
-
+                var newInstance = GetOrCreateFromHandle(GetViewModelInstanceViewModelProperty(m_handle, name), RiveFile, this);
+                if (newInstance != null)
+                {
+                    lock (s_lock)
+                    {
+                        m_viewModelInstances[name] = newInstance;
+                    }
+                }
                 return newInstance;
             }
-
-            return null;
         }
 
         /// <summary>
@@ -265,91 +276,107 @@ namespace Rive
         /// <returns> True if the view model property was replaced, false otherwise. E.g. If the view model instance provided is for a different view model, the replacement will fail.</returns>
         private bool InternalReplaceViewModel(string name, ViewModelInstance value)
         {
-            if (value == null || value.NativeSafeHandle.IsInvalid)
+            if (value == null || value.IsDisposed)
             {
                 return false;
             }
 
-            bool result = replaceViewModelInstanceViewModelProperty(NativeSafeHandle, name, value.NativeSafeHandle);
-
-            if (result)
+            lock (m_opLock)
             {
+                bool result = ReplaceViewModelInstanceViewModelProperty(m_handle, name, value.NativeHandle);
 
-                // Clean up the old instance if it exists
-                if (m_viewModelInstances.TryGetValue(name, out var oldInstance))
+                if (result)
                 {
-                    oldInstance.RemoveParent(this);
-
-                    // Remove from children list if present
-                    if (m_children.Contains(oldInstance))
+                    lock (s_lock)
                     {
-                        m_children.Remove(oldInstance);
-                    }
+                        // Clean up the old instance if it exists
+                        if (m_viewModelInstances.TryGetValue(name, out var oldInstance))
+                        {
+                            oldInstance.RemoveParent(this);
 
+                            // Remove from children list if present
+                            if (m_children.Contains(oldInstance))
+                            {
+                                m_children.Remove(oldInstance);
+                            }
+                        }
+
+                        m_viewModelInstances[name] = value;
+
+                        value.AddParent(this);
+                    }
                 }
 
-                m_viewModelInstances[name] = value;
-
-                value.AddParent(this);
+                return result;
             }
-
-            return result;
         }
 
         private void ClearCallbacks()
         {
-            foreach (var kvp in m_subscribedProperties)
+            lock (s_lock)
             {
-                kvp.Value.ClearDelegatesOnly();
-                PropertyCallbacksHub.Instance.Unregister(kvp.Key);
-            }
+                foreach (var kvp in m_subscribedProperties)
+                {
+                    kvp.Value.ClearDelegatesOnly();
+                    PropertyCallbacksHub.Instance.Unregister(kvp.Value);
+                }
 
-            m_subscribedProperties.Clear();
+                m_subscribedProperties.Clear();
+            }
         }
 
         internal void AddParent(ViewModelInstance parent)
         {
-            // Check if parent already exists
-            if (HasParent(parent))
+            lock (s_lock)
             {
-                return;
-            }
+                // Check if parent already exists
+                if (HasParent(parent))
+                {
+                    return;
+                }
 
-            m_parents.Add(new WeakReference<ViewModelInstance>(parent));
+                m_parents.Add(new WeakReference<ViewModelInstance>(parent));
 
-            // If we have properties or children with callbacks, notify parent
-            if (m_subscribedProperties.Count > 0 || m_children.Count > 0)
-            {
-                parent.AddChildToCallbacks(this);
+                // If we have properties or children with callbacks, notify parent
+                if (m_subscribedProperties.Count > 0 || m_children.Count > 0)
+                {
+                    parent.AddChildToCallbacks(this);
+                }
             }
         }
 
         internal void RemoveParent(ViewModelInstance parent)
         {
-            for (int i = m_parents.Count - 1; i >= 0; i--)
+            lock (s_lock)
             {
-                if (m_parents[i].TryGetTarget(out var existingParent) && existingParent == parent)
+                for (int i = m_parents.Count - 1; i >= 0; i--)
                 {
-                    parent.RemoveChildFromCallbacks(this);
-                    m_parents.RemoveAt(i);
-                    return;
+                    if (m_parents[i].TryGetTarget(out var existingParent) && existingParent == parent)
+                    {
+                        parent.RemoveChildFromCallbacks(this);
+                        m_parents.RemoveAt(i);
+                        return;
+                    }
                 }
             }
         }
 
         internal void AddChildToCallbacks(ViewModelInstance child)
         {
-            if (!m_children.Contains(child))
+            lock (s_lock)
             {
-                m_children.Add(child);
-
-                // Propagate up to parents
-                for (int i = 0; i < m_parents.Count; i++)
+                if (!m_children.Contains(child))
                 {
-                    var parent = m_parents[i];
-                    if (parent != null && parent.TryGetTarget(out var parentInstance) && parentInstance != null)
+                    m_children.Add(child);
+
+                    // Propagate up to parents
+                    for (int i = 0; i < m_parents.Count; i++)
                     {
-                        parentInstance.AddChildToCallbacks(this);
+                        var parent = m_parents[i];
+                        if (parent != null && parent.TryGetTarget(out var parentInstance) && parentInstance != null)
+                        {
+                            parentInstance.AddChildToCallbacks(this);
+                        }
                     }
                 }
             }
@@ -357,17 +384,20 @@ namespace Rive
 
         internal void RemoveChildFromCallbacks(ViewModelInstance child)
         {
-            m_children.Remove(child);
-
-            // If no more children or properties need callbacks, notify parents
-            if (m_children.Count == 0 && m_subscribedProperties.Count == 0)
+            lock (s_lock)
             {
-                for (int i = 0; i < m_parents.Count; i++)
+                m_children.Remove(child);
+
+                // If no more children or properties need callbacks, notify parents
+                if (m_children.Count == 0 && m_subscribedProperties.Count == 0)
                 {
-                    var parent = m_parents[i];
-                    if (parent != null && parent.TryGetTarget(out var parentInstance) && parentInstance != null)
+                    for (int i = 0; i < m_parents.Count; i++)
                     {
-                        parentInstance.RemoveChildFromCallbacks(this);
+                        var parent = m_parents[i];
+                        if (parent != null && parent.TryGetTarget(out var parentInstance) && parentInstance != null)
+                        {
+                            parentInstance.RemoveChildFromCallbacks(this);
+                        }
                     }
                 }
             }
@@ -384,28 +414,31 @@ namespace Rive
                 return;
             }
 
-            IntPtr ptr = property.InstancePropertyPtr;
-            if (ptr == IntPtr.Zero)
+            string name = property.Name;
+            if (name == null)
             {
                 return;
             }
 
-            bool wasFirst = m_subscribedProperties.Count == 0;
-            bool added = !m_subscribedProperties.ContainsKey(ptr);
-
-            m_subscribedProperties[ptr] = property;
-
-            PropertyCallbacksHub.Instance.Register(property);
-
-            if (added && wasFirst)
+            lock (s_lock)
             {
-                for (int i = 0; i < m_parents.Count; i++)
-                {
-                    var parent = m_parents[i];
+                bool wasFirst = m_subscribedProperties.Count == 0;
+                bool added = !m_subscribedProperties.ContainsKey(name);
 
-                    if (parent != null && parent.TryGetTarget(out var parentInstance) && parentInstance != null)
+                m_subscribedProperties[name] = property;
+
+                PropertyCallbacksHub.Instance.Register(property);
+
+                if (added && wasFirst)
+                {
+                    for (int i = 0; i < m_parents.Count; i++)
                     {
-                        parentInstance.AddChildToCallbacks(this);
+                        var parent = m_parents[i];
+
+                        if (parent != null && parent.TryGetTarget(out var parentInstance) && parentInstance != null)
+                        {
+                            parentInstance.AddChildToCallbacks(this);
+                        }
                     }
                 }
             }
@@ -421,35 +454,34 @@ namespace Rive
                 return;
             }
 
-            IntPtr ptr = property.InstancePropertyPtr;
-            if (ptr != IntPtr.Zero)
+            lock (s_lock)
             {
-                m_subscribedProperties.Remove(ptr);
-                PropertyCallbacksHub.Instance.Unregister(ptr);
-            }
-
-            // If no more properties with callbacks and no children with callbacks, notify parents
-            if (m_subscribedProperties.Count == 0 && m_children.Count == 0)
-            {
-                for (int i = 0; i < m_parents.Count; i++)
+                if (property.Name != null)
                 {
-                    var parent = m_parents[i];
-                    if (parent != null && parent.TryGetTarget(out var parentInstance) && parentInstance != null)
+                    m_subscribedProperties.Remove(property.Name);
+                    PropertyCallbacksHub.Instance.Unregister(property);
+                }
+
+                // If no more properties with callbacks and no children with callbacks, notify parents
+                if (m_subscribedProperties.Count == 0 && m_children.Count == 0)
+                {
+                    for (int i = 0; i < m_parents.Count; i++)
                     {
-                        parentInstance.RemoveChildFromCallbacks(this);
+                        var parent = m_parents[i];
+                        if (parent != null && parent.TryGetTarget(out var parentInstance) && parentInstance != null)
+                        {
+                            parentInstance.RemoveChildFromCallbacks(this);
+                        }
                     }
                 }
             }
         }
 
 
-        /// <summary>
-        /// Gets a cached view model instance for a given core ViewModelInstance pointer.
-        /// </summary>
-        internal static bool TryGetCachedViewModelInstanceForPointer(CoreViewModelInstancePtr corePtr, out ViewModelInstance instance)
+        // Call inside s_lock.
+        private static bool TryGetCachedViewModelInstance(NativeViewModelInstanceHandle handle, out ViewModelInstance instance)
         {
-            if (!corePtr.IsNull &&
-                s_viewModelInstanceCache.TryGetValue(corePtr, out var weakReference) &&
+            if (s_viewModelInstanceCache.TryGetValue(handle, out var weakReference) &&
                 weakReference.TryGetTarget(out instance))
             {
                 return true;
@@ -460,35 +492,48 @@ namespace Rive
         }
 
         /// <summary>
-        /// Removes the cache entry for a core ViewModelInstance pointer, but only if it still belongs
-        /// to the given owner (or has already been collected).
+        /// Drops the cache entry, but only if it is still this wrapper's, or has been collected.
+        /// Call inside s_lock.
         /// </summary>
-        /// <remarks>
-        /// We don't remove the cache entry if another live wrapper for the same core pointer exists. Unconditional removal risks duplicate wrappers.
-        /// </remarks>
-        private static void RemoveGloballyCachedViewModelInstanceForPointer(CoreViewModelInstancePtr corePtr, ViewModelInstance owner)
+        private static void RemoveCachedViewModelInstance(NativeViewModelInstanceHandle handle, ViewModelInstance owner)
         {
-            if (corePtr.IsNull ||
-                !s_viewModelInstanceCache.TryGetValue(corePtr, out var weakReference))
+            if (!s_viewModelInstanceCache.TryGetValue(handle, out var weakReference))
             {
                 return;
             }
 
             if (!weakReference.TryGetTarget(out var cachedInstance) || ReferenceEquals(cachedInstance, owner))
             {
-                s_viewModelInstanceCache.TryRemove(corePtr, out _);
+                s_viewModelInstanceCache.Remove(handle);
             }
         }
 
+        internal bool TryGetCachedProperty(string name, out ViewModelInstancePrimitiveProperty property)
+        {
+            lock (m_properties)
+            {
+                if (m_properties.TryGetValue(name, out var weakReference) && weakReference.TryGetTarget(out property))
+                {
+                    return true;
+                }
+            }
+            property = null;
+            return false;
+        }
 
         /// <summary>
-        /// Adds a cached view model instance for a given core ViewModelInstance pointer.
+        /// Caches the property unless another thread got there first, and returns whichever is cached.
         /// </summary>
-        internal static void AddCachedViewModelInstanceForPointer(CoreViewModelInstancePtr corePtr, ViewModelInstance instance)
+        internal ViewModelInstancePrimitiveProperty CacheProperty(string name, ViewModelInstancePrimitiveProperty property)
         {
-            if (!corePtr.IsNull && instance != null)
+            lock (m_properties)
             {
-                s_viewModelInstanceCache[corePtr] = new WeakReference<ViewModelInstance>(instance);
+                if (m_properties.TryGetValue(name, out var weakReference) && weakReference.TryGetTarget(out var existing))
+                {
+                    return existing;
+                }
+                m_properties[name] = new WeakReference<ViewModelInstancePrimitiveProperty>(property);
+                return property;
             }
         }
 
@@ -533,6 +578,7 @@ namespace Rive
         /// Detects property value changes
         /// Call this after advancing wherever you handle your per-frame logic.
         /// </summary>
+        [Obsolete(ObsoleteMessages.HandleCallbacks)]
         public void HandleCallbacks()
         {
             if (m_disposed)
@@ -540,18 +586,25 @@ namespace Rive
                 return;
             }
 
-            foreach (var kvp in m_subscribedProperties)
+            // Copied under the lock, because the callbacks below are user code.
+            List<ViewModelInstancePrimitiveProperty> properties;
+            List<ViewModelInstance> children;
+            lock (s_lock)
             {
-                var prop = kvp.Value;
+                properties = new List<ViewModelInstancePrimitiveProperty>(m_subscribedProperties.Values);
+                children = new List<ViewModelInstance>(m_children);
+            }
+
+            foreach (var prop in properties)
+            {
                 if (prop.HasChanged)
                 {
                     prop.RaiseChangedEvent();
                 }
             }
 
-            foreach (var kvp in m_subscribedProperties)
+            foreach (var prop in properties)
             {
-                var prop = kvp.Value;
                 if (prop.HasChanged)
                 {
                     prop.ClearChanges();
@@ -559,9 +612,9 @@ namespace Rive
             }
 
             // Propagate to children
-            for (int i = 0; i < m_children.Count; i++)
+            foreach (var child in children)
             {
-                m_children[i]?.HandleCallbacks();
+                child?.HandleCallbacks();
             }
         }
 
@@ -739,47 +792,49 @@ namespace Rive
 
         private void Dispose(bool disposing)
         {
-            if (m_disposed)
+            // Claimed under the lock, so two disposes can't both release the handle,
+            // and a fetch on another thread either returns this before it goes or never sees it.
+            lock (s_lock)
             {
-                return;
-            }
-
-            if (disposing)
-            {
-                // ClearCallbacks() is intentionally only called on the explicit Dispose() path.
-                // On the finalizer path, the managed objects in m_subscribedProperties may already be finalized,
-                // and taking the lock inside PropertyCallbacksHub.Unregister() from a finalizer thread risks deadlocks.
-                // The hub uses weak references, so the hub won't keep the properties alive. It will also clean up any dead properties during the next CaptureChanges() call.
-                ClearCallbacks();
-
-                foreach (var kvp in m_viewModelInstances)
+                if (m_disposed)
                 {
-                    var childViewModelInstance = kvp.Value;
-                    childViewModelInstance.RemoveParent(this);
+                    return;
                 }
+                m_disposed = true;
+                RemoveCachedViewModelInstance(m_handle, this);
 
-                m_viewModelInstances.Clear();
-
-                for (int i = m_parents.Count - 1; i >= 0; i--)
+                if (disposing)
                 {
-                    if (m_parents[i].TryGetTarget(out var parentInstance) && parentInstance != null)
+                    // ClearCallbacks() is intentionally only called on the explicit Dispose() path.
+                    // On the finalizer path, the managed objects in m_subscribedProperties may already be finalized,
+                    // and taking the lock inside PropertyCallbacksHub.Unregister() from a finalizer thread risks deadlocks.
+                    // The hub uses weak references, so the hub won't keep the properties alive. It will also clean up any dead properties during the next CaptureChanges() call.
+                    ClearCallbacks();
+
+                    foreach (var kvp in m_viewModelInstances)
                     {
-                        RemoveParent(parentInstance);
+                        var childViewModelInstance = kvp.Value;
+                        childViewModelInstance.RemoveParent(this);
                     }
+
+                    m_viewModelInstances.Clear();
+
+                    for (int i = m_parents.Count - 1; i >= 0; i--)
+                    {
+                        if (m_parents[i].TryGetTarget(out var parentInstance) && parentInstance != null)
+                        {
+                            RemoveParent(parentInstance);
+                        }
+                    }
+
+                    m_children.Clear();
                 }
-
-                m_children.Clear();
             }
 
-            if (m_safeHandle != null && !m_safeHandle.IsInvalid)
+            if (m_handle.IsValid)
             {
-                m_safeHandle.Dispose();
+                UnrefViewModelInstance(m_handle);
             }
-
-            // Remove by the stored core pointer, we avoid P/Invoking from the finalizer path.
-            RemoveGloballyCachedViewModelInstanceForPointer(m_coreInstancePtr, this);
-
-            m_disposed = true;
 
             if (disposing)
             {
@@ -789,163 +844,81 @@ namespace Rive
 
         public void Dispose()
         {
-            Dispose(true);
+            // Waits out a replace or lookup still running on this instance.
+            lock (m_opLock)
+            {
+                Dispose(true);
+            }
         }
 
         /// <summary>
-        /// Helper method to get or create a ViewModelInstance from a native ViewModelInstanceRuntime pointer.
-        /// Identity is keyed on the core ViewModelInstance* so every wrapping path resolves to the same C# object.
+        /// Wraps a handle native just handed out, or returns the wrapper that already has it.
+        /// Every handle native returns is counted, so this releases the extra when there is one.
         /// </summary>
-        /// <param name="instancePtr"> The native pointer to the ViewModelInstanceRuntime.</param>
-        /// <param name="riveFile"> The Rive file associated with the ViewModelInstance. This is used to resolve the file context for the instance.</param>
-        /// <param name="parent"> The parent ViewModelInstance, if any. The parent is used to propagate callbacks to this instance. A vm instance can have multiple parents.</param>
-        /// <returns>The ViewModelInstance associated with the native pointer.</returns>
-        internal static ViewModelInstance GetOrCreateFromPointer(IntPtr instancePtr, File riveFile, ViewModelInstance parent = null)
+        /// <param name="handle">A handle native returned to this call.</param>
+        /// <param name="riveFile">The file the instance came from.</param>
+        /// <param name="parent">Gets this instance's callbacks. An instance can have several.</param>
+        internal static ViewModelInstance GetOrCreateFromHandle(NativeViewModelInstanceHandle handle, File riveFile, ViewModelInstance parent = null)
         {
-            if (instancePtr == IntPtr.Zero)
+            if (!handle.IsValid)
             {
                 return null;
             }
 
-            var corePtr = new CoreViewModelInstancePtr(getCoreViewModelInstancePointer(instancePtr));
-            if (TryGetCachedViewModelInstanceForPointer(corePtr, out ViewModelInstance existingInstance))
+            ViewModelInstance instance;
+            bool alreadyWrapped;
+            lock (s_lock)
             {
-                // Unity already owns this, we balance the extra ref from the freshly wrapped runtime.
-                ViewModelInstanceSafeHandle.unrefViewModelInstance(instancePtr);
+                alreadyWrapped = TryGetCachedViewModelInstance(handle, out instance);
+                if (!alreadyWrapped)
+                {
+                    instance = new ViewModelInstance(handle, riveFile);
+                    s_viewModelInstanceCache[handle] = new WeakReference<ViewModelInstance>(instance);
+                }
                 if (parent != null)
                 {
-                    existingInstance.AddParent(parent);
+                    instance.AddParent(parent);
                 }
-                return existingInstance;
             }
 
-            var newInstance = new ViewModelInstance(instancePtr, corePtr, riveFile);
-            if (parent != null)
+            if (alreadyWrapped)
             {
-                newInstance.AddParent(parent);
+                UnrefViewModelInstance(handle);
             }
-            AddCachedViewModelInstanceForPointer(corePtr, newInstance);
-            return newInstance;
+            return instance;
         }
-
-
 
         #region Native Calls
 
+        // Finalizers land here too, so it doesn't wait.
+        internal static void UnrefViewModelInstance(NativeViewModelInstanceHandle instance)
+        {
+            ViewModelNative.Release(instance);
+        }
 
-        [DllImport(NativeLibrary.name)]
-        private static extern nuint getViewModelInstancePropertyCount(ViewModelInstanceSafeHandle instanceValue);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstancePropertyAtPath(ViewModelInstanceSafeHandle instanceValue, string path);
-
-
-
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceViewModelProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-
-
-
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelNameFromViewModelInstance(ViewModelInstanceSafeHandle instanceValue);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getNameFromViewModelInstance(ViewModelInstanceSafeHandle instanceValue);
-
-        // Returns the borrowed core ViewModelInstance*. Wrap in CoreViewModelInstancePtr at the call
-        // site rather than typing the extern, so nothing depends on struct return marshalling.
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getCoreViewModelInstancePointer(IntPtr instancePtr);
+        private static NativeViewModelInstanceHandle GetViewModelInstanceViewModelProperty(NativeViewModelInstanceHandle instance, string name)
+        {
+            return ViewModelNative.Nested(instance, name);
+        }
 
 #if UNITY_EDITOR
-        [DllImport(NativeLibrary.name)]
-        private static extern int getCoreViewModelInstanceRefCount(IntPtr coreInstancePtr);
+        private static int GetViewModelInstanceRefCount(NativeViewModelInstanceHandle instance)
+        {
+            return ViewModelNative.GetInfo(instance).RefCount;
+        }
 #endif
-
 
         /// <summary>
-        /// Replaces a nested view model instance property with a new instance.
+        /// Replaces a nested view model instance property. False if the new instance is for a different view model.
         /// </summary>
-        /// <param name="baseInstanceValue">The instance that contains the property to replace.</param>
-        /// <param name="path">The path to the property to replace.</param>
-        /// <param name="newInstance">The new instance to replace the property with.</param>
-        /// <returns>True if the view model property was replaced, false otherwise. E.g. If the view model instance provided is for a different view model, the
-        /// replacement will fail.</returns>
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        private static extern bool replaceViewModelInstanceViewModelProperty(
-            ViewModelInstanceSafeHandle baseInstanceValue,
-            string path,
-            ViewModelInstanceSafeHandle newInstance);
-
+        private static bool ReplaceViewModelInstanceViewModelProperty(
+            NativeViewModelInstanceHandle instance,
+            string name,
+            NativeViewModelInstanceHandle newInstance)
+        {
+            return ViewModelNative.ReplaceNested(instance, name, newInstance);
+        }
 
         #endregion
-    }
-
-    /// <summary>
-    /// A borrowed pointer to the core native ViewModelInstance that a ViewModelInstanceRuntime wraps.
-    /// </summary>
-    /// <remarks>
-    /// Distinct from <see cref="ViewModelInstanceSafeHandle"/>, which owns a ViewModelInstanceRuntime*
-    /// and unrefs it on release. This pointer is only ever used as an identity key: it is never ref'd,
-    /// unref'd, or dereferenced, so it deliberately is not a SafeHandle. The separate type keeps the two
-    /// pointer kinds from being passed to each other's APIs.
-    /// </remarks>
-    internal readonly struct CoreViewModelInstancePtr : IEquatable<CoreViewModelInstancePtr>
-    {
-        private readonly IntPtr m_value;
-
-        internal CoreViewModelInstancePtr(IntPtr value)
-        {
-            m_value = value;
-        }
-
-        internal bool IsNull => m_value == IntPtr.Zero;
-
-#if UNITY_EDITOR
-        // Only the refcount checker actually uses the pointer value as an address.
-        // In all other cases, this pointer just acts as a unique identifier (key) and isn't accessed directly.
-        internal IntPtr DebuggingPtrValue => m_value;
-#endif
-
-        public bool Equals(CoreViewModelInstancePtr other) => m_value == other.m_value;
-
-        public override bool Equals(object obj) => obj is CoreViewModelInstancePtr other && Equals(other);
-
-        public override int GetHashCode() => m_value.GetHashCode();
-    }
-
-    /// <summary>
-    /// SafeHandle implementation for ViewModelInstance native resources
-    /// </summary>
-    internal sealed class ViewModelInstanceSafeHandle : SafeHandleZeroOrMinusOneIsInvalid
-    {
-        // The P/Invoke marshaller throws ArgumentNullException if a SafeHandle argument is null.
-        // We use this reusable invalid handle to represent IntPtr.Zero for optional parameters.
-        internal static readonly ViewModelInstanceSafeHandle Null = new ViewModelInstanceSafeHandle();
-
-        public ViewModelInstanceSafeHandle() : base(true)
-        {
-        }
-
-        public ViewModelInstanceSafeHandle(IntPtr handle) : base(true)
-        {
-            SetHandle(handle);
-        }
-
-        protected override bool ReleaseHandle()
-        {
-            if (!IsInvalid)
-            {
-                unrefViewModelInstance(handle);
-                return true;
-            }
-            return false;
-        }
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void unrefViewModelInstance(IntPtr instancePtr);
     }
 }

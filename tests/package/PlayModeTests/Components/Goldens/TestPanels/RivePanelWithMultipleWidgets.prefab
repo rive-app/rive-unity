@@ -49,9 +49,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_rivePanel: {fileID: 6563313110269151169}
-  OnWidgetStatusChanged:
-    m_PersistentCalls:
-      m_Calls: []
   m_asset: {fileID: -4516626237390682484, guid: d099214fb3c03406381bbbfb09f51da2,
     type: 3}
   m_artboardName: Artboard
@@ -65,9 +62,11 @@ MonoBehaviour:
   m_fallbackDPI: 96
   m_referenceDPI: 150
   m_hitTestBehavior: 0
-  OnRiveEventReported:
-    m_PersistentCalls:
-      m_Calls: []
+  m_eventPoolingMode: 0
+  m_speed: 1
+  m_dataBindingMode: 0
+  m_viewModelInstanceName: 
+  m_customAudioProvider: {fileID: 0}
 --- !u!1 &2133445209244403126
 GameObject:
   m_ObjectHideFlags: 0
@@ -117,9 +116,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_rivePanel: {fileID: 6563313110269151169}
-  OnWidgetStatusChanged:
-    m_PersistentCalls:
-      m_Calls: []
   m_asset: {fileID: -4516626237390682484, guid: 93a3e2e63b7c84741abf9b7d8b24c87c,
     type: 3}
   m_artboardName: New Artboard
@@ -133,76 +129,11 @@ MonoBehaviour:
   m_fallbackDPI: 96
   m_referenceDPI: 150
   m_hitTestBehavior: 0
-  OnRiveEventReported:
-    m_PersistentCalls:
-      m_Calls: []
---- !u!1 &6947919141268786477
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2637083079204689932}
-  - component: {fileID: 925849334858492995}
-  - component: {fileID: 7878819746720179534}
-  m_Layer: 0
-  m_Name: Procedural - Rive Widget
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &2637083079204689932
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6947919141268786477}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 3222519863327815290}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -567.1378, y: -285.06}
-  m_SizeDelta: {x: -1134.2806, y: -570.12}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &925849334858492995
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6947919141268786477}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9cd9a3f8258f648a1baa648cb5116f43, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_rivePanel: {fileID: 6563313110269151169}
-  OnWidgetStatusChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_proceduralDrawing: {fileID: 7878819746720179534}
-  m_hitTestBehavior: 3
---- !u!114 &7878819746720179534
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6947919141268786477}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6541c4c2a77794694923290533934255, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_eventPoolingMode: 0
+  m_speed: 1
+  m_dataBindingMode: 0
+  m_viewModelInstanceName: 
+  m_customAudioProvider: {fileID: 0}
 --- !u!1 &7447392362716254653
 GameObject:
   m_ObjectHideFlags: 0
@@ -252,9 +183,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_rivePanel: {fileID: 6563313110269151169}
-  OnWidgetStatusChanged:
-    m_PersistentCalls:
-      m_Calls: []
   m_asset: {fileID: -4516626237390682484, guid: 758696187dc3e47ce81df70030a97072,
     type: 3}
   m_artboardName: SOPHIA III HUD
@@ -268,9 +196,11 @@ MonoBehaviour:
   m_fallbackDPI: 96
   m_referenceDPI: 150
   m_hitTestBehavior: 0
-  OnRiveEventReported:
-    m_PersistentCalls:
-      m_Calls: []
+  m_eventPoolingMode: 0
+  m_speed: 1
+  m_dataBindingMode: 0
+  m_viewModelInstanceName: 
+  m_customAudioProvider: {fileID: 0}
 --- !u!1 &8635163644341767116
 GameObject:
   m_ObjectHideFlags: 0
@@ -304,7 +234,6 @@ RectTransform:
   - {fileID: 3303732263323145032}
   - {fileID: 9089629214860909498}
   - {fileID: 710783686520614489}
-  - {fileID: 2637083079204689932}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -340,3 +269,5 @@ MonoBehaviour:
   m_customRenderTargetStrategy: {fileID: 0}
   m_updateMode: 0
   m_disableEditorPreview: 0
+  m_drawOptimization: 1
+  m_multiTouchSupport: 1

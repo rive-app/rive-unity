@@ -47,27 +47,6 @@ namespace Rive.EditorTools
             Selection.activeObject = widgetObj;
         }
 
-        [MenuItem("GameObject/Rive/Widgets/Procedural Rive Widget", false, 13)]
-        static void CreateProceduralRiveWidget(MenuCommand menuCommand)
-        {
-#pragma warning disable CS0618 // ProceduralRiveWidget is deprecated but still used internally
-            GameObject widgetObj = new GameObject("Procedural Rive Widget", typeof(ProceduralRiveWidget));
-#pragma warning restore CS0618
-
-            // If we have a context (selected object), try to parent to it
-            GameObject parent = menuCommand.context as GameObject;
-            if (parent != null)
-            {
-                GameObjectUtility.SetParentAndAlign(widgetObj, parent);
-
-                ConfigureRectTransformToFill(widgetObj.GetComponent<RectTransform>());
-
-            }
-
-            Undo.RegisterCreatedObjectUndo(widgetObj, "Create Procedural Rive Widget");
-            Selection.activeObject = widgetObj;
-        }
-
 
 
         [MenuItem("GameObject/Rive/Render Target Strategies/Atlas Render Target Strategy", false, 21)]

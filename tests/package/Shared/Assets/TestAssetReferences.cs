@@ -8,6 +8,8 @@ namespace Rive.Tests.Utils
                 public const string riv_sophiaHud = "Packages/app.rive.rive-unity.tests/Shared/Assets/sophia-iii-hud.riv";
                 public const string riv_roboDude = "Packages/app.rive.rive-unity.tests/Shared/Assets/robo_dude.riv";
 
+                public const string riv_ore = "Packages/app.rive.rive-unity.tests/Shared/Assets/ore.riv";
+
                 public const string riv_gameHudScope = "Packages/app.rive.rive-unity.tests/Shared/Assets/game_hud_scope.riv";
 
 
@@ -40,6 +42,7 @@ namespace Rive.Tests.Utils
 
                 public const string riv_image_db_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/image_db_test.riv";
                 public const string riv_font_databinding_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/font_databinding_test.riv";
+                public const string riv_system_enum_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/system_enum_test.riv";
                 public const string riv_artboard_db_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/artboard_db_test.riv";
 
                 public const string riv_db_list_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/db_list_test.riv";

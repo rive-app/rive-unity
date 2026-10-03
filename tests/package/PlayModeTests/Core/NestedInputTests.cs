@@ -1,9 +1,12 @@
+// Inputs are deprecated but still covered.
+#pragma warning disable CS0618
 using System.Collections;
 using NUnit.Framework;
 using Rive.Tests.Utils;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.TestTools;
+using Rive.Host;
 
 namespace Rive.Tests
 {
@@ -257,51 +260,72 @@ namespace Rive.Tests
         }
 
 
+        // The lookup runs with the write, so the warning comes a frame later.
+        private IEnumerator ExpectWarningAfterWrite(System.Action write, string expected)
+        {
+            mockLogger.Clear();
+            write();
+            Assert.IsFalse(mockLogger.LoggedWarningsContains(expected), "The write shouldn't have run yet.");
+            yield return null;
+            Assert.IsTrue(mockLogger.LoggedWarningsContains(expected), $"Expected a warning containing: {expected}");
+            Assert.IsTrue(mockLogger.LoggedWarningsContains($"Artboard: '{m_loadedArtboard.Name}'"),
+                "The warning should name the artboard.");
+        }
+
         [UnityTest]
         public IEnumerator NestedInputSettersAndGetters_LogAppropriateMessages_WithInvalidInputOrPath()
         {
-
             string nonExistentInputName = "nonExistentInput";
             string nonExistentArtboardPath = "nonExistentArtboard";
+            string expected = $"No input found at path '{nonExistentArtboardPath}' with name '{nonExistentInputName}'.";
 
-            string expectedWarningMessage = $"No input found at path '{nonExistentArtboardPath}' with name '{nonExistentInputName}'.";
-
-            // Test Boolean Input
-            mockLogger.AnyLogTypeContains(expectedWarningMessage);
-            m_loadedArtboard.SetBooleanInputStateAtPath(nonExistentInputName, true, nonExistentArtboardPath);
-            yield return null;
-
-            // Test Number Input
-            mockLogger.AnyLogTypeContains(expectedWarningMessage);
-            m_loadedArtboard.SetNumberInputStateAtPath(nonExistentInputName, 123f, nonExistentArtboardPath);
-            yield return null;
-
-            // Test Trigger Input
-            mockLogger.AnyLogTypeContains(expectedWarningMessage);
-            m_loadedArtboard.FireInputStateAtPath(nonExistentInputName, nonExistentArtboardPath);
-
-            yield return null;
+            yield return ExpectWarningAfterWrite(
+                () => m_loadedArtboard.SetBooleanInputStateAtPath(nonExistentInputName, true, nonExistentArtboardPath), expected);
+            yield return ExpectWarningAfterWrite(
+                () => m_loadedArtboard.SetNumberInputStateAtPath(nonExistentInputName, 123f, nonExistentArtboardPath), expected);
+            yield return ExpectWarningAfterWrite(
+                () => m_loadedArtboard.FireInputStateAtPath(nonExistentInputName, nonExistentArtboardPath), expected);
         }
 
         [UnityTest]
         public IEnumerator NestedInputSettersAndGetters_LogAppropriateMessages_WithValidPathButWrongInputType()
         {
+            yield return ExpectWarningAfterWrite(
+                () => m_loadedArtboard.SetBooleanInputStateAtPath(starConfig.InputName, true, starConfig.Path),
+                $"Input '{starConfig.InputName}' at path: '{starConfig.Path}' is not a boolean input.");
+            yield return ExpectWarningAfterWrite(
+                () => m_loadedArtboard.SetNumberInputStateAtPath(cardConfig.InputName, 123f, cardConfig.Path),
+                $"Input '{cardConfig.InputName}' at path: '{cardConfig.Path}' is not a number input.");
+            yield return ExpectWarningAfterWrite(
+                () => m_loadedArtboard.FireInputStateAtPath(starConfig.InputName, starConfig.Path),
+                $"Input '{starConfig.InputName}' at path: '{starConfig.Path}' is not a trigger input.");
+        }
 
-            // Test Boolean Input
-            mockLogger.AnyLogTypeContains($"Input '{starConfig.InputName}' at path: '{starConfig.Path}' is not a boolean input.");
-            m_loadedArtboard.SetBooleanInputStateAtPath(starConfig.InputName, true, starConfig.Path);
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator NestedInputSetters_NeverWaitOnTheProducer()
+        {
+            var waits = new System.Collections.Generic.List<string>();
+            Rive.Host.CommandTransport.MainThreadWaitsForTests = waits;
+            try
+            {
+                m_loadedArtboard.SetBooleanInputStateAtPath(cardConfig.InputName, true, cardConfig.Path);
+                m_loadedArtboard.SetNumberInputStateAtPath(nestedButtonConfig.InputName, 150f, nestedButtonConfig.Path);
+                m_loadedArtboard.FireInputStateAtPath(buttonClickConfig.InputName, buttonClickConfig.Path);
+                m_loadedArtboard.Size = new Size(300f, 200f);
+                m_loadedArtboard.ResetArtboardSize();
+            }
+            finally
+            {
+                Rive.Host.CommandTransport.MainThreadWaitsForTests = null;
+            }
+            CollectionAssert.IsEmpty(waits, "A method that returns nothing should only queue.");
+
+            // Still applied, in order, before the next read.
+            Assert.AreEqual(150f, m_loadedArtboard.GetNumberInputStateAtPath(nestedButtonConfig.InputName, nestedButtonConfig.Path));
+            Assert.AreEqual(true, m_loadedArtboard.GetBooleanInputStateAtPath(cardConfig.InputName, cardConfig.Path));
             yield return null;
-
-            // Test Number Input
-            mockLogger.AnyLogTypeContains($"Input '{cardConfig.InputName}' at path: '{cardConfig.Path}' is not a number input.");
-            m_loadedArtboard.SetNumberInputStateAtPath(cardConfig.InputName, 123f, cardConfig.Path);
-            yield return null;
-
-            // Test Trigger Input
-            mockLogger.AnyLogTypeContains($"Input '{starConfig.InputName}' at path: '{starConfig.Path}' is not a trigger input.");
-            m_loadedArtboard.FireInputStateAtPath(starConfig.InputName, starConfig.Path);
-
-            yield return null;
+            Assert.IsFalse(mockLogger.LoggedWarnings.Count > 0, "Valid inputs shouldn't warn.");
         }
 
         [UnityTest]

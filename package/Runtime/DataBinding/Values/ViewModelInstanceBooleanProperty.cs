@@ -1,5 +1,6 @@
 using System;
-using System.Runtime.InteropServices;
+
+using Rive.Host;
 
 namespace Rive
 {
@@ -8,11 +9,13 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceBooleanProperty : ViewModelInstancePrimitiveProperty<bool>
     {
-        internal ViewModelInstanceBooleanProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance) : base(instanceValuePtr, rootInstance)
+        internal ViewModelInstanceBooleanProperty(ViewModelInstance rootInstance, string name, int slot) : base(rootInstance, name, slot)
         {
         }
 
-        /// <summary> 
+        internal override bool FromValue(in PropertyValue value) => value.Bits != 0;
+
+        /// <summary>
         /// The value of the property.
         /// </summary>
         public override bool Value
@@ -20,23 +23,13 @@ namespace Rive
             get
             {
                 ThrowIfOwnerDisposed();
-                return getViewModelInstanceBooleanValue(InstancePropertyPtr);
+                return ReadNative((ref PayloadReader reader) => reader.Bool(), false);
             }
             set
             {
                 ThrowIfOwnerDisposed();
-                setViewModelInstanceBooleanValue(InstancePropertyPtr, value);
+                WriteNative(0f, value ? 1 : 0, null);
             }
         }
-
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        private static extern bool getViewModelInstanceBooleanValue(IntPtr instanceProperty);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void setViewModelInstanceBooleanValue(
-            IntPtr instanceProperty,
-            [MarshalAs(UnmanagedType.U1)] bool value);
     }
 }

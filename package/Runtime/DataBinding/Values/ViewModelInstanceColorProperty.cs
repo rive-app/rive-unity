@@ -1,6 +1,7 @@
 using System;
-using System.Runtime.InteropServices;
 using UnityEngine;
+
+using Rive.Host;
 
 namespace Rive
 {
@@ -9,11 +10,11 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceColorProperty : ViewModelInstancePrimitiveProperty<UnityEngine.Color>
     {
-        internal ViewModelInstanceColorProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance) : base(instanceValuePtr, rootInstance)
+        internal ViewModelInstanceColorProperty(ViewModelInstance rootInstance, string name, int slot) : base(rootInstance, name, slot)
         {
         }
 
-        private static int ColorToArgb(UnityEngine.Color color)
+        internal static int ColorToArgb(UnityEngine.Color color)
         {
             return (Mathf.RoundToInt(color.a * 255) << 24) |
                    (Mathf.RoundToInt(color.r * 255) << 16) |
@@ -29,7 +30,7 @@ namespace Rive
                    color.b;
         }
 
-        private static UnityEngine.Color ArgbToColor(int argb)
+        internal static UnityEngine.Color ArgbToColor(int argb)
         {
             return new UnityEngine.Color(
                 ((argb >> 16) & 0xFF) / 255f, // R (from ARGB)
@@ -57,12 +58,12 @@ namespace Rive
             get
             {
                 ThrowIfOwnerDisposed();
-                return ArgbToColor(getViewModelInstanceColorValue(InstancePropertyPtr));
+                return ArgbToColor(ReadArgb());
             }
             set
             {
                 ThrowIfOwnerDisposed();
-                setViewModelInstanceColorValue(InstancePropertyPtr, ColorToArgb(value));
+                WriteNative(0f, ColorToArgb(value), null);
             }
         }
 
@@ -74,20 +75,20 @@ namespace Rive
             get
             {
                 ThrowIfOwnerDisposed();
-                return ArgbToColor32(getViewModelInstanceColorValue(InstancePropertyPtr));
+                return ArgbToColor32(ReadArgb());
             }
             set
             {
                 ThrowIfOwnerDisposed();
-                setViewModelInstanceColorValue(InstancePropertyPtr, Color32ToArgb(value));
+                WriteNative(0f, Color32ToArgb(value), null);
             }
         }
 
+        private int ReadArgb()
+        {
+            return ReadNative((ref PayloadReader reader) => (int)reader.U32(), 0);
+        }
 
-        [DllImport(NativeLibrary.name)]
-        private static extern int getViewModelInstanceColorValue(IntPtr instanceProperty);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void setViewModelInstanceColorValue(IntPtr instanceProperty, int value);
+        internal override UnityEngine.Color FromValue(in PropertyValue value) => ArgbToColor((int)value.Bits);
     }
 }

@@ -80,9 +80,6 @@ namespace Rive
         /// <summary>
         /// The out of band asset that will be loaded when the asset is needed.
         /// </summary>
-        [Obsolete("Use OutOfBandAsset instead.")]
-        public OutOfBandAsset OutOfBandAssetToLoad { get { return m_OutOfBandAssetToLoad; } }
-
         public OutOfBandAsset OutOfBandAsset { get { return m_OutOfBandAssetToLoad; } }
 
         internal EmbeddedAssetReference(InitializationData initializationData)
@@ -158,7 +155,7 @@ namespace Rive
 
             if (loadedFileReference.TryGetTarget(out Rive.File file))
             {
-                NativeFileInterface.clearAssignedAssetReferenceValueById(file.NativeFile, m_Id);
+                FileNative.ClearAsset(file.NativeFile, m_Id);
 
             }
             else

@@ -6,8 +6,15 @@ using Rive.Components;
 using System.Linq;
 using System.Collections.Generic;
 using System;
+using System.Collections;
+using System.Threading;
+using Rive.Producer;
 using Rive.Utils;
 using Rive.Tests.Utils;
+using Rive.Host;
+
+// A hang fails in a minute instead of the test framework's three.
+[assembly: Timeout(60000)]
 
 namespace Rive.Tests
 {
@@ -58,6 +65,613 @@ namespace Rive.Tests
                 UnityEngine.Object.Destroy(obj);
 
             }
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_DownUpPreservesIntermediateCallbacks()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+
+            var property = widget.StateMachineHandle.GetViewModelInstance().GetBooleanProperty("Target 1/Down");
+            var values = new List<bool>();
+            property.Subscribe(values.Add);
+
+            Vector2 point = new Vector2(0.10f, 0.5f);
+            ManualResetEventSlim started = null;
+            ManualResetEventSlim gate = null;
+            if (CommandTransport.IsThreaded)
+            {
+                started = new ManualResetEventSlim(false);
+                gate = new ManualResetEventSlim(false);
+                ServerGate.Hold(started, gate);
+                Assert.IsTrue(started.Wait(2000));
+            }
+            try
+            {
+                m_mockInputProvider.SimulatePointerDown(point);
+                m_mockInputProvider.SimulatePointerUp(point);
+                Assert.IsEmpty(values, "Async panel input must not wait for the producer.");
+            }
+            finally
+            {
+                gate?.Set();
+            }
+
+            for (int frame = 0; frame < 60 && values.Count < 2; frame++)
+            {
+                yield return null;
+            }
+            CollectionAssert.AreEqual(new[] { true, false }, values);
+            assets.UnloadAllAssets();
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_DoesNotSkipTickWhileInputIsPending()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return null;
+
+            m_panel.JoinAdvance();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+            PropertyCallbacksHub.Instance.FlushCapturedCallbacks();
+
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+
+            try
+            {
+                Assert.IsTrue(started.Wait(2000));
+                m_mockInputProvider.SimulatePointerMove(new Vector2(0.10f, 0.5f));
+                m_panel.Tick(0.016f);
+                Orchestrator.Instance.RunUpdatePass();
+                Assert.IsTrue(m_panel.HasAdvanceInFlight,
+                    "A pending pointer event must not prevent the panel from submitting its tick.");
+            }
+            finally
+            {
+                gate.Set();
+            }
+
+            Orchestrator.Instance.JoinPointerInputs();
+            m_panel.JoinAdvance();
+            assets.UnloadAllAssets();
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_DisabledPanelStillDeliversCapturedPropertyChanges()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+
+            var property = widget.StateMachineHandle.GetViewModelInstance().GetBooleanProperty("Target 1/Down");
+            var values = new List<bool>();
+            property.Subscribe(values.Add);
+
+            m_mockInputProvider.SimulatePointerDown(new Vector2(0.10f, 0.5f));
+            CommandTransport.Barrier();
+            Assert.IsEmpty(values, "The pointer result should still be awaiting main-thread dispatch.");
+
+            m_panel.enabled = false;
+            Orchestrator.Instance.RunUpdatePass();
+            CollectionAssert.AreEqual(new[] { true }, values,
+                "Disabling the panel must not discard changes already captured on the producer.");
+            assets.UnloadAllAssets();
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_UnregisterSkipsMoveButRunsQueuedDownUpAndExit()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+            m_panel.JoinAdvance();
+            Orchestrator.Instance.JoinPointerInputs();
+
+            var property = widget.StateMachineHandle.GetViewModelInstance().GetBooleanProperty("Target 1/Down");
+            var values = new List<bool>();
+            property.Subscribe(values.Add);
+
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+
+            try
+            {
+                Assert.IsTrue(started.Wait(2000));
+                Vector2 point = new Vector2(0.10f, 0.5f);
+                m_mockInputProvider.SimulatePointerMove(point);
+                m_mockInputProvider.SimulatePointerDown(point);
+                m_mockInputProvider.SimulatePointerUp(point);
+                m_mockInputProvider.SimulatePointerExit(point);
+                m_panel.enabled = false;
+            }
+            finally
+            {
+                gate.Set();
+            }
+
+            CommandTransport.Barrier();
+            var inFlightKinds = new List<RiveWidget.PointerEventKind>();
+            var ran = new List<bool>();
+            Orchestrator.Instance.PointerInput.InFlightForTests(inFlightKinds, ran);
+            var completedKinds = new List<RiveWidget.PointerEventKind>();
+            for (int i = 0; i < inFlightKinds.Count; i++)
+            {
+                if (ran[i])
+                {
+                    completedKinds.Add(inFlightKinds[i]);
+                }
+            }
+
+            CollectionAssert.AreEqual(new[]
+            {
+                RiveWidget.PointerEventKind.Down,
+                RiveWidget.PointerEventKind.Up,
+                RiveWidget.PointerEventKind.Exit
+            }, completedKinds);
+            Orchestrator.Instance.RunUpdatePass();
+            CollectionAssert.AreEqual(new[] { true, false }, values);
+            assets.UnloadAllAssets();
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_DoesNotSkipOtherPanelsWhileInputIsPending()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return null;
+
+            var synchronousPanel = RivePanelTestUtils.CreatePanel("OtherSynchronousPanel");
+            var asynchronousPanel = RivePanelTestUtils.CreatePanel("OtherAsynchronousPanel");
+            synchronousPanel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            asynchronousPanel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            asynchronousPanel.ThreadingMode = ThreadingMode.BackgroundThread;
+
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+
+            try
+            {
+                Assert.IsTrue(started.Wait(2000));
+                m_mockInputProvider.SimulatePointerMove(new Vector2(0.10f, 0.5f));
+                synchronousPanel.Tick(0.016f);
+                asynchronousPanel.Tick(0.016f);
+
+                var releaser = new Thread(() =>
+                {
+                    Thread.Sleep(100);
+                    gate.Set();
+                });
+                releaser.Start();
+                Orchestrator.Instance.RunUpdatePass();
+                releaser.Join();
+
+                Assert.IsFalse(synchronousPanel.HasTimeWaiting,
+                    "A synchronous panel must tick in the same pass as a pending pointer event.");
+                Assert.IsFalse(synchronousPanel.HasAdvanceInFlight,
+                    "A synchronous panel must finish its tick in that pass.");
+                Assert.IsFalse(asynchronousPanel.HasTimeWaiting,
+                    "Another asynchronous panel must also submit its tick in that pass.");
+            }
+            finally
+            {
+                gate.Set();
+                UnityEngine.Object.Destroy(synchronousPanel.gameObject);
+                UnityEngine.Object.Destroy(asynchronousPanel.gameObject);
+            }
+
+            assets.UnloadAllAssets();
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_ReloadedWidgetStillDeliversCapturedPropertyChanges()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+
+            var property = widget.StateMachineHandle.GetViewModelInstance().GetBooleanProperty("Target 1/Down");
+            var values = new List<bool>();
+            property.Subscribe(values.Add);
+
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+
+            try
+            {
+                Assert.IsTrue(started.Wait(2000));
+                m_mockInputProvider.SimulatePointerDown(new Vector2(0.10f, 0.5f));
+                var releaser = new Thread(() =>
+                {
+                    Thread.Sleep(100);
+                    gate.Set();
+                });
+                releaser.Start();
+                widget.Load(asset, artboardName: "Main", stateMachineName: null);
+                releaser.Join();
+            }
+            finally
+            {
+                gate.Set();
+            }
+
+            // The reload doesn't wait, so the change lands on a later pass.
+            for (int frame = 0; frame < 60 && values.Count == 0; frame++)
+            {
+                yield return null;
+            }
+            CollectionAssert.AreEqual(new[] { true }, values,
+                "Reloading a widget must not discard changes captured from its previous state machine.");
+            assets.UnloadAllAssets();
+        }
+
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_ReportsPointerAndPanelAdvanceEventsOnce()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_ratingAnimationWithEvents,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load rating asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1920, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "New Artboard", stateMachineName: "State Machine 1");
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+
+            var events = new List<string>();
+            widget.OnRiveEventReported += evt => events.Add(evt.Name);
+            m_mockInputProvider.SimulatePointerDown(new Vector2(0.34f, 0.50f));
+            Orchestrator.Instance.JoinPointerInputs();
+            Orchestrator.Instance.RunUpdatePass();
+            Assert.AreEqual(1, events.Count(name => name == "rating1"),
+                "The pointer-triggered event should be reported exactly once.");
+
+            widget.LoadedStateMachine.GetNumber("rating").Value = 2;
+            for (int frame = 0; frame < 10 && !events.Contains("rating2"); frame++)
+            {
+                m_panel.Tick(0.016f);
+                Orchestrator.Instance.RunUpdatePass();
+                m_panel.JoinAdvance();
+                Orchestrator.Instance.RunUpdatePass();
+            }
+            Assert.AreEqual(1, events.Count(name => name == "rating2"),
+                "The panel's own advance should still deliver its reported event.");
+            assets.UnloadAllAssets();
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_ReloadDoesNotReportOldStateMachineEvents()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_ratingAnimationWithEvents,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load rating asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1920, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "New Artboard", stateMachineName: "State Machine 1");
+            yield return null;
+
+            var events = new List<string>();
+            widget.OnRiveEventReported += evt => events.Add(evt.Name);
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+
+            try
+            {
+                Assert.IsTrue(started.Wait(2000));
+                m_mockInputProvider.SimulatePointerDown(new Vector2(0.34f, 0.50f));
+                var releaser = new Thread(() =>
+                {
+                    Thread.Sleep(100);
+                    gate.Set();
+                });
+                releaser.Start();
+                widget.Load(asset, artboardName: "New Artboard", stateMachineName: "State Machine 1");
+                releaser.Join();
+                Orchestrator.Instance.RunUpdatePass();
+                Assert.IsEmpty(events,
+                    "A pointer event from the previous state machine must not be reported after reload.");
+            }
+            finally
+            {
+                gate.Set();
+            }
+
+            Orchestrator.Instance.JoinPointerInputs();
+            assets.UnloadAllAssets();
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_MergesQueuedMovesWithoutCrossingDown()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+            Orchestrator.Instance.JoinPointerInputs();
+
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+
+            try
+            {
+                Assert.IsTrue(started.Wait(2000));
+                Vector2 point = new Vector2(0.10f, 0.5f);
+                m_mockInputProvider.SimulatePointerMove(point);
+                m_mockInputProvider.SimulatePointerMove(point);
+                m_mockInputProvider.SimulatePointerMove(point);
+                m_mockInputProvider.SimulatePointerDown(point);
+                m_mockInputProvider.SimulatePointerMove(point);
+                m_mockInputProvider.SimulatePointerMove(point);
+
+                var effectiveKinds = new List<RiveWidget.PointerEventKind>();
+                Orchestrator.Instance.PointerInput.InFlightForTests(effectiveKinds, null);
+
+                CollectionAssert.AreEqual(new[]
+                {
+                    RiveWidget.PointerEventKind.Move,
+                    RiveWidget.PointerEventKind.Down,
+                    RiveWidget.PointerEventKind.Move
+                }, effectiveKinds);
+            }
+            finally
+            {
+                gate.Set();
+            }
+
+            Orchestrator.Instance.JoinPointerInputs();
+            assets.UnloadAllAssets();
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_CallbacksStayOrderedAcrossTickCapture()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+
+            var property = widget.StateMachineHandle.GetViewModelInstance().GetBooleanProperty("Target 1/Down");
+            var values = new List<bool>();
+            property.Subscribe(values.Add);
+            m_panel.JoinAdvance();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+            PropertyCallbacksHub.Instance.FlushCapturedCallbacks();
+
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+
+            try
+            {
+                Assert.IsTrue(started.Wait(2000));
+                m_mockInputProvider.SimulatePointerDown(new Vector2(0.10f, 0.5f));
+                property.SetValue(false);
+                m_panel.Tick(0.016f);
+                Orchestrator.Instance.RunUpdatePass();
+            }
+            finally
+            {
+                gate.Set();
+            }
+
+            m_panel.JoinAdvance();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+            Orchestrator.Instance.RunUpdatePass();
+            CollectionAssert.AreEqual(new[] { true, false }, values);
+            assets.UnloadAllAssets();
+        }
+
+        [UnityTest]
+        public IEnumerator SynchronousPanelPointer_DownUpReturnsWithCallbacksDelivered()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return null;
+
+            var property = widget.StateMachine.ViewModelInstance
+                .GetProperty<ViewModelInstanceBooleanProperty>("Target 1/Down");
+            Assert.IsNotNull(property);
+            var values = new List<bool>();
+            property.OnValueChanged += values.Add;
+
+            Vector2 point = new Vector2(0.10f, 0.5f);
+            m_mockInputProvider.SimulatePointerDown(point);
+            CollectionAssert.AreEqual(new[] { true }, values);
+            m_mockInputProvider.SimulatePointerUp(point);
+            CollectionAssert.AreEqual(new[] { true, false }, values);
+            assets.UnloadAllAssets();
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanelPointer_TranslucentUsesSynchronousPointerHandling()
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_multitouch_test,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load multitouch asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(1080, 1080));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            widget.HitTestBehavior = HitTestBehavior.Translucent;
+            widget.Fit = Fit.Contain;
+            widget.Load(asset, artboardName: "Main", stateMachineName: null);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+
+            var property = widget.StateMachineHandle.GetViewModelInstance().GetBooleanProperty("Target 1/Down");
+            var values = new List<bool>();
+            property.Subscribe(values.Add);
+
+            Vector2 point = new Vector2(0.10f, 0.5f);
+            m_mockInputProvider.SimulatePointerDown(point);
+            CollectionAssert.AreEqual(new[] { true }, values);
+            m_mockInputProvider.SimulatePointerUp(point);
+            CollectionAssert.AreEqual(new[] { true, false }, values);
+
+            widget.HitTestBehavior = HitTestBehavior.Opaque;
+            m_mockInputProvider.SimulatePointerDown(point);
+            CollectionAssert.AreEqual(new[] { true, false }, values);
+            widget.HitTestBehavior = HitTestBehavior.Translucent;
+            m_mockInputProvider.SimulatePointerUp(point);
+            CollectionAssert.AreEqual(new[] { true, false, true, false }, values);
+            assets.UnloadAllAssets();
         }
 
         [UnityTest]
@@ -671,20 +1285,7 @@ namespace Rive.Tests
             Assert.AreEqual(1, frontWidget.PointerDownCalledCount, "Front widget should receive events when Opaque");
             Assert.AreEqual(0, backWidget.PointerDownCalledCount, "Back widget should be blocked when front is Opaque");
 
-#pragma warning disable CS0618 // Transparent hit testing is deprecated but kept for backward compatibility
-            // Test 2: Front widget Transparent allows back widget to receive events
-            frontWidget.HitTestBehavior = HitTestBehavior.Transparent;
-            backWidget.HitTestBehavior = HitTestBehavior.Opaque;
-
-            m_mockInputProvider.SimulatePointerDown(position);
-            m_mockInputProvider.SimulatePointerUp(position);
-            m_mockInputProvider.SimulatePointerMove(position);
-
-            Assert.AreEqual(2, frontWidget.PointerDownCalledCount, "Front widget should still receive events when Transparent");
-#pragma warning restore CS0618
-            Assert.AreEqual(1, backWidget.PointerDownCalledCount, "Back widget should receive events when front is Transparent");
-
-            // Test 3: Front widget None receives no events
+            // Test 2: Front widget None receives no events
             frontWidget.HitTestBehavior = HitTestBehavior.None;
             backWidget.HitTestBehavior = HitTestBehavior.Opaque;
 
@@ -692,10 +1293,10 @@ namespace Rive.Tests
             m_mockInputProvider.SimulatePointerUp(position);
             m_mockInputProvider.SimulatePointerMove(position);
 
-            Assert.AreEqual(2, frontWidget.PointerDownCalledCount, "Front widget should not receive events when None");
-            Assert.AreEqual(2, backWidget.PointerDownCalledCount, "Back widget should receive events when front is None");
+            Assert.AreEqual(1, frontWidget.PointerDownCalledCount, "Front widget should not receive events when None");
+            Assert.AreEqual(1, backWidget.PointerDownCalledCount, "Back widget should receive events when front is None");
 
-            // Test 4: Front widget Translucent only blocks if it has a hit
+            // Test 3: Front widget Translucent only blocks if it has a hit
             frontWidget.ReturnTrueOnHitTest = false;
 
             frontWidget.HitTestBehavior = HitTestBehavior.Translucent;
@@ -705,18 +1306,18 @@ namespace Rive.Tests
             m_mockInputProvider.SimulatePointerUp(position);
             m_mockInputProvider.SimulatePointerMove(position);
 
-            Assert.AreEqual(2, frontWidget.PointerDownCalledCount, "Front widget should not receive events when Translucent (no hit areas)");
-            Assert.AreEqual(3, backWidget.PointerDownCalledCount, "Back widget should receive events when front is Translucent with no hit areas");
+            Assert.AreEqual(1, frontWidget.PointerDownCalledCount, "Front widget should not receive events when Translucent (no hit areas)");
+            Assert.AreEqual(2, backWidget.PointerDownCalledCount, "Back widget should receive events when front is Translucent with no hit areas");
 
-            // Test 5: Front widget Translucent blocks back widget when it has a hit
+            // Test 4: Front widget Translucent blocks back widget when it has a hit
             frontWidget.ReturnTrueOnHitTest = true;
 
             m_mockInputProvider.SimulatePointerDown(position);
             m_mockInputProvider.SimulatePointerUp(position);
             m_mockInputProvider.SimulatePointerMove(position);
 
-            Assert.AreEqual(3, frontWidget.PointerDownCalledCount, "Front widget should receive events when Translucent with hit");
-            Assert.AreEqual(3, backWidget.PointerDownCalledCount, "Back widget should be blocked when front is Translucent with hit");
+            Assert.AreEqual(2, frontWidget.PointerDownCalledCount, "Front widget should receive events when Translucent with hit");
+            Assert.AreEqual(2, backWidget.PointerDownCalledCount, "Back widget should be blocked when front is Translucent with hit");
 
         }
 
@@ -1029,7 +1630,6 @@ namespace Rive.Tests
     public class MockRenderTargetStrategy : RenderTargetStrategy
     {
         private bool m_isRegistered;
-        private DrawTimingOption m_drawTiming;
 
         private RenderTargetSpaceOccupancy TargetSpaceOccupancy
         {
@@ -1040,8 +1640,6 @@ namespace Rive.Tests
                 return RenderTargetSpaceOccupancy.Exclusive;
             }
         }
-
-        public override DrawTimingOption DrawTiming { get => m_drawTiming; set => m_drawTiming = value; }
 
         public override bool RegisterPanel(IRivePanel panel)
         {
@@ -1146,6 +1744,22 @@ namespace Rive.Tests
 
     public static class RivePanelTestUtils
     {
+        private const float LoadTimeoutSeconds = 10f;
+
+        /// <summary>
+        /// Waits for the widget's load, and fails as soon as it can't finish.
+        /// </summary>
+        public static IEnumerator WaitForLoaded(WidgetBehaviour widget)
+        {
+            float deadline = Time.realtimeSinceStartup + LoadTimeoutSeconds;
+            while (widget.Status != WidgetStatus.Loaded)
+            {
+                Assert.AreNotEqual(WidgetStatus.Error, widget.Status, $"{widget.name} failed to load.");
+                Assert.Less(Time.realtimeSinceStartup, deadline, $"{widget.name} didn't load within {LoadTimeoutSeconds} seconds.");
+                yield return null;
+            }
+        }
+
         /// <summary>
         /// Creates a GameObject with a RiveWidget component
         /// </summary>

@@ -1,9 +1,12 @@
 #if RIVE_USING_EXPERIMENTAL
+using Rive.Host;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using NUnit.Framework;
 using Rive.Components;
+using Rive.Producer;
 using Rive.Tests.Utils;
 using Rive.Utils;
 using UnityEngine;
@@ -30,6 +33,9 @@ namespace Rive.Tests
 
         private ViewModelInstance m_viewModelInstance;
         private ViewModelInstanceImageProperty m_imageProperty;
+        // Only the pixel test needs one, so it's created there rather than in
+        // Setup, and torn down here with everything else.
+        private GameObject m_cameraObject;
 
         [SetUp]
         public void Setup()
@@ -78,6 +84,12 @@ namespace Rive.Tests
                 file.Dispose();
             }
             m_loadedFiles.Clear();
+
+            if (m_cameraObject != null)
+            {
+                Object.Destroy(m_cameraObject);
+                m_cameraObject = null;
+            }
 
             if (m_widgetObject != null)
             {
@@ -141,7 +153,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             m_viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(m_viewModelInstance, "ViewModelInstance should exist");
@@ -170,6 +182,82 @@ namespace Rive.Tests
             Assert.AreEqual(0, RenderTextureImageManager.Instance.BindingCount,
                 "Constructing an image should not register it; registration happens on bind.");
             Assert.IsFalse(RenderTextureImageManager.HasAnyBindings);
+        }
+
+        [Test]
+        public void IdleManagerTick_DoesNotQueueNativeWork()
+        {
+            long jobsBefore = CommandTransport.RequestsForTests;
+
+            RenderTextureImageManager.Instance.Tick();
+
+            Assert.AreEqual(jobsBefore, CommandTransport.RequestsForTests);
+        }
+
+        [Test]
+        public void ImageCommandStorage_IsReusedAfterProducerCompletes()
+        {
+            var queue = RenderImageCommandQueue.Instance;
+            uint handle = RenderImageCommandQueue.NextHandle();
+            var properties = new ViewModelInstanceImageProperty[1];
+
+            queue.EnqueueBuild(handle, IntPtr.Zero, 0, 0, false, properties);
+            object command = queue.PendingCommandForTests(handle);
+            Assert.IsNotNull(command);
+            object instances = RenderImageCommandQueue.InstancesForTests(command);
+            queue.EnqueueBuild(handle, IntPtr.Zero, 0, 0, false, properties);
+            Assert.AreSame(command, queue.PendingCommandForTests(handle), "Pending updates should coalesce in place.");
+            Assert.AreSame(instances, RenderImageCommandQueue.InstancesForTests(command));
+
+            queue.Flush();
+            object commands = queue.LastBatchCommandsForTests;
+            CommandTransport.Barrier();
+            queue.Flush();
+
+            queue.EnqueueBuild(handle, IntPtr.Zero, 0, 0, false, properties);
+            Assert.AreSame(command, queue.PendingCommandForTests(handle), "Completed commands should be pooled.");
+            Assert.AreSame(instances, RenderImageCommandQueue.InstancesForTests(command));
+            queue.Flush();
+            Assert.AreSame(commands, queue.LastBatchCommandsForTests,
+                "The batch command array should also be reused.");
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator ImageCommands_DoNotWaitForBusyProducer()
+        {
+            if (!CommandTransport.IsThreaded)
+            {
+                Assert.Ignore("Nothing is queued when work runs on the calling thread.");
+            }
+
+            var queue = RenderImageCommandQueue.Instance;
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+            Assert.IsTrue(started.Wait(2000), "The producer should have picked the job up.");
+
+            try
+            {
+                long jobsBefore = CommandTransport.RequestsForTests;
+                uint handle = RenderImageCommandQueue.NextHandle();
+                queue.EnqueueBuild(handle, IntPtr.Zero, 0, 0, false, null);
+                queue.Flush();
+                queue.EnqueueDestroy(handle);
+                queue.Flush();
+
+                Assert.AreEqual(1, CommandTransport.RequestsForTests - jobsBefore,
+                    "A busy producer should hold at most one image batch.");
+            }
+            finally
+            {
+                gate.Set();
+                CommandTransport.Barrier();
+            }
+
+            queue.Flush();
+            yield return null;
+            queue.Flush();
         }
 
         [Test]
@@ -297,6 +385,22 @@ namespace Rive.Tests
             // it must never allocate an intermediate.
             Assert.IsInstanceOf<DirectTextureFrameProvider>(source);
             Assert.AreSame(rt, source.Source);
+            source.Dispose();
+        }
+
+        [Test]
+        public void Create_WithAnyModeButNone_CopiesTheSource(
+            [Values(
+                RenderTextureImageSource.TextureProcessingMode.Auto,
+                RenderTextureImageSource.TextureProcessingMode.Orientation,
+                RenderTextureImageSource.TextureProcessingMode.Color)]
+            RenderTextureImageSource.TextureProcessingMode mode)
+        {
+            var rt = CreateTrackUnityRenderTexture();
+
+            var source = TextureFrameProvider.Create(rt, mode);
+
+            Assert.IsInstanceOf<ProcessedTextureFrameProvider>(source);
             source.Dispose();
         }
 
@@ -571,6 +675,343 @@ namespace Rive.Tests
             Assert.IsFalse(RenderTextureImageManager.HasAnyBindings);
             Assert.AreEqual(0, RenderTextureImageManager.Instance.BindingCount);
             Assert.IsTrue(image.IsDisposed, "Clear should dispose images that were still bound.");
+        }
+
+        // Magenta color not used by image_db_test artboard. If it appears in output, it came from the test texture.
+        private static readonly Color32 MarkerColor = new Color32(255, 0, 255, 255);
+
+        // Tests how quickly a bound render texture is shown. DrawWhenChanged panels only redraw when the artboard changes, which should happen when a new image binds.
+        [UnityTest]
+        public IEnumerator BoundImage_ReachesADrawWhenChangedPanel()
+        {
+            if (!TextureHelper.SupportsRenderTextureImageSource())
+            {
+                Assert.Ignore(
+                    "RenderTextureImageSource is unsupported on " +
+                    $"{SystemInfo.graphicsDeviceType}.");
+            }
+
+            // Camera is needed for render pipeline drawing. Without it, nothing will draw to the texture.
+            m_cameraObject = new GameObject("Camera");
+            m_cameraObject.AddComponent<Camera>().tag = "MainCamera";
+
+            // Set up panel size and layout so the widget and panel match.
+            m_panel.SetDimensions(new Vector2(256, 256));
+            m_panel.DrawOptimization = DrawOptimizationOptions.DrawWhenChanged;
+            RivePanelTestUtils.MakeWidgetFillPanel(m_widget);
+            m_widget.Fit = Fit.Contain;
+
+            yield return LoadImagePropertyRoutine();
+
+            // Let the output settle so this test sees only changes from the new image.
+            yield return WaitForRenderedFrames(4);
+
+            Assert.IsNotNull(m_panel.RenderTexture, "The panel never rendered.");
+            Assert.IsTrue(
+                HasVisiblePixels(m_panel.RenderTexture),
+                "The panel drew nothing, so we can't test image arrival.");
+            Assert.IsFalse(
+                HasMarkerColor(m_panel.RenderTexture),
+                "Panel already shows marker color; can't detect new image.");
+
+            RenderTextureImageSource image = new RenderTextureImageSource(
+                CreateMarkerSource(),
+                RenderTextureImageSource.TextureProcessingMode.Auto,
+                RenderTextureImageSource.RefreshMode.PerFrame);
+            m_createdImages.Add(image);
+
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+
+            const int budget = 6;
+            int frames = 0;
+            while (frames < budget && !HasMarkerColor(m_panel.RenderTexture))
+            {
+                frames++;
+                yield return WaitForRenderedFrames(1);
+            }
+
+            Assert.IsTrue(
+                HasMarkerColor(m_panel.RenderTexture),
+                $"Bound texture did not show up in {budget} frames. " +
+                "Maybe not bound, or panel did not redraw.");
+
+            // Log the number of frames it took for the test texture to appear.
+            UnityEngine.Debug.Log(
+                $"Bound render texture reached the panel after {frames} frame(s).");
+        }
+
+        // A camera, a panel the widget fills, and the image asset loaded and
+        // drawn, with no marker on it yet.
+        private IEnumerator SetUpPanelForPixels()
+        {
+            if (!TextureHelper.SupportsRenderTextureImageSource())
+            {
+                Assert.Ignore(
+                    "RenderTextureImageSource is unsupported on " +
+                    $"{SystemInfo.graphicsDeviceType}.");
+            }
+
+            m_cameraObject = new GameObject("Camera");
+            m_cameraObject.AddComponent<Camera>().tag = "MainCamera";
+            m_panel.SetDimensions(new Vector2(256, 256));
+            RivePanelTestUtils.MakeWidgetFillPanel(m_widget);
+            m_widget.Fit = Fit.Contain;
+
+            yield return LoadImagePropertyRoutine();
+            yield return WaitForRenderedFrames(4);
+
+            Assert.IsNotNull(m_panel.RenderTexture, "The panel never rendered.");
+            Assert.IsFalse(HasMarkerColor(m_panel.RenderTexture), "Marker already showing.");
+        }
+
+        private static IEnumerator WaitUntilDone(Future operation, int frames = 30)
+        {
+            for (int i = 0; i < frames && !operation.IsDone; i++)
+            {
+                yield return WaitForRenderedFrames(1);
+            }
+        }
+
+        // None, because an Auto source's new intermediate gets its first blit
+        // the same frame, and on Metal a panel's texture pass reaches the GPU
+        // before Unity's blit does.
+        [UnityTest]
+        public IEnumerator BoundImage_ShowsOnTheFirstRenderedFrame()
+        {
+            yield return SetUpPanelForPixels();
+
+            RenderTextureImageSource image = new RenderTextureImageSource(
+                CreateMarkerSource(),
+                RenderTextureImageSource.TextureProcessingMode.None,
+                RenderTextureImageSource.RefreshMode.Manual);
+            m_createdImages.Add(image);
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+
+            yield return WaitForRenderedFrames(1);
+
+            Assert.IsTrue(HasMarkerColor(m_panel.RenderTexture));
+        }
+
+        [UnityTest]
+        public IEnumerator DisposeAsync_CompletesAndEmptiesTheProperty()
+        {
+            yield return SetUpPanelForPixels();
+
+            RenderTextureImageSource image = new RenderTextureImageSource(
+                CreateMarkerSource(),
+                RenderTextureImageSource.TextureProcessingMode.None,
+                RenderTextureImageSource.RefreshMode.PerFrame);
+            m_createdImages.Add(image);
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+            yield return WaitForRenderedFrames(2);
+            Assert.IsTrue(HasMarkerColor(m_panel.RenderTexture), "The image should show first.");
+
+            Future disposing = image.DisposeAsync();
+            yield return WaitUntilDone(disposing);
+
+            Assert.AreEqual(FutureStatus.Succeeded, disposing.Status);
+            Assert.IsTrue(image.IsDisposed);
+            Assert.IsFalse(RenderTextureImageManager.HasAnyBindings);
+            Assert.IsFalse(HasMarkerColor(m_panel.RenderTexture));
+        }
+
+        [UnityTest]
+        public IEnumerator Dispose_EmptiesTheProperty()
+        {
+            yield return SetUpPanelForPixels();
+
+            RenderTextureImageSource image = new RenderTextureImageSource(
+                CreateMarkerSource(),
+                RenderTextureImageSource.TextureProcessingMode.None,
+                RenderTextureImageSource.RefreshMode.PerFrame);
+            m_createdImages.Add(image);
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+            yield return WaitForRenderedFrames(2);
+            Assert.IsTrue(HasMarkerColor(m_panel.RenderTexture), "The image should show first.");
+
+            image.Dispose();
+            yield return WaitForRenderedFrames(2);
+
+            Assert.IsFalse(HasMarkerColor(m_panel.RenderTexture));
+        }
+
+        [UnityTest]
+        public IEnumerator ResizedSource_ReleasesTheOldIntermediateOnceUnused()
+        {
+            yield return SetUpPanelForPixels();
+
+            RenderTextureImageSource image = new RenderTextureImageSource(
+                CreateMarkerSource(),
+                RenderTextureImageSource.TextureProcessingMode.Auto,
+                RenderTextureImageSource.RefreshMode.PerFrame);
+            m_createdImages.Add(image);
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+            yield return WaitForRenderedFrames(2);
+            var provider = (ProcessedTextureFrameProvider)image.FrameProvider;
+            RenderTexture oldIntermediate = provider.IntermediateForTests;
+            Assert.IsNotNull(oldIntermediate);
+
+            RenderTexture source = image.Source;
+            source.Release();
+            source.width = 32;
+            source.height = 32;
+            source.Create();
+            yield return null;
+            Assert.AreNotSame(oldIntermediate, provider.IntermediateForTests);
+            Assert.IsTrue(oldIntermediate != null, "Still in use, so not released yet.");
+
+            for (int i = 0; i < 30 && oldIntermediate != null; i++)
+            {
+                yield return WaitForRenderedFrames(1);
+            }
+
+            Assert.IsTrue(oldIntermediate == null, "Released once nothing used it.");
+        }
+
+        [UnityTest]
+        public IEnumerator DisposeAsync_NeverBound_Completes()
+        {
+            RenderTextureImageSource image = CreateTrackRenderTextureImage();
+
+            Future disposing = image.DisposeAsync();
+            yield return WaitUntilDone(disposing);
+
+            Assert.AreEqual(FutureStatus.Succeeded, disposing.Status);
+        }
+
+        [UnityTest]
+        public IEnumerator DisposeAsync_Twice_GivesTheSameOperation()
+        {
+            yield return LoadImagePropertyRoutine();
+            RenderTextureImageSource image = CreateTrackRenderTextureImage();
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+            yield return WaitForRenderedFrames(1);
+
+            Future first = image.DisposeAsync();
+            Future second = image.DisposeAsync();
+            yield return WaitUntilDone(first);
+
+            Assert.IsTrue(second.IsDone);
+            Assert.AreEqual(first.Status, second.Status);
+        }
+
+        [UnityTest]
+        public IEnumerator DirectSource_ResizedWhileBound_Warns()
+        {
+            yield return LoadImagePropertyRoutine();
+            RenderTextureImageSource image = CreateTrackRenderTextureImage();
+            Assert.IsTrue(image.DrawsSourceDirectly);
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+            yield return WaitForRenderedFrames(2);
+
+            RenderTexture source = image.Source;
+            source.Release();
+            source.width = 32;
+            source.height = 32;
+            source.Create();
+            yield return WaitForRenderedFrames(2);
+
+            Assert.IsTrue(m_mockLogger.LoggedWarningsContains("resized"));
+        }
+
+        [UnityTest]
+        public IEnumerator DirectSource_ReleasedWhileBound_Warns()
+        {
+            yield return LoadImagePropertyRoutine();
+            RenderTextureImageSource image = CreateTrackRenderTextureImage();
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+            yield return WaitForRenderedFrames(2);
+
+            image.Source.Release();
+            yield return WaitForRenderedFrames(2);
+
+            Assert.IsTrue(m_mockLogger.LoggedWarningsContains("released or destroyed"));
+        }
+
+        [UnityTest]
+        public IEnumerator DirectSource_ReleasedAfterDisposeAsync_DoesNotWarn()
+        {
+            yield return LoadImagePropertyRoutine();
+            RenderTextureImageSource image = CreateTrackRenderTextureImage();
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+            yield return WaitForRenderedFrames(2);
+
+            RenderTexture source = image.Source;
+            Future disposing = image.DisposeAsync();
+            yield return WaitUntilDone(disposing);
+            source.Release();
+            yield return WaitForRenderedFrames(2);
+
+            Assert.AreEqual(FutureStatus.Succeeded, disposing.Status);
+            Assert.AreEqual(0, m_mockLogger.LoggedWarnings.Count);
+        }
+
+        private RenderTexture CreateMarkerSource(int size = 64)
+        {
+            var content = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            var pixels = new Color32[size * size];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = MarkerColor;
+            }
+            content.SetPixels32(pixels);
+            content.Apply(false, false);
+
+            RenderTexture source = CreateTrackUnityRenderTexture(size);
+            Graphics.Blit(content, source);
+            Object.Destroy(content);
+            return source;
+        }
+
+        private static IEnumerator WaitForRenderedFrames(int frames)
+        {
+            for (int i = 0; i < frames; i++)
+            {
+                yield return null;
+                yield return new WaitForEndOfFrame();
+            }
+        }
+
+        private static bool HasVisiblePixels(RenderTexture renderTexture)
+        {
+            return AnyPixel(renderTexture, pixel => pixel.a != 0);
+        }
+
+        // Checks for "magenta" within a tolerance, since color conversions may change the exact value.
+        private static bool HasMarkerColor(RenderTexture renderTexture)
+        {
+            return AnyPixel(
+                renderTexture,
+                pixel => pixel.a > 128 && pixel.r > 150 && pixel.b > 150 && pixel.g < 100);
+        }
+
+        private static bool AnyPixel(
+            RenderTexture renderTexture, Func<Color32, bool> predicate)
+        {
+            RenderTexture previous = RenderTexture.active;
+            var readback = new Texture2D(
+                renderTexture.width, renderTexture.height, TextureFormat.RGBA32, false);
+            try
+            {
+                RenderTexture.active = renderTexture;
+                readback.ReadPixels(
+                    new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+                readback.Apply();
+
+                foreach (Color32 pixel in readback.GetPixels32())
+                {
+                    if (predicate(pixel))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                Object.Destroy(readback);
+            }
         }
     }
 }

@@ -1,8 +1,16 @@
 using System;
-using System.Runtime.InteropServices;
 
 namespace Rive
 {
+    internal static class ObsoleteMessages
+    {
+        internal const string Inputs =
+            "State machine inputs will be removed in a future version. Please use data binding instead.";
+
+        internal const string HandleCallbacks =
+            "HandleCallbacks will be removed in a future version. Widgets deliver OnValueChanged after each advance on their own.";
+    }
+
     /// <summary>
     /// Represents a State Machine Input.
     ///
@@ -13,59 +21,60 @@ namespace Rive
     /// An SMIInput is owned by a StateMachine.
     /// The SMIInput keeps the StateMachine alive by maintaining a reference to it.
     /// </remarks>
+    [Obsolete(ObsoleteMessages.Inputs)]
     public class SMIInput
     {
-        private readonly IntPtr m_nativeSMI;
+        private readonly NativeSMIInputHandle m_nativeSMI;
 
         // This is a reference to the StateMachine that owns this SMIInput.
         // It is used to keep the StateMachine alive while the SMIInput is alive.
         private StateMachine m_stateMachineReference;
 
-        internal IntPtr NativeSMI => m_nativeSMI;
+        internal NativeSMIInputHandle NativeSMI => m_nativeSMI;
 
-        internal SMIInput(IntPtr smi, StateMachine stateMachineReference)
+        internal SMIInput(NativeSMIInputHandle smi, StateMachine stateMachineReference)
         {
             m_nativeSMI = smi;
             m_stateMachineReference = stateMachineReference;
         }
 
+        // Null once the state machine is disposed.
+        private StateMachine Owner =>
+            m_stateMachineReference != null && !m_stateMachineReference.IsDisposed ? m_stateMachineReference : null;
+
+        private ArtboardNative.InputKind Kind =>
+            Owner != null ? Owner.InputAt(m_nativeSMI).Kind : ArtboardNative.InputKind.None;
+
         /// <summary>
         /// The name of the State Machine Input.
         /// </summary>
-        public string Name
-        {
-            get
-            {
-                IntPtr ptr = getSMIInputName(m_nativeSMI);
-                return ptr == IntPtr.Zero ? null : Marshal.PtrToStringAnsi(ptr);
-            }
-        }
+        public string Name => Owner?.InputAt(m_nativeSMI).Name;
 
         /// Returns true if the SMIInput is a Boolean (SMIBool).
-        public bool IsBoolean => isSMIBoolean(m_nativeSMI);
+        public bool IsBoolean => Kind == ArtboardNative.InputKind.Boolean;
 
         /// Returns true if the SMIInput is a Trigger (SMITrigger).
-        public bool IsTrigger => isSMITrigger(m_nativeSMI);
+        public bool IsTrigger => Kind == ArtboardNative.InputKind.Trigger;
 
         /// Returns true if the SMIInput is a Number (SMINumber).
-        public bool IsNumber => isSMINumber(m_nativeSMI);
+        public bool IsNumber => Kind == ArtboardNative.InputKind.Number;
 
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getSMIInputName(IntPtr nativeSMI);
+        /// 0 once the state machine is disposed.
+        internal float GetValue()
+        {
+            StateMachine owner = Owner;
+            return owner != null ? StateMachineNative.GetInput(owner.NativeStateMachine, m_nativeSMI) : 0f;
+        }
 
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool isSMIBoolean(IntPtr nativeSMI);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool isSMITrigger(IntPtr nativeSMI);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool isSMINumber(IntPtr nativeSMI);
-        #endregion
+        /// Does nothing once the state machine is disposed.
+        internal void SetValue(float value)
+        {
+            StateMachine owner = Owner;
+            if (owner != null)
+            {
+                StateMachineNative.SetInput(owner.NativeStateMachine, m_nativeSMI, value);
+            }
+        }
     }
 
     /// <summary>
@@ -77,23 +86,17 @@ namespace Rive
     /// A SMITrigger is owned by a StateMachine.
     /// The SMITrigger keeps the StateMachine alive by maintaining a reference to it.
     /// </remarks>
+    [Obsolete(ObsoleteMessages.Inputs)]
     public sealed class SMITrigger : SMIInput
     {
-        internal SMITrigger(IntPtr smi, StateMachine stateMachineReference)
+        internal SMITrigger(NativeSMIInputHandle smi, StateMachine stateMachineReference)
             : base(smi, stateMachineReference) { }
 
         ///  Fire the State Machine Trigger.
         public void Fire()
         {
-            fireSMITriggerStateMachine(NativeSMI);
+            SetValue(1f);
         }
-
-        #region Native Methods
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void fireSMITriggerStateMachine(IntPtr nativeSMI);
-
-        #endregion
     }
 
     /// <summary>
@@ -103,30 +106,18 @@ namespace Rive
     /// A SMIBool contains a value of type boolean that can be get/set.
     /// The SMIBool keeps the StateMachine alive by maintaining a reference to it.
     /// </remarks>
+    [Obsolete(ObsoleteMessages.Inputs)]
     public sealed class SMIBool : SMIInput
     {
-        internal SMIBool(IntPtr smi, StateMachine stateMachineReference)
+        internal SMIBool(NativeSMIInputHandle smi, StateMachine stateMachineReference)
             : base(smi, stateMachineReference) { }
 
         ///  The value of the State Machine Boolean.
         public bool Value
         {
-            get => getSMIBoolValueStateMachine(NativeSMI);
-            set => setSMIBoolValueStateMachine(NativeSMI, value);
+            get => GetValue() != 0f;
+            set => SetValue(value ? 1f : 0f);
         }
-
-        #region Native Methods
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool getSMIBoolValueStateMachine(IntPtr nativeSMI);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void setSMIBoolValueStateMachine(
-            IntPtr nativeSMI,
-            [MarshalAs(UnmanagedType.U1)] bool newValue);
-
-        #endregion
     }
 
     /// <summary>
@@ -136,24 +127,17 @@ namespace Rive
     /// A SMINumber contain a value of type float that can be get/set.
     /// The SMINumber keeps the StateMachine alive by maintaining a reference to it.
     /// </remarks>
+    [Obsolete(ObsoleteMessages.Inputs)]
     public sealed class SMINumber : SMIInput
     {
-        internal SMINumber(IntPtr smi, StateMachine stateMachineReference)
+        internal SMINumber(NativeSMIInputHandle smi, StateMachine stateMachineReference)
             : base(smi, stateMachineReference) { }
 
         ///  The value of the State Machine Number.
         public float Value
         {
-            get => getSMINumberValueStateMachine(NativeSMI);
-            set => setSMINumberValueStateMachine(NativeSMI, value);
+            get => GetValue();
+            set => SetValue(value);
         }
-
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        internal static extern float getSMINumberValueStateMachine(IntPtr nativeSMI);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void setSMINumberValueStateMachine(IntPtr nativeSMI, float newValue);
-        #endregion
     }
 }

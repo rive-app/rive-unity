@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using Rive.Components.Utilities;
 using Rive.EditorTools;
+using Rive.Producer;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Pool;
 using UnityEngine.Rendering;
+using Rive.Host;
 
 namespace Rive.Components
 {
@@ -41,8 +43,6 @@ namespace Rive.Components
             }
         }
 
-        [Tooltip("Controls when rendering occurs. In Batched mode, panels are rendered once per frame regardless of redraw requests. In Immediate mode, panels are rendered instantly when requested.")]
-        [SerializeField] private DrawTimingOption m_drawTiming = DrawTimingOption.DrawBatched;
 
 
         [WidthHeightDimensions("Starting Size")]
@@ -72,9 +72,6 @@ namespace Rive.Components
 
         private UnityEngine.Pool.ObjectPool<RenderObjectData> m_dataPool;
 
-#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
-        private Path m_clipPath;
-#pragma warning restore CS0618
 
 
         private Renderer m_renderer;
@@ -110,8 +107,6 @@ namespace Rive.Components
         public int MaxResolutionPerObject => m_maxResolutionPerPanel;
 
         public int Padding => m_padding;
-
-        public override DrawTimingOption DrawTiming { get => m_drawTiming; set => m_drawTiming = value; }
 
         /// <summary>
         /// The custom atlas packing provider to use. If not set, the default Shelf packing provider will be used. This can only be set before initialization (before any panels are registered).
@@ -214,15 +209,23 @@ namespace Rive.Components
             // Atlas uses a single render queue for multiple panels. If any panel requests AlwaysDraw,
             // we should disable dirt-checking and render every frame.
             bool shouldDisableArtboardDirtCheck = false;
+            ThreadingMode recordMode = ThreadingMode.BackgroundThread;
             foreach (var panel in m_rivePanelData.Keys)
             {
+                if (RecordThreadingMode(panel) == ThreadingMode.MainThread)
+                {
+                    recordMode = ThreadingMode.MainThread;
+                }
                 if (panel != null && panel.DrawOptimization == DrawOptimizationOptions.AlwaysDraw)
                 {
                     shouldDisableArtboardDirtCheck = true;
-                    break;
                 }
             }
+            m_renderer.SetRecordsAsynchronously(
+                recordMode == ThreadingMode.BackgroundThread);
             m_renderer.SetArtboardDirtCheckEnabled(!shouldDisableArtboardDirtCheck);
+            using var noWait = CommandTransport.NoWaitIf(
+                recordMode == ThreadingMode.BackgroundThread, "async panel draw");
 
             // Clear the render queue to avoid rendering leftover visuals from the previous render
             m_renderer.Clear();
@@ -327,14 +330,7 @@ namespace Rive.Components
                 // Do the clipping after the translation so the clipping path is in the correct position
                 if (needsClipping)
                 {
-                    if (m_clipPath == null)
-                    {
-#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
-                        m_clipPath = new Path();
-#pragma warning restore CS0618
-                    }
-                    ClippingPathHelper.ConfigureClippingPath(m_clipPath, rect.width, rect.height);
-                    m_renderer.Clip(m_clipPath);
+                    ClippingPathHelper.ClipToRect(m_renderer, rect.width, rect.height);
                 }
 
 
@@ -533,13 +529,6 @@ namespace Rive.Components
 
         private void RepackAndRedrawIfNeeded()
         {
-            if (DrawTiming == DrawTimingOption.DrawImmediate)
-            {
-                Repack();
-                return;
-            }
-
-
             m_batchCommand = BatchCommandOption.RepackAndRedraw;
 
         }
@@ -547,14 +536,6 @@ namespace Rive.Components
 
         private void RedrawIfNeeded()
         {
-            if (DrawTiming == DrawTimingOption.DrawImmediate)
-            {
-                RedrawAtlas();
-                return;
-            }
-
-            // Handle DrawTimingOption.DrawBatched
-
             // a RepackAndRedraw command has a higher priority than a Redraw command, so we only set the m_batchCommandOption if it's not already set to avoid it getting overwritten
             if (m_batchCommand == BatchCommandOption.None)
             {
@@ -593,6 +574,7 @@ namespace Rive.Components
 
         private void Repack()
         {
+            m_renderer.InvalidateTarget();
             int currentWidth = m_startingSize.x;
             int currentHeight = m_startingSize.y;
 

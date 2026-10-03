@@ -1,5 +1,6 @@
 using System;
-using System.Runtime.InteropServices;
+
+using Rive.Host;
 
 namespace Rive
 {
@@ -8,9 +9,11 @@ namespace Rive
     /// </summary>
     public sealed class ViewModelInstanceNumberProperty : ViewModelInstancePrimitiveProperty<float>
     {
-        internal ViewModelInstanceNumberProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance) : base(instanceValuePtr, rootInstance)
+        internal ViewModelInstanceNumberProperty(ViewModelInstance rootInstance, string name, int slot) : base(rootInstance, name, slot)
         {
         }
+
+        internal override float FromValue(in PropertyValue value) => value.Number;
 
         /// <summary>
         /// The value of the property.
@@ -20,19 +23,13 @@ namespace Rive
             get
             {
                 ThrowIfOwnerDisposed();
-                return getViewModelInstanceNumberValue(InstancePropertyPtr);
+                return ReadNative((ref PayloadReader reader) => reader.F32(), 0f);
             }
             set
             {
                 ThrowIfOwnerDisposed();
-                setViewModelInstanceNumberValue(InstancePropertyPtr, value);
+                WriteNative(value, 0, null);
             }
         }
-
-        [DllImport(NativeLibrary.name)]
-        private static extern float getViewModelInstanceNumberValue(IntPtr instanceProperty);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void setViewModelInstanceNumberValue(IntPtr instanceProperty, float value);
     }
 }

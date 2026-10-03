@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 
 namespace Rive
 {
@@ -8,50 +7,30 @@ namespace Rive
     /// </summary>
     public class BindableArtboard : IDisposable
     {
-        private IntPtr m_nativeBindableArtboard;
-        private string m_artboardName;
+        // Core's artboard instances are what a property takes.
+        private NativeArtboardHandle m_nativeHandle;
+        private readonly string m_artboardName;
         private bool m_isDisposed = false;
-        private readonly ViewModelInstanceSafeHandle m_viewModelInstanceHandle;
 
-        internal IntPtr NativeBindableArtboard
-        {
-            get { return m_nativeBindableArtboard; }
-        }
+        // Held so the instance isn't finalized while this can still bind it.
+        private readonly ViewModelInstance m_viewModelInstance;
 
-        internal ViewModelInstanceSafeHandle ViewModelInstanceHandle
-        {
-            get { return m_viewModelInstanceHandle; }
-        }
-
-
+        internal NativeArtboardHandle NativeHandle => m_nativeHandle;
 
         /// <summary>
-        /// Constructor for the BindableArtboard class.
+        /// The instance to bind alongside the artboard, or none.
         /// </summary>
-        /// <param name="nativeBindableArtboard">Pointer to the native bindable artboard.</param>
-        internal BindableArtboard(IntPtr nativeBindableArtboard)
-            : this(nativeBindableArtboard, null)
-        {
-        }
+        internal NativeViewModelInstanceHandle BoundInstanceHandle =>
+            m_viewModelInstance != null && !m_viewModelInstance.IsDisposed ? m_viewModelInstance.NativeHandle : default;
 
-        /// <summary>
-        /// Constructor for the BindableArtboard class with an optional bound ViewModel instance.
-        /// </summary>
-        /// <param name="nativeBindableArtboard">Pointer to the native bindable artboard.</param>
+        /// <param name="nativeHandle">The native artboard.</param>
+        /// <param name="name">The artboard's name.</param>
         /// <param name="viewModelInstance">Optional ViewModel instance to bind to this artboard.</param>
-        internal BindableArtboard(IntPtr nativeBindableArtboard, ViewModelInstance viewModelInstance)
+        internal BindableArtboard(NativeArtboardHandle nativeHandle, string name, ViewModelInstance viewModelInstance = null)
         {
-            m_nativeBindableArtboard = nativeBindableArtboard;
-            if (viewModelInstance != null &&
-                viewModelInstance.NativeSafeHandle != null &&
-                !viewModelInstance.NativeSafeHandle.IsInvalid)
-            {
-                m_viewModelInstanceHandle = viewModelInstance.NativeSafeHandle;
-            }
-            else
-            {
-                m_viewModelInstanceHandle = ViewModelInstanceSafeHandle.Null;
-            }
+            m_nativeHandle = nativeHandle;
+            m_artboardName = name;
+            m_viewModelInstance = viewModelInstance;
         }
 
         /// <summary>
@@ -67,10 +46,10 @@ namespace Rive
         {
             if (!m_isDisposed)
             {
-                if (m_nativeBindableArtboard != IntPtr.Zero)
+                if (m_nativeHandle.IsValid)
                 {
-                    unrefBindableArtboard(m_nativeBindableArtboard);
-                    m_nativeBindableArtboard = IntPtr.Zero;
+                    ArtboardNative.Delete(m_nativeHandle);
+                    m_nativeHandle = default;
                 }
 
                 m_isDisposed = true;
@@ -85,24 +64,6 @@ namespace Rive
         /// <summary>
         /// Gets the name of the artboard.
         /// </summary>
-        public string Name
-        {
-            get
-            {
-                if (m_artboardName == null && !m_isDisposed)
-                {
-                    m_artboardName = Marshal.PtrToStringAnsi(getBindableArtboardName(m_nativeBindableArtboard));
-                }
-                return m_artboardName;
-            }
-        }
-
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        private static extern void unrefBindableArtboard(IntPtr artboard);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getBindableArtboardName(IntPtr artboard);
-        #endregion
+        public string Name => m_isDisposed ? null : m_artboardName;
     }
 }

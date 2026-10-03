@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 #if UNITY_EDITOR
 using System.Linq;
 #endif
 using Rive.EditorTools;
 using Rive.Components.Utilities;
+using Rive.Host;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Events;
@@ -23,7 +25,7 @@ namespace Rive.Components
     [InspectorSection(WidgetInspectorSections.Data, "Data")]
 #endif
     [AddComponentMenu("Rive/Rive Widget")]
-    public sealed class RiveWidget : WidgetBehaviour
+    public sealed class RiveWidget : WidgetBehaviour, ISerializationCallbackReceiver
     {
         /// <summary>
         /// Determines whether ReportedEvents are pooled or not.
@@ -39,48 +41,6 @@ namespace Rive.Components
             /// </summary>
             Disabled = 1
         }
-
-        /// <summary>
-        /// Controls how viewmodel instance property callbacks are fired.
-        /// </summary>
-        public enum DataBindingPropertyCallbackApproach
-        {
-            /// <summary>
-            /// Deprecated. Propagates callbacks from the root ViewModelInstance after each
-            /// widget tick. Does not deliver callbacks for global view model properties.
-            /// </summary>
-            Propagation = 0,
-
-            /// <summary>
-            /// Supported path. Flushes callbacks after all panels/widgets have ticked,
-            /// including properties on global view models.
-            /// </summary>
-            Orchestrator = 1,
-        }
-
-        // Package code reads/writes this field to avoid obsolete warnings on the public property.
-        internal static DataBindingPropertyCallbackApproach propertyCallbackApproach =
-            DataBindingPropertyCallbackApproach.Orchestrator;
-
-        /// <summary>
-        /// Temporary fallback for callback handling. Defaults to
-        /// <see cref="DataBindingPropertyCallbackApproach.Orchestrator"/>.
-        /// </summary>
-        [Obsolete("PropertyCallbackApproach is deprecated. Orchestrator is the default and supported path; Propagation does not deliver callbacks for new features related to view model instances.")]
-        public static DataBindingPropertyCallbackApproach PropertyCallbackApproach
-        {
-            get => propertyCallbackApproach;
-            set => propertyCallbackApproach = value;
-        }
-
-#if UNITY_EDITOR
-        // Account for Editor Domain Reload being disabled (static state persists across play sessions).
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetStaticState()
-        {
-            propertyCallbackApproach = DataBindingPropertyCallbackApproach.Orchestrator;
-        }
-#endif
 
         /// <summary>
         /// Determines how the widget should handle binding to a ViewModel instance.
@@ -146,6 +106,7 @@ namespace Rive.Components
 
 
 
+
 #if UNITY_EDITOR
         [InspectorField(WidgetInspectorSections.Display, helpUrl: InspectorDocLinks.FitAndAlignment)]
         [OnValueChanged(nameof(OnFitChangedInEditor))]
@@ -204,9 +165,9 @@ namespace Rive.Components
                  "\n" +
                  "- Translucent only blocks hits on listeners.\n" +
                  "\n" +
-                 "- Transparent (deprecated) allows hits to pass through while still detecting listeners.\n" +
+                 "- None disables hit testing completely.\n" +
                  "\n" +
-                 "- None disables hit testing completely.")]
+                 "Opaque is recommended for asynchronous panel pointer input. Translucent uses synchronous hit testing and pointer handling so Unity can resolve raycasts immediately.")]
         [InspectorField(WidgetInspectorSections.Input, helpUrl: InspectorDocLinks.HitTesting)]
 #endif
         [SerializeField] private HitTestBehavior m_hitTestBehavior = HitTestBehavior.Opaque;
@@ -245,6 +206,7 @@ namespace Rive.Components
 
 
         bool m_needsLayoutRecalculationFix = false;
+        private int m_artboardSizeVersion;
 
 
         private ArtboardLoadHelper m_controller;
@@ -273,10 +235,6 @@ namespace Rive.Components
             }
         }
 
-        [Obsolete("This property is a temporary fallback for the old behavior and will be removed in a future version.")]
-        public static bool ShouldAdvanceAfterPointerEvent { get; set; } = true;
-
-
         private ArtboardLoadHelper Controller
         {
             get
@@ -302,20 +260,129 @@ namespace Rive.Components
 
 
         /// <summary>
-        /// The Rive file that is currently loaded.
+        /// The Rive file that is currently loaded. Null in a <see cref="ThreadingMode.BackgroundThread"/> panel, where <see cref="FileHandle"/> is used instead.
         /// </summary>
-        public File File { get => Controller?.File; }
+        public File File { get => MainThreadOnly(Controller?.File); }
 
 
         /// <summary>
-        /// The artboard that is currently loaded.
+        /// The artboard that is currently loaded. Null in a <see cref="ThreadingMode.BackgroundThread"/> panel, where <see cref="ArtboardHandle"/> is used instead.
         /// </summary>
-        public Artboard Artboard { get => Controller?.Artboard; }
+        public Artboard Artboard { get => MainThreadOnly(Controller?.Artboard); }
 
         /// <summary>
-        /// The state machine that is currently loaded.
+        /// The state machine that is currently loaded. Null in a <see cref="ThreadingMode.BackgroundThread"/> panel, where <see cref="StateMachineHandle"/> is used instead.
         /// </summary>
-        public StateMachine StateMachine { get => Controller?.StateMachine; }
+        public StateMachine StateMachine { get => MainThreadOnly(Controller?.StateMachine); }
+
+        /// <summary>
+        /// The loaded file, in a <see cref="ThreadingMode.BackgroundThread"/> panel. Null otherwise. The widget owns it.
+        /// </summary>
+        public FileHandle FileHandle => m_fileHandle;
+
+        /// <summary>
+        /// The loaded artboard, in a <see cref="ThreadingMode.BackgroundThread"/> panel. Null otherwise. The widget owns it.
+        /// </summary>
+        public ArtboardHandle ArtboardHandle => m_artboardHandle;
+
+        /// <summary>
+        /// The loaded state machine, in a <see cref="ThreadingMode.BackgroundThread"/> panel. Null otherwise. The widget owns it.
+        /// </summary>
+        public StateMachineHandle StateMachineHandle => m_stateMachineHandle;
+
+        // What the widget itself uses, whichever family the load gave.
+        internal File LoadedFile => Controller?.File;
+        internal Artboard LoadedArtboard => Controller?.Artboard;
+        internal StateMachine LoadedStateMachine => Controller?.StateMachine;
+
+        // The family the current load uses, taken from the panel when it started.
+        private ThreadingMode m_family = ThreadingMode.MainThread;
+        private bool m_loggedFamily;
+        private FileHandle m_fileHandle;
+        private ArtboardHandle m_artboardHandle;
+        private StateMachineHandle m_stateMachineHandle;
+        // A FileHandle the caller passed in, handed back as is.
+        private FileHandle m_givenFileHandle;
+
+        private T MainThreadOnly<T>(T value) where T : class
+        {
+            if (value == null || m_family == ThreadingMode.MainThread)
+            {
+                return value;
+            }
+            if (!m_loggedFamily)
+            {
+                m_loggedFamily = true;
+                DebugLogger.Instance.LogWarning(
+                    $"{name} is in a BackgroundThread panel, so it gives handles. Use FileHandle, ArtboardHandle and StateMachineHandle.");
+            }
+            return null;
+        }
+
+        // The panel decides the family. A widget with no panel stays on the main thread.
+        private ThreadingMode PanelThreadingMode
+        {
+            get
+            {
+                RivePanel panel = RivePanel != null ? RivePanel : GetComponentInParent<RivePanel>();
+                return panel != null ? panel.ThreadingMode : ThreadingMode.MainThread;
+            }
+        }
+
+
+        private static Future CompletedLoad()
+        {
+            var state = new FutureState<bool>();
+            state.Succeed(true);
+            return new Future(state);
+        }
+
+        private void CreateHandleViews()
+        {
+            File file = Controller.File;
+            FileContents contents = m_givenFileHandle != null ? m_givenFileHandle.Contents : Controller.Contents;
+            if (file == null || contents == null)
+            {
+                return;
+            }
+            m_fileHandle = m_givenFileHandle ?? new FileHandle(file, contents, owned: false);
+
+            int artboardIndex = string.IsNullOrEmpty(m_artboardName) ? 0 : contents.ArtboardIndex(m_artboardName);
+            if (artboardIndex < 0 || artboardIndex >= contents.Artboards.Length || Controller.Artboard == null)
+            {
+                return;
+            }
+            FileContents.ArtboardInfo info = contents.Artboards[artboardIndex];
+            m_artboardHandle = new ArtboardHandle(
+                new NativeSlot<NativeArtboardHandle>(Controller.Artboard.NativeArtboard), HandleResolution.Known(), m_fileHandle, info, owned: false,
+                Controller.Artboard.Lifetime);
+
+            if (Controller.StateMachine != null)
+            {
+                // The load takes the first state machine when none is named.
+                string stateMachineName = !string.IsNullOrEmpty(m_stateMachineName)
+                    ? m_stateMachineName
+                    : (info.StateMachineNames.Length > 0 ? info.StateMachineNames[0] : null);
+                m_stateMachineHandle = new StateMachineHandle(
+                    new NativeSlot<NativeStateMachineHandle>(Controller.StateMachine.NativeStateMachine),
+                    HandleResolution.Known(), m_artboardHandle, stateMachineName, owned: false,
+                    Controller.StateMachine.Lifetime);
+                m_stateMachineHandle.ErrorSink = RaiseError;
+            }
+        }
+
+        private void ReleaseHandleViews()
+        {
+            m_stateMachineHandle?.Release();
+            m_artboardHandle?.Release();
+            if (m_fileHandle != null && !ReferenceEquals(m_fileHandle, m_givenFileHandle))
+            {
+                m_fileHandle.Release();
+            }
+            m_fileHandle = null;
+            m_artboardHandle = null;
+            m_stateMachineHandle = null;
+        }
 
 
         public Fit Fit
@@ -409,7 +476,11 @@ namespace Rive.Components
         public Asset Asset { get => m_asset; }
 
 
-        private ArtboardRenderObject RenderObjectWithArtboard => Controller?.RenderObject;
+
+        internal ArtboardRenderObject RenderObjectWithArtboard => Controller?.RenderObject;
+
+        /// The producer half of what's loaded, or null.
+        internal WidgetCore Core => Controller?.Core;
 
         /// <summary>
         /// The DPI to use if the screen DPI is not available.
@@ -552,32 +623,100 @@ namespace Rive.Components
 
         }
 
+        // HitTestBehavior.Transparent was 2. Scenes saved with it get its
+        // replacement rather than a value that hits nothing.
+        private const int RemovedTransparentHitTest = 2;
+
+        void ISerializationCallbackReceiver.OnBeforeSerialize()
+        {
+        }
+
+        void ISerializationCallbackReceiver.OnAfterDeserialize()
+        {
+            if ((int)m_hitTestBehavior == RemovedTransparentHitTest)
+            {
+                m_hitTestBehavior = HitTestBehavior.Translucent;
+            }
+        }
+
 
         private void Start()
         {
-            if (m_asset != null && Status == WidgetStatus.Uninitialized)
+            if (m_asset == null || Status != WidgetStatus.Uninitialized)
             {
-                LoadFromAssetIfNeeded();
+                return;
             }
+
+            // Nothing awaits this. The widget's status is how the load reports back.
+            _ = LoadFromAssetForPanel();
         }
 
 
-        public override bool Tick(float deltaTime)
+        internal override void DispatchAdvanceCallbacks()
         {
-
-            bool needsRedraw = base.Tick(deltaTime);
-
             if (Controller == null || Status != WidgetStatus.Loaded)
             {
-                return needsRedraw;
+                return;
             }
 
-            ApplyLayoutRecalculationFixIfNeeded();// Do this before Controller.Tick because doing it after affects triggers on the first frame
-            bool hasEventListeners = OnRiveEventReported != null;
-            Controller.Tick(deltaTime, ReportedEventPoolingMode, Speed, hasEventListeners);
-            return needsRedraw;
-
+            Controller.DispatchCollectedEvents(ReportedEventPoolingMode);
         }
+
+        internal override void PrepareAdvance(WidgetAdvance slot)
+        {
+            slot.Core = Core;
+            slot.Active = slot.Core != null && Status == WidgetStatus.Loaded;
+            if (!slot.Active)
+            {
+                return;
+            }
+            slot.Speed = Speed;
+            slot.CollectEvents = OnRiveEventReported != null;
+            // Before the advance, because after it affects triggers on the first frame.
+            slot.LayoutFix = m_needsLayoutRecalculationFix;
+            m_needsLayoutRecalculationFix = false;
+            slot.SizeVersion = m_artboardSizeVersion;
+        }
+
+        internal override bool WriteAdvance(WidgetAdvance slot, PayloadWriter entries)
+        {
+            if (!slot.Active)
+            {
+                return false;
+            }
+            // Layout and data binding can resize the artboard, so the size
+            // comes back with the advance and drawing never has to ask.
+            slot.Core.WriteTick(entries, slot.Delta, slot.Speed, slot.CollectEvents, slot.LayoutFix);
+            return true;
+        }
+
+        internal override void ApplyAdvance(WidgetAdvance slot)
+        {
+            // A local resize since it went out is newer than what it saw.
+            if (!slot.HasSize || slot.SizeVersion != m_artboardSizeVersion)
+            {
+                return;
+            }
+            // Reloaded while it was out.
+            if (!ReferenceEquals(Core, slot.Core))
+            {
+                return;
+            }
+            RenderObjectWithArtboard?.SetArtboardSize(slot.ArtboardSize);
+        }
+
+        // Keeps the drawn size in step with a resize made here, ahead of the
+        // advance that will confirm it.
+        private void SetArtboardSizeLocally(Vector2 size)
+        {
+            m_artboardSizeVersion++;
+            RenderObjectWithArtboard?.SetArtboardSize(size);
+        }
+
+        private Vector2 CurrentArtboardSize =>
+            RenderObjectWithArtboard != null && RenderObjectWithArtboard.TryGetArtboardSize(out Vector2 size)
+                ? size
+                : (Vector2)LoadedArtboard.Size;
 
         private void SubscribeToControllerEvents(ArtboardLoadHelper controller)
         {
@@ -605,7 +744,51 @@ namespace Rive.Components
 
         private void HandleLoadError(ArtboardLoadHelper.LoadErrorEventData eventData)
         {
+            RiveErrorCode code;
+            switch (eventData.ErrorType)
+            {
+                case ArtboardLoadHelper.LoadErrorType.ArtboardNotFound:
+                    code = RiveErrorCode.ArtboardNotFound;
+                    break;
+                case ArtboardLoadHelper.LoadErrorType.StateMachineNotFound:
+                    code = RiveErrorCode.StateMachineNotFound;
+                    break;
+                default:
+                    code = RiveErrorCode.LoadFailed;
+                    break;
+            }
+            Fail(new RiveException(code, eventData.Message ?? "The load failed."));
+        }
+
+        /// <summary>
+        /// Raised on the main thread when something goes wrong: a load that fails, or, in a <see cref="ThreadingMode.BackgroundThread"/> panel, a problem found after a handle call returned, like a property path that doesn't exist or a list index that's out of range.
+        /// </summary>
+        /// <remarks>
+        /// Load failures also set <see cref="WidgetBehaviour.Status"/> to <see cref="WidgetStatus.Error"/>, after this is raised. Each error is logged as well.
+        /// </remarks>
+        public event Action<RiveException> OnError;
+
+        private void Fail(RiveException error)
+        {
+            RaiseError(error);
             Status = WidgetStatus.Error;
+        }
+
+        private static RiveException AsRiveError(Exception error)
+        {
+            return error as RiveException ?? new RiveException(RiveErrorCode.LoadFailed, error?.Message ?? "The load failed.");
+        }
+
+        private void RaiseError(RiveException error)
+        {
+            try
+            {
+                OnError?.Invoke(error);
+            }
+            catch (Exception e)
+            {
+                DebugLogger.Instance.LogException(e);
+            }
         }
 
 
@@ -627,6 +810,84 @@ namespace Rive.Components
             return normalizedPoint;
         }
 
+        internal enum PointerEventKind
+        {
+            Down = 0,
+            Up = 1,
+            Move = 2,
+            Exit = 3,
+            Enter = 4
+        }
+
+        internal struct PointerEventWork
+        {
+            internal WidgetCore Core;
+            internal Vector2 ScreenPosition;
+            internal Rect ScreenRect;
+            internal Fit Fit;
+            internal Alignment Alignment;
+            internal bool CollectEvents;
+            internal int PointerId;
+            internal PointerEventKind Kind;
+        }
+
+        internal bool TryPreparePointerEvent(
+            Vector2 normalizedPoint,
+            int pointerId,
+            PointerEventKind kind,
+            out PointerEventWork work)
+        {
+            work = default;
+            WidgetCore core = Core;
+            if (core == null || Status != WidgetStatus.Loaded || RenderObjectWithArtboard == null)
+            {
+                return false;
+            }
+
+            GetPointerCoordinates(normalizedPoint, out Rect rect, out Vector2 screenPosition);
+            work = new PointerEventWork
+            {
+                Core = core,
+                ScreenPosition = screenPosition,
+                ScreenRect = rect,
+                Fit = RenderObjectWithArtboard.Fit,
+                Alignment = RenderObjectWithArtboard.Alignment,
+                CollectEvents = OnRiveEventReported != null,
+                PointerId = pointerId,
+                Kind = kind
+            };
+            return true;
+        }
+
+        internal void CompletePointerEvent(PointerEventKind kind, bool hit)
+        {
+            if (hit && (kind == PointerEventKind.Down || kind == PointerEventKind.Up))
+            {
+                TriggerRedrawNeededEvent();
+            }
+        }
+
+        private void GetPointerCoordinates(
+            Vector2 normalizedPoint,
+            out Rect rect,
+            out Vector2 screenPosition)
+        {
+            normalizedPoint = FlipNormalizedPointIfNeeded(normalizedPoint);
+            rect = RectTransform.rect;
+            if (Fit == Fit.Layout)
+            {
+                float effectiveScale = GetEffectiveScaleFactor();
+                rect = new Rect(0, 0, rect.width / effectiveScale, rect.height / effectiveScale);
+            }
+            else
+            {
+                rect = new Rect(0, 0, rect.width, rect.height);
+            }
+
+            screenPosition = new Vector2(normalizedPoint.x * rect.width,
+                normalizedPoint.y * rect.height);
+        }
+
         /// <summary>
         /// Tries to get the Rive point from the local normalized point in the frame.
         /// </summary>
@@ -636,37 +897,11 @@ namespace Rive.Components
         private bool TryGetRivePoint(Vector2 localNormalizedPointInFrame, out Vector2 rivePoint)
         {
             rivePoint = Vector2.zero;
-
-
-            // Flip Y coordinate if needed
-            localNormalizedPointInFrame = FlipNormalizedPointIfNeeded(localNormalizedPointInFrame);
-
-            var rect = RectTransform.rect;
-
-            // When in Layout fit mode, we need to account for the effective scale
-            if (Fit == Fit.Layout)
-            {
-                float effectiveScale = GetEffectiveScaleFactor();
-                // Scale the rect dimensions by the effective scale factor
-                rect = new Rect(
-                    0,
-                    0,
-                    rect.width / effectiveScale,
-                    rect.height / effectiveScale
-                );
-            }
-            else
-            {
-                // For other fit modes, use the regular rect with 0,0 origin
-                rect = new Rect(0, 0, rect.width, rect.height);
-            }
-
-
+            GetPointerCoordinates(localNormalizedPointInFrame, out Rect rect,
+                out Vector2 riveScreenPosition);
             Fit fit = RenderObjectWithArtboard.Fit;
             Alignment alignment = RenderObjectWithArtboard.Alignment;
             Artboard artboard = RenderObjectWithArtboard.Artboard;
-
-            Vector2 riveScreenPosition = new Vector2(localNormalizedPointInFrame.x * rect.width, localNormalizedPointInFrame.y * rect.height);
 
             rivePoint = artboard.LocalCoordinate(
                 riveScreenPosition,
@@ -681,6 +916,7 @@ namespace Rive.Components
 
         public override bool HitTest(Vector2 normalizedPointInRect)
         {
+            RivePanel?.JoinForSynchronousPointerInput();
             Vector2 rivePoint;
 
             if (!TryGetRivePoint(normalizedPointInRect, out rivePoint))
@@ -688,7 +924,7 @@ namespace Rive.Components
                 return false;
             }
 
-            return StateMachine.HitTest(rivePoint);
+            return LoadedStateMachine.HitTest(rivePoint);
         }
 
         /// <summary>
@@ -696,26 +932,21 @@ namespace Rive.Components
         /// </summary>
         private void AdvanceAfterPointerEvent()
         {
-#pragma warning disable 0618 // Disable obsolete warning
-            if (Controller == null || Status != WidgetStatus.Loaded || !ShouldAdvanceAfterPointerEvent)
+            if (Controller == null || Status != WidgetStatus.Loaded)
             {
                 return;
             }
 
-            bool hasEventListeners = OnRiveEventReported != null;
-            Controller.Tick(0f, ReportedEventPoolingMode, Speed, hasEventListeners);
-            if (propertyCallbackApproach == DataBindingPropertyCallbackApproach.Orchestrator)
-            {
-                Orchestrator.Instance?.FlushPropertyCallbacksForImmediateAdvance();
-            }
+            Controller.DispatchCollectedEvents(ReportedEventPoolingMode);
+            Core?.AdvanceAndWait(0f, Speed, OnRiveEventReported != null);
+            Orchestrator.Instance?.FlushPropertyCallbacksForImmediateAdvance();
             TriggerRedrawNeededEvent();
-#pragma warning restore 0618
         }
 
 
         public override bool OnPointerDown(Vector2 normalizedPointInRect, int pointerId)
         {
-            if (StateMachine == null)
+            if (LoadedStateMachine == null)
             {
                 return false;
             }
@@ -725,7 +956,7 @@ namespace Rive.Components
                 return false;
             }
 
-            HitResult hitResult = StateMachine.PointerDown(rivePoint, pointerId);
+            HitResult hitResult = LoadedStateMachine.PointerDown(rivePoint, pointerId);
             if (hitResult != HitResult.None)
             {
                 AdvanceAfterPointerEvent();
@@ -741,7 +972,7 @@ namespace Rive.Components
         /// <param name="pointerId">The unique id for the active pointer/touch.</param>
         public override bool OnPointerUp(Vector2 normalizedPointInRect, int pointerId)
         {
-            if (StateMachine == null)
+            if (LoadedStateMachine == null)
             {
                 return false;
             }
@@ -751,7 +982,7 @@ namespace Rive.Components
                 return false;
             }
 
-            HitResult hitResult = StateMachine.PointerUp(rivePoint, pointerId);
+            HitResult hitResult = LoadedStateMachine.PointerUp(rivePoint, pointerId);
             if (hitResult != HitResult.None)
             {
                 AdvanceAfterPointerEvent();
@@ -768,7 +999,7 @@ namespace Rive.Components
         /// <param name="pointerId">The unique id for the active pointer/touch.</param>
         public override bool OnPointerMove(Vector2 normalizedPointInRect, int pointerId)
         {
-            if (StateMachine == null)
+            if (LoadedStateMachine == null)
             {
                 return false;
             }
@@ -779,7 +1010,7 @@ namespace Rive.Components
                 return false;
             }
 
-            HitResult hitResult = StateMachine.PointerMove(rivePoint, pointerId);
+            HitResult hitResult = LoadedStateMachine.PointerMove(rivePoint, pointerId);
 
             return hitResult != HitResult.None;
 
@@ -787,7 +1018,7 @@ namespace Rive.Components
 
         public override bool OnPointerExit(Vector2 normalizedPointInRect, int pointerId)
         {
-            if (StateMachine == null)
+            if (LoadedStateMachine == null)
             {
                 return false;
             }
@@ -797,7 +1028,7 @@ namespace Rive.Components
             {
                 return false;
             }
-            HitResult hitResult = StateMachine.PointerExit(rivePoint, pointerId);
+            HitResult hitResult = LoadedStateMachine.PointerExit(rivePoint, pointerId);
 
             return hitResult != HitResult.None;
 
@@ -805,7 +1036,7 @@ namespace Rive.Components
 
         public override bool OnPointerEnter(Vector2 normalizedPointInRect, int pointerId)
         {
-            if (StateMachine == null)
+            if (LoadedStateMachine == null)
             {
                 return false;
             }
@@ -816,8 +1047,8 @@ namespace Rive.Components
                 return false;
             }
 
-            // There's no specific StateMachine.PointerEnter method, so we use PointerMove instead to inform rive of the current pointer position.
-            HitResult hitResult = StateMachine.PointerMove(rivePoint, pointerId);
+            // There's no specific LoadedStateMachine.PointerEnter method, so we use PointerMove instead to inform rive of the current pointer position.
+            HitResult hitResult = LoadedStateMachine.PointerMove(rivePoint, pointerId);
 
             return hitResult != HitResult.None;
 
@@ -832,19 +1063,20 @@ namespace Rive.Components
 
             if (file == null)
             {
-                Status = WidgetStatus.Error;
-
                 DebugLogger.Instance.LogError("Attempted to load a null Rive file.");
+                Fail(new RiveException(RiveErrorCode.LoadFailed, "Attempted to load a null Rive file."));
                 return;
             }
 
+            ReleaseHandleViews();
+            m_family = ThreadingMode.MainThread;
             Status = WidgetStatus.Loading;
             m_fileLoadedFromAsset = fromAsset;
             ArtboardLoadHelper.LoadResult result = Controller.Load(file, m_fit, m_alignment, m_artboardName, m_stateMachineName, GetEffectiveScaleFactor(), new ArtboardLoadHelper.DataBindingLoadInfo(BindingMode, ViewModelInstanceName));
 
             if (result.Success)
             {
-                SetUpAudioIfNeeded(Controller.Artboard);
+                SetUpAudioIfNeeded(Controller.Artboard, Controller.ArtboardHasAudio);
                 HandleLoadComplete();
             }
             else
@@ -853,33 +1085,150 @@ namespace Rive.Components
             }
         }
 
+        // Set while an async load finishes, so the first-frame advance doesn't wait.
+        private bool m_finishingAsyncLoad;
+        // The async load in flight, for WaitForCompletion.
+        private Future<ArtboardLoadHelper.LoadResult> m_pendingLoad;
+
+        // The artboard, state machine and binding are built on the producer,
+        // and only attached here when they land, so nothing waits.
+        private void LoadInternalAsync(File file, Asset fromAsset, FutureState<bool> state)
+        {
+            if (file == null)
+            {
+                DebugLogger.Instance.LogError("Attempted to load a null Rive file.");
+                Fail(new RiveException(RiveErrorCode.LoadFailed, "Attempted to load a null Rive file."));
+                state.Succeed(true);
+                return;
+            }
+
+            ReleaseHandleViews();
+            m_family = ThreadingMode.BackgroundThread;
+            Status = WidgetStatus.Loading;
+            m_fileLoadedFromAsset = fromAsset;
+            Future<ArtboardLoadHelper.LoadResult> load = Controller.LoadAsync(file, m_fit, m_alignment, m_artboardName, m_stateMachineName, GetEffectiveScaleFactor(), new ArtboardLoadHelper.DataBindingLoadInfo(BindingMode, ViewModelInstanceName), describeFile: m_givenFileHandle == null);
+            m_pendingLoad = load;
+            load.Completed += landed => FinishLoadInternalAsync(landed, state);
+        }
+
+        private void FinishLoadInternalAsync(Future<ArtboardLoadHelper.LoadResult> landed, FutureState<bool> state)
+        {
+            if (landed.Status == FutureStatus.Canceled || this == null)
+            {
+                // A newer load or the widget going away got there first.
+                state.Cancel();
+                return;
+            }
+            if (landed.Status == FutureStatus.Failed)
+            {
+                Fail(AsRiveError(landed.Exception));
+                state.Fail(landed.Exception);
+                return;
+            }
+
+            ArtboardLoadHelper.LoadResult result = landed.Result;
+            if (result.Success)
+            {
+                CreateHandleViews();
+                ApplyDisplaySettingsSetDuringLoad();
+                SetUpAudioIfNeeded(Controller.Artboard, Controller.ArtboardHasAudio);
+                m_finishingAsyncLoad = true;
+                try
+                {
+                    HandleLoadComplete();
+                }
+                finally
+                {
+                    m_finishingAsyncLoad = false;
+                }
+            }
+            else
+            {
+                HandleLoadError(result.ErrorData);
+            }
+            state.Succeed(true);
+
+            // After the code awaiting the load has run, so what it sets is in
+            // the first frame too.
+            if (result.Success && this != null)
+            {
+                SendLayoutRecalculationFix();
+            }
+        }
+
         /// <summary>
         /// Loads a Rive file and specified artboard and state machine.
         /// </summary>
-        /// <param name="file"> The Rive file to load.</param>
+        /// <param name="file"> The Rive file to load: a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>. Either works in either kind of panel.</param>
         /// <param name="artboardName"> The name of the artboard to load.</param>
         /// <param name="stateMachineName"> The name of the state machine to load.</param>
-        public void Load(File file, string artboardName, string stateMachineName)
+        /// <remarks>In a <see cref="ThreadingMode.BackgroundThread"/> panel this returns before the load finishes. <see cref="WidgetBehaviour.OnWidgetStatusChanged"/> reports when it has.</remarks>
+        public void Load(ILoadedFile file, string artboardName, string stateMachineName)
         {
             m_artboardName = artboardName;
             m_stateMachineName = stateMachineName;
-
-            ReleaseFileIfResponsibleForLoading();
-
-            LoadInternal(file, null);
+            _ = LoadGivenFile(file);
         }
 
         /// <summary>
         /// Loads a Rive file using the default artboard and state machine.
         /// </summary>
-        /// <param name="file"> The Rive file to load.</param>
-        public void Load(File file)
+        /// <param name="file"> The Rive file to load: a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>. Either works in either kind of panel.</param>
+        /// <remarks>In a <see cref="ThreadingMode.BackgroundThread"/> panel this returns before the load finishes. <see cref="WidgetBehaviour.OnWidgetStatusChanged"/> reports when it has.</remarks>
+        public void Load(ILoadedFile file)
         {
             ResetToDefaultArtboardAndStateMachineName();
+            _ = LoadGivenFile(file);
+        }
 
+        /// <summary>
+        /// Loads a Rive file and specified artboard and state machine, returning something to await.
+        /// </summary>
+        /// <param name="file"> The Rive file to load: a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>.</param>
+        /// <param name="artboardName"> The name of the artboard to load.</param>
+        /// <param name="stateMachineName"> The name of the state machine to load.</param>
+        /// <returns>An operation that finishes on the main thread once the widget has reached <see cref="WidgetStatus.Loaded"/> or <see cref="WidgetStatus.Error"/>. Already finished in a <see cref="ThreadingMode.MainThread"/> panel.</returns>
+        public Future LoadAsync(ILoadedFile file, string artboardName, string stateMachineName)
+        {
+            m_artboardName = artboardName;
+            m_stateMachineName = stateMachineName;
+            return LoadGivenFile(file);
+        }
+
+        /// <summary>
+        /// Loads a Rive file using the default artboard and state machine, returning something to await.
+        /// </summary>
+        /// <param name="file"> The Rive file to load: a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>.</param>
+        /// <returns>An operation that finishes on the main thread once the widget has reached <see cref="WidgetStatus.Loaded"/> or <see cref="WidgetStatus.Error"/>. Already finished in a <see cref="ThreadingMode.MainThread"/> panel.</returns>
+        public Future LoadAsync(ILoadedFile file)
+        {
+            ResetToDefaultArtboardAndStateMachineName();
+            return LoadGivenFile(file);
+        }
+
+        // A caller's File or FileHandle. The widget doesn't own either.
+        private Future LoadGivenFile(ILoadedFile given)
+        {
+            m_loadVersion++;
             ReleaseFileIfResponsibleForLoading();
+            FileHandle handle = given as FileHandle;
+            File file = handle != null ? handle.File : given as File;
+            if (given != null && given.IsDisposed)
+            {
+                file = null;
+            }
+            ReleaseHandleViews();
+            m_givenFileHandle = handle;
 
+            if (PanelThreadingMode == ThreadingMode.BackgroundThread)
+            {
+                var state = new FutureState<bool>();
+                state.WaitDriver = WaitForPendingLoad;
+                LoadInternalAsync(file, null, state);
+                return new Future(state);
+            }
             LoadInternal(file, null);
+            return CompletedLoad();
         }
 
         /// <summary>
@@ -895,7 +1244,7 @@ namespace Rive.Components
             m_artboardName = artboardName;
             m_stateMachineName = stateMachineName;
 
-            LoadFromAssetIfNeeded();
+            _ = LoadFromAssetForPanel();
         }
 
         /// <summary>
@@ -906,7 +1255,159 @@ namespace Rive.Components
         {
             m_asset = asset;
             ResetToDefaultArtboardAndStateMachineName();
+            _ = LoadFromAssetForPanel();
+        }
+
+        /// <summary>
+        /// Loads from a Rive asset using the default artboard and state machine, without blocking the caller.
+        /// </summary>
+        /// <param name="asset"> The Rive asset to load.</param>
+        /// <returns>An operation that finishes on the main thread once the widget has reached <see cref="WidgetStatus.Loaded"/> or <see cref="WidgetStatus.Error"/>.</returns>
+        public Future LoadAsync(Asset asset)
+        {
+            m_asset = asset;
+            ResetToDefaultArtboardAndStateMachineName();
+            return LoadFromAssetForPanel();
+        }
+
+        /// <summary>
+        /// Loads from a Rive asset and specified artboard and state machine, without blocking the caller.
+        /// </summary>
+        /// <param name="asset"> The Rive asset to load.</param>
+        /// <param name="artboardName"> The name of the artboard to load.</param>
+        /// <param name="stateMachineName"> The name of the state machine to load.</param>
+        /// <returns>An operation that finishes on the main thread once the widget has reached <see cref="WidgetStatus.Loaded"/> or <see cref="WidgetStatus.Error"/>.</returns>
+        public Future LoadAsync(Asset asset, string artboardName, string stateMachineName)
+        {
+            m_asset = asset;
+            m_artboardName = artboardName;
+            m_stateMachineName = stateMachineName;
+            return LoadFromAssetForPanel();
+        }
+
+        private Future LoadFromAssetForPanel()
+        {
+            ReleaseHandleViews();
+            m_givenFileHandle = null;
+            m_family = PanelThreadingMode;
+            if (m_family == ThreadingMode.BackgroundThread)
+            {
+                return LoadFromAssetAsyncIfNeeded();
+            }
             LoadFromAssetIfNeeded();
+            return CompletedLoad();
+        }
+
+        private Future LoadFromAssetAsyncIfNeeded()
+        {
+            var state = new FutureState<bool>();
+            var operation = new Future(state);
+
+            if (m_asset == null)
+            {
+                Fail(new RiveException(RiveErrorCode.LoadFailed, "There's no Rive asset to load."));
+                state.Succeed(true);
+                return operation;
+            }
+
+            // Already loaded from this asset, so reuse it rather than move the ref count.
+            if (m_fileLoadedFromAsset != null && ReferenceEquals(m_asset, m_fileLoadedFromAsset))
+            {
+                m_loadVersion++;
+                state.WaitDriver = WaitForPendingLoad;
+                LoadInternalAsync(LoadedFile, m_fileLoadedFromAsset, state);
+                return operation;
+            }
+
+            ReleaseFileIfResponsibleForLoading();
+
+            Status = WidgetStatus.Loading;
+            Asset asset = m_asset;
+            int version = ++m_loadVersion;
+            Future<File> load = Rive.File.Loader.LoadAsync(asset, null);
+            state.WaitDriver = () =>
+            {
+                if (!load.IsDone)
+                {
+                    load.WaitInternal();
+                }
+                // The import landing starts the rest on the producer.
+                WaitForPendingLoad();
+            };
+            load.Completed += landed => FinishLoadFromAsset(landed, asset, version, state);
+            return operation;
+        }
+
+        // Counts loads, so an asset import that lands after a newer load, of
+        // a file or another asset, knows it lost.
+        private int m_loadVersion;
+
+        private void WaitForPendingLoad()
+        {
+            if (!m_pendingLoad.IsDone)
+            {
+                m_pendingLoad.WaitInternal();
+            }
+        }
+
+        // Main thread, once the import has finished.
+        private void FinishLoadFromAsset(Future<File> landed, Asset asset, int version, FutureState<bool> state)
+        {
+            if (landed.Status == FutureStatus.Canceled)
+            {
+                state.Cancel();
+                return;
+            }
+            // A later load won the race, so this one was cancelled, whether
+            // its import worked or not. Its widget status isn't this load's to
+            // change any more.
+            if (this != null && (version != m_loadVersion || !ReferenceEquals(asset, m_asset)))
+            {
+                if (landed.Status == FutureStatus.Succeeded && landed.Result != null)
+                {
+                    // A later load of the same asset shares this import and only
+                    // takes its reference once every callback here has run, so
+                    // let go after that or the file goes with this one.
+                    Rive.Host.CommandTransport.PostToMainThread(landed.Result.Dispose);
+                }
+                state.Cancel();
+                return;
+            }
+            if (landed.Status == FutureStatus.Failed)
+            {
+                if (this != null)
+                {
+                    Fail(AsRiveError(landed.Exception));
+                }
+                state.Fail(landed.Exception);
+                return;
+            }
+
+            try
+            {
+                File loadedFile = landed.Result;
+                if (this == null)
+                {
+                    // Destroyed while the import was running, so nothing owns it.
+                    loadedFile?.Dispose();
+                }
+                else if (loadedFile == null)
+                {
+                    Fail(new RiveException(RiveErrorCode.LoadFailed, "The Rive file couldn't be loaded."));
+                }
+                else
+                {
+                    // Finishes the state when the rest lands.
+                    LoadInternalAsync(loadedFile, asset, state);
+                    return;
+                }
+            }
+            catch (System.Exception e)
+            {
+                state.Fail(e);
+                return;
+            }
+            state.Succeed(true);
         }
 
         private void ResetToDefaultArtboardAndStateMachineName()
@@ -920,14 +1421,14 @@ namespace Rive.Components
         {
             if (m_asset == null)
             {
-                Status = WidgetStatus.Error;
+                Fail(new RiveException(RiveErrorCode.LoadFailed, "There's no Rive asset to load."));
                 return;
             }
 
             // If we already have a loaded file from this asset then we can use it directly to avoid updating the asset ref count
             if (m_fileLoadedFromAsset != null && ReferenceEquals(m_asset, m_fileLoadedFromAsset))
             {
-                LoadInternal(File, m_fileLoadedFromAsset);
+                LoadInternal(LoadedFile, m_fileLoadedFromAsset);
 
                 return;
             }
@@ -940,7 +1441,7 @@ namespace Rive.Components
 
             if (loadedFile == null)
             {
-                Status = WidgetStatus.Error;
+                Fail(new RiveException(RiveErrorCode.LoadFailed, "The Rive file couldn't be loaded."));
                 return;
             }
 
@@ -948,6 +1449,29 @@ namespace Rive.Components
         }
 
 
+
+        // The render object is made with the fit, alignment and scale from when
+        // an async load started. Any set while it was out were only stored.
+        private void ApplyDisplaySettingsSetDuringLoad()
+        {
+            ArtboardRenderObject renderObject = RenderObjectWithArtboard;
+            if (renderObject == null)
+            {
+                return;
+            }
+            if (renderObject.Alignment != m_alignment)
+            {
+                OnAlignmentChanged();
+            }
+            if (renderObject.Fit != m_fit)
+            {
+                OnFitChanged();
+            }
+            else
+            {
+                ResizeArtboardForLayoutIfNeeded();
+            }
+        }
 
         private void OnScaleFactorChanged()
         {
@@ -974,18 +1498,20 @@ namespace Rive.Components
 
                 RenderObjectWithArtboard.Fit = Fit;
 
-                if (Artboard != null)
+                if (LoadedArtboard != null)
                 {
                     // Check if the original artboard size is different from the current artboard size
                     // When outside of layout mode, we should reset the artboard size to the original size if it has been changed.
 
-                    bool artboardSizeIsDifferentFromOriginal = (Artboard.Width != Controller.OriginalArtboardWidth || Artboard.Height != Controller.OriginalArtboardHeight);
+                    Vector2 currentSize = CurrentArtboardSize;
+                    bool artboardSizeIsDifferentFromOriginal = (currentSize.x != Controller.OriginalArtboardWidth || currentSize.y != Controller.OriginalArtboardHeight);
 
                     bool shouldResetArtboardSize = Fit != Fit.Layout && artboardSizeIsDifferentFromOriginal;
 
                     if (shouldResetArtboardSize)
                     {
-                        Artboard.ResetArtboardSize();
+                        LoadedArtboard.ResetArtboardSize();
+                        SetArtboardSizeLocally(new Vector2(Controller.OriginalArtboardWidth, Controller.OriginalArtboardHeight));
                     }
                 }
 
@@ -998,7 +1524,7 @@ namespace Rive.Components
 
         private void OnScaleModeChanged()
         {
-            if (Artboard != null && Fit == Fit.Layout)
+            if (LoadedArtboard != null && Fit == Fit.Layout)
             {
                 ResizeArtboardForLayoutIfNeeded();
                 TriggerRedrawNeededEvent();
@@ -1038,7 +1564,7 @@ namespace Rive.Components
 
         private void ResizeArtboardForLayoutIfNeeded()
         {
-            if (Artboard != null && Fit == Fit.Layout && RenderObjectWithArtboard != null)
+            if (LoadedArtboard != null && Fit == Fit.Layout && RenderObjectWithArtboard != null)
             {
 
                 float effectiveScale = GetEffectiveScaleFactor();
@@ -1048,9 +1574,8 @@ namespace Rive.Components
                 {
                     RenderObjectWithArtboard.EffectiveLayoutScaleFactor = effectiveScale;
 
-                    Artboard.Width = newWidth;
-
-                    Artboard.Height = newHeight;
+                    LoadedArtboard.Size = new Size(newWidth, newHeight);
+                    SetArtboardSizeLocally(new Vector2(newWidth, newHeight));
 
 
                 }
@@ -1059,7 +1584,8 @@ namespace Rive.Components
             }
         }
 
-        private void SetUpAudioIfNeeded(Artboard artboard)
+        // hasAudio when the load already knows, so nothing asks the runtime.
+        private void SetUpAudioIfNeeded(Artboard artboard, bool? hasAudio = null)
         {
             if (m_isDestroyed)
             {
@@ -1072,7 +1598,7 @@ return;
 #endif
 
 
-            if (artboard == null || !artboard.HasAudio)
+            if (artboard == null || !(hasAudio ?? artboard.HasAudio))
             {
                 return;
             }
@@ -1108,12 +1634,28 @@ return;
         {
             // This is a workaround for a bug where the layout is not recalculated correctly when the widget is first loaded. This seems to only happen with some files, like duelist.riv where we see the initial layout shift if we don't do this.
             // TODO: check if we need to do something in the C++ layer to fix this instead of doing it here.
-            if (m_needsLayoutRecalculationFix && StateMachine != null)
+            // An async finish sends it once the load's Future is done.
+            if (m_finishingAsyncLoad)
+            {
+                return;
+            }
+            if (m_needsLayoutRecalculationFix && LoadedStateMachine != null)
             {
                 m_needsLayoutRecalculationFix = false;
                 // On the initial frame, force the state machine to update the layout. We do this after base.HandleLoadComplete(); because that's where the OnWidgetStatusChanged event is triggered, and we want values that were set there to be applied before we advance the state machine.
                 // If we do this before base.HandleLoadComplete(); the values set in the OnWidgetStatusChanged event will not be applied on the first frame.
-                StateMachine.Advance(0f);
+                Core?.AdvanceAndWait(0f, 1f, OnRiveEventReported != null);
+            }
+        }
+
+        // Doesn't wait. Goes out behind every write made so far. If a panel
+        // advance already took the flag, it did the same thing.
+        private void SendLayoutRecalculationFix()
+        {
+            if (m_needsLayoutRecalculationFix && LoadedStateMachine != null)
+            {
+                m_needsLayoutRecalculationFix = false;
+                Core?.AdvanceLater(0f, 1f, OnRiveEventReported != null);
             }
         }
 
@@ -1129,20 +1671,42 @@ return;
 
         private void ReleaseFileIfResponsibleForLoading()
         {
-            if (File != null && m_fileLoadedFromAsset)
+            if (LoadedFile != null && m_fileLoadedFromAsset)
             {
-                File.Dispose();
+                LoadedFile.Dispose();
                 m_fileLoadedFromAsset = null;
             }
         }
 
 
 
+        // Moved to a panel in the other mode, so reload in that panel's family.
+        protected override void OnTransformParentChanged()
+        {
+            base.OnTransformParentChanged();
+            if (Status != WidgetStatus.Loaded || m_family == PanelThreadingMode)
+            {
+                return;
+            }
+            DebugLogger.Instance.Log($"{name} moved to a {PanelThreadingMode} panel, so it reloads to match.");
+            if (m_asset != null && m_fileLoadedFromAsset != null)
+            {
+                _ = LoadFromAssetForPanel();
+                return;
+            }
+            ILoadedFile given = (ILoadedFile)m_givenFileHandle ?? LoadedFile;
+            if (given != null)
+            {
+                _ = LoadGivenFile(given);
+            }
+        }
+
         protected override void OnDestroy()
         {
             base.OnDestroy();
 
             ReleaseFileIfResponsibleForLoading();
+            ReleaseHandleViews();
 
             if (m_controller != null)
             {
@@ -1225,10 +1789,13 @@ return;
 
         private void OnStateMachineChangedInEditor()
         {
-            // If we're in play mode, reload the asset
-            if (Application.isPlaying && Status != WidgetStatus.Loaded && m_asset != null)
+            // In play mode, reload the asset in the panel's family. The sync
+            // path would switch a Background widget to plain objects. Not while
+            // a load is out: the inspector's bindings report a change when it's
+            // rebuilt on entering play mode, and a second load would race it.
+            if (Application.isPlaying && Status != WidgetStatus.Loaded && Status != WidgetStatus.Loading && m_asset != null)
             {
-                LoadFromAssetIfNeeded();
+                _ = LoadFromAssetForPanel();
                 return;
             }
         }

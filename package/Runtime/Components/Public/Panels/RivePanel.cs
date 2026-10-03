@@ -1,10 +1,14 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Rive.EditorTools;
+using Rive.Producer;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Pool;
+using UnityEngine.Serialization;
+using Rive.Host;
 
 namespace Rive.Components
 {
@@ -63,11 +67,13 @@ namespace Rive.Components
         {
             public Action SiblingIndexChangedAction;
             public Action ParentChangedAction;
+            public Action StatusChangedAction;
 
             public void Reset()
             {
                 SiblingIndexChangedAction = null;
                 ParentChangedAction = null;
+                StatusChangedAction = null;
 
             }
         }
@@ -84,6 +90,10 @@ namespace Rive.Components
 
         [Tooltip("Determines how the panel will update its widgets. In Auto mode, the panel will tick its widgets every frame. In Manual mode, the panel will only update and advance its widgets when you explictly call the panel's Tick() method. This is useful if you want to control how often the panel updates its widgets.")]
         [SerializeField] private PanelUpdateMode m_updateMode = PanelUpdateMode.Auto;
+
+        [Tooltip("Where this panel's Rive work happens. Main Thread waits for it each frame and widgets give you File, Artboard and StateMachine, which is how Rive has always behaved. Background Thread runs it on Rive's own thread so the frame never waits, and widgets give you FileHandle, ArtboardHandle and StateMachineHandle instead. Set it before widgets load.")]
+        [FormerlySerializedAs("m_tickExecutionMode")]
+        [SerializeField] private ThreadingMode m_threadingMode = ThreadingMode.MainThread;
 
         [InspectorField(RivePanelInspectorSections.Advanced)]
         [Tooltip("Determines whether the panel will be rendered in the Edit mode.")]
@@ -144,6 +154,24 @@ namespace Rive.Components
         /// Used to track if the panel is dirty outside of widget updates.
         /// </summary>
         private bool m_isDirty = false;
+
+        /// <summary>
+        /// Advances sent to the producer. Each holds its widgets until it lands, so nothing it touches can be collected mid-job.
+        /// </summary>
+        private readonly PanelAdvance m_advance = new PanelAdvance();
+
+        /// <summary>
+        /// Time no advance has taken yet, either because Tick queued it or because the last advance is still out.
+        /// </summary>
+        private float m_pendingDelta;
+
+        private float m_queuedTickDelta;
+        private bool m_hasQueuedTick;
+
+        /// <summary>
+        /// TickAsync callers whose time hasn't gone out yet, and those riding the advance in flight.
+        /// </summary>
+        private readonly List<FutureState<bool>> m_queuedTickWaiters = new List<FutureState<bool>>();
 
         /// <summary>
         /// Used to track if the panel needs to be redrawn due to a resize.
@@ -229,6 +257,101 @@ namespace Rive.Components
             {
                 m_updateMode = value;
             }
+        }
+
+        /// <summary>
+        /// Where this panel's Rive work happens, and so which API its widgets give you.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="ThreadingMode.MainThread"/> waits for each advance within the frame, and widgets fill <see cref="RiveWidget.File"/>, <see cref="RiveWidget.Artboard"/> and <see cref="RiveWidget.StateMachine"/>. This is how Rive has always behaved.
+        ///
+        /// <see cref="ThreadingMode.BackgroundThread"/> runs advances on Rive's own thread and picks the results up on a later frame, so the frame never waits. Widgets fill <see cref="RiveWidget.FileHandle"/>, <see cref="RiveWidget.ArtboardHandle"/> and <see cref="RiveWidget.StateMachineHandle"/> instead, and nothing on those waits. Time asked for while an advance is still out is added to the next one, so nothing is lost.
+        ///
+        /// A widget picks its API when it loads, so set this before widgets load. Changing it while the panel has loaded widgets is refused with a warning.
+        ///
+        /// Translucent widgets still hit test synchronously, so Unity can resolve raycasts straight away. Use <see cref="HitTestBehavior.Opaque"/> for pointer input that never waits.
+        /// </remarks>
+        public ThreadingMode ThreadingMode
+        {
+            get
+            {
+                return m_threadingMode;
+            }
+            set
+            {
+                if (UserCallbacks.Running)
+                {
+                    // Switching joins what's out, which would deliver more
+                    // callbacks inside this one.
+                    m_requestedThreadingMode = value;
+                    if (!m_threadingModeRequested)
+                    {
+                        m_threadingModeRequested = true;
+                        m_applyRequestedThreadingMode ??= ApplyRequestedThreadingMode;
+                        UserCallbacks.Afterward(m_applyRequestedThreadingMode);
+                    }
+                    return;
+                }
+                m_threadingModeRequested = false;
+                SetThreadingModeNow(value);
+            }
+        }
+
+        // A widget picks its API family when it loads, so the mode can't change under one.
+        private bool HasLoadedWidgets()
+        {
+            for (int i = 0; i < m_sortedWidgets.Count; i++)
+            {
+                if (m_sortedWidgets[i] is WidgetBehaviour widget &&
+                    (widget.Status == WidgetStatus.Loaded || widget.Status == WidgetStatus.Loading))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool m_threadingModeRequested;
+        private ThreadingMode m_requestedThreadingMode;
+        private Action m_applyRequestedThreadingMode;
+
+        private void ApplyRequestedThreadingMode()
+        {
+            if (!m_threadingModeRequested || this == null)
+            {
+                return;
+            }
+            m_threadingModeRequested = false;
+            SetThreadingModeNow(m_requestedThreadingMode);
+        }
+
+        private void SetThreadingModeNow(ThreadingMode value)
+        {
+            if (m_threadingMode == value)
+            {
+                return;
+            }
+            if (HasLoadedWidgets())
+            {
+                DebugLogger.Instance.LogWarning(
+                    $"{name}: ThreadingMode can't change while the panel has loaded widgets, since each widget picked its API when it loaded. Set it before loading them.");
+                return;
+            }
+
+            // Land whatever is already out before the rule for waiting
+            // changes under it.
+            if (m_threadingMode == ThreadingMode.BackgroundThread)
+            {
+                Orchestrator.Instance?.JoinPointerInputs();
+            }
+            m_advance.Join();
+            if (m_threadingMode == ThreadingMode.BackgroundThread)
+            {
+                // Pointer changes come through the values channel.
+                PropertyCallbacksHub.Instance.JoinProducerCapture();
+            }
+            m_threadingMode = value;
+            RedrawIfNeeded();
         }
 
 
@@ -406,6 +529,19 @@ namespace Rive.Components
         {
             Orchestrator.Instance?.UnregisterPanel(this);
 
+            // Nothing polls it once the panel stops ticking.
+            m_advance.Drop();
+            m_queuedTickDelta = 0f;
+            m_hasQueuedTick = false;
+            m_pendingDelta = 0f;
+
+            // No pass is coming to take these.
+            for (int i = 0; i < m_queuedTickWaiters.Count; i++)
+            {
+                m_queuedTickWaiters[i].Succeed(false);
+            }
+            m_queuedTickWaiters.Clear();
+
             UnsubscribeFromRenderTargetStrategyEvents();
 
             if (RenderTargetStrategy != null && RenderTargetStrategy.IsPanelRegistered(this))
@@ -446,11 +582,13 @@ namespace Rive.Components
             var metadata = EventHandlerPool.Get();
             metadata.SiblingIndexChangedAction = () => HandleWidgetSiblingIndexChanged(widget);
             metadata.ParentChangedAction = () => HandleWidgetHierarchyChanged(widget);
+            metadata.StatusChangedAction = () => HandleWidgetStatusChanged(widget);
 
             widgetMetadata[widget] = metadata;
 
             widget.OnSiblingIndexChanged += metadata.SiblingIndexChangedAction;
             widget.OnParentChanged += metadata.ParentChangedAction;
+            widget.OnWidgetStatusChanged += metadata.StatusChangedAction;
         }
 
         private void UnsubscribeFromWidgetEvents(WidgetBehaviour widget)
@@ -460,6 +598,7 @@ namespace Rive.Components
             {
                 widget.OnSiblingIndexChanged -= metadata.SiblingIndexChangedAction;
                 widget.OnParentChanged -= metadata.ParentChangedAction;
+                widget.OnWidgetStatusChanged -= metadata.StatusChangedAction;
                 EventHandlerPool.Release(metadata);
                 widgetMetadata.Remove(widget);
             }
@@ -475,6 +614,14 @@ namespace Rive.Components
 
             SortWidgetsIfNeeded();
 
+        }
+
+        // A load disposes the widget's old artboard, so the draw list we
+        // recorded points at something that's gone. Rebuild it now. Waiting for
+        // the next tick is a frame too late for this frame's render.
+        private void HandleWidgetStatusChanged(WidgetBehaviour widget)
+        {
+            RedrawIfNeeded();
         }
 
         /// <summary>
@@ -811,7 +958,11 @@ namespace Rive.Components
             }
 
 
-            RenderTargetStrategy.DrawPanel(this);
+            using (CommandTransport.NoWaitIf(
+                       m_threadingMode == ThreadingMode.BackgroundThread, "async panel draw"))
+            {
+                RenderTargetStrategy.DrawPanel(this);
+            }
 
 
 
@@ -844,6 +995,9 @@ namespace Rive.Components
         /// <summary>
         /// When in `Manual` update mode, call this method every frame to advance the widgets managed by this panel.
         /// </summary>
+        /// <remarks>
+        /// The time is queued and advanced at the same point in the frame as an Auto panel, so several calls before that point add up and a call after it lands next frame.
+        /// </remarks>
         /// <param name="deltaTime">The time since the last frame.</param>
         public void Tick(float deltaTime)
         {
@@ -852,36 +1006,184 @@ namespace Rive.Components
                 return;
             }
 
-            // Manual ticks execute immediately. Orchestrator is only notified so databinding
-            // callbacks can be triggered as expected.
-            TickImmediate(deltaTime);
-            Orchestrator.Instance?.NotifyManualTickOccurred(this);
+            m_queuedTickDelta += deltaTime;
+            m_hasQueuedTick = true;
         }
 
         /// <summary>
-        /// Called every frame to update the widgets. This is where the widgets should update their visuals based on their state.
+        /// Queues a tick without blocking the caller.
         /// </summary>
         /// <param name="deltaTime">The time since the last frame.</param>
-        internal void TickImmediate(float deltaTime)
+        /// <returns>An operation that finishes on the main thread once the advance this time landed in has finished. It finishes straight away on a panel that isn't active and enabled.</returns>
+        /// <remarks>
+        /// The time is queued and advanced at the same point in the frame as an Auto panel, so several calls before that point add up and a call after it lands next frame.
+        /// </remarks>
+        public Future TickAsync(float deltaTime)
         {
+            var completion = new FutureState<bool>();
+
+            if (!isActiveAndEnabled)
+            {
+                completion.Succeed(false);
+                return new Future(completion);
+            }
+
+            m_queuedTickDelta += deltaTime;
+            m_hasQueuedTick = true;
+            m_queuedTickWaiters.Add(completion);
+            if (m_runQueuedTickNow == null)
+            {
+                m_runQueuedTickNow = RunQueuedTickNow;
+            }
+            completion.WaitDriver = m_runQueuedTickNow;
+            return new Future(completion);
+        }
+
+        private Action m_runQueuedTickNow;
+
+        // WaitForCompletion on a TickAsync. Advances the queued time now
+        // instead of at the next pass, and waits for it.
+        private void RunQueuedTickNow()
+        {
+            if (!isActiveAndEnabled)
+            {
+                return;
+            }
+            // Whatever is already out lands first, so the queued time goes out
+            // rather than merging into the next pass.
+            JoinAdvance();
+            if (m_hasQueuedTick || m_pendingDelta > 0f)
+            {
+                SubmitTick(0f);
+                JoinAdvance();
+            }
+        }
+
+        /// <summary>
+        /// Time asked for by Tick that no advance has taken yet.
+        /// </summary>
+        internal bool HasQueuedTick => m_hasQueuedTick;
+
+        /// <summary>
+        /// Time no advance has taken yet, whether Tick queued it or a pass couldn't send it.
+        /// </summary>
+        internal bool HasTimeWaiting => m_hasQueuedTick || m_pendingDelta > 0f;
+
+        /// <summary>
+        /// True while an advance is out with the producer.
+        /// </summary>
+        internal bool HasAdvanceInFlight => m_advance.InFlight;
+
+        /// <summary>
+        /// Lands the advance if it has finished. Never waits, so an asynchronous panel can ask every frame.
+        /// </summary>
+        internal void PollAdvance()
+        {
+            m_advance.Poll();
+        }
+
+        /// <summary>
+        /// Waits for the advance and leaves the panel usable.
+        /// </summary>
+        internal void JoinAdvance()
+        {
+            m_advance.Join();
+        }
+
+        internal void JoinForSynchronousPointerInput()
+        {
+            if (m_threadingMode != ThreadingMode.BackgroundThread)
+            {
+                return;
+            }
+
+            Orchestrator.Instance?.JoinPointerInputs();
+            JoinAdvance();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+        }
+
+        /// <summary>
+        /// Runs the main-thread half of a tick and sends the advance. Nothing waits here; the orchestrator's second pass does the waiting.
+        /// </summary>
+        /// <param name="autoDeltaTime">The frame time, used only by Auto panels.</param>
+        /// <returns>True if an advance went out.</returns>
+        internal bool SubmitTick(float autoDeltaTime)
+        {
+            float deltaTime = m_queuedTickDelta;
+            bool ticking = m_hasQueuedTick;
+            m_queuedTickDelta = 0f;
+            m_hasQueuedTick = false;
+
+            if (m_updateMode == PanelUpdateMode.Auto)
+            {
+                deltaTime += autoDeltaTime;
+                ticking = true;
+            }
+
+            // Time left over from a pass that couldn't send it is reason
+            // enough on its own, or it sits there until the next Tick.
+            if (!ticking && m_pendingDelta <= 0f)
+            {
+                return false;
+            }
+
+            m_pendingDelta += deltaTime;
+
+            // An advance still out means nothing may read what it is writing,
+            // and the time it didn't take goes into the next one rather than
+            // queueing another job behind it.
+            bool advanceGoesOut = !m_advance.InFlight;
+            float advanceBy = 0f;
+            if (advanceGoesOut)
+            {
+                advanceBy = m_pendingDelta;
+                m_pendingDelta = 0f;
+                m_advance.Begin();
+            }
+
             bool widgetNeedsRedraw = false;
 
             // We go through the widgets in reverse order to avoid issues with potentially removing widgets while iterating
             for (int i = m_sortedWidgets.Count - 1; i >= 0; i--)
             {
                 var widget = m_sortedWidgets[i];
-                if (widget != null)
+                if (widget == null)
                 {
-                    bool currentWidgetNeedsRedraw = widget.Tick(deltaTime);
+                    continue;
+                }
 
-                    if (!widgetNeedsRedraw && currentWidgetNeedsRedraw)
-                    {
-                        widgetNeedsRedraw = true;
-                    }
+                var behaviour = widget as WidgetBehaviour;
+                if (behaviour == null)
+                {
+                    // Someone else's IRiveWidget. There's nothing to batch, so
+                    // it ticks here and advances on the calling thread.
+                    widgetNeedsRedraw |= widget.Tick(deltaTime);
+                    continue;
+                }
 
+                behaviour.AdvanceHandledByPanel = true;
+                try
+                {
+                    widgetNeedsRedraw |= behaviour.Tick(deltaTime);
+                }
+                finally
+                {
+                    behaviour.AdvanceHandledByPanel = false;
+                }
+
+                if (advanceGoesOut)
+                {
+                    behaviour.DispatchAdvanceCallbacks();
+                    m_advance.Add(behaviour, advanceBy);
                 }
             }
 
+            if (advanceGoesOut)
+            {
+                m_advance.AddWaiters(m_queuedTickWaiters);
+                m_queuedTickWaiters.Clear();
+                m_advance.Send();
+            }
 
             bool resizeRedrawDue = m_pendingResizeRedraw && Time.frameCount > m_resizeRedrawRequestedFrame;
             bool shouldRedraw = widgetNeedsRedraw || m_isDirty || resizeRedrawDue;
@@ -896,9 +1198,9 @@ namespace Rive.Components
                 m_isDirty = false;
                 RedrawIfNeeded();
             }
+
+            return advanceGoesOut;
         }
-
-
 
         public bool StartRendering()
         {
@@ -966,30 +1268,33 @@ namespace Rive.Components
 
         private void HandlePointerDown(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(evt, m_pointerDownHandler);
+            ProcessPointerEvent(evt, m_pointerDownHandler, RiveWidget.PointerEventKind.Down);
         }
 
         private void HandlePointerUp(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(evt, m_pointerUpHandler);
+            ProcessPointerEvent(evt, m_pointerUpHandler, RiveWidget.PointerEventKind.Up);
         }
 
         private void HandlePointerMove(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(evt, m_pointerMoveHandler);
+            ProcessPointerEvent(evt, m_pointerMoveHandler, RiveWidget.PointerEventKind.Move);
         }
 
         private void HandlePointerExit(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(evt, m_pointerExitHandler);
+            ProcessPointerEvent(evt, m_pointerExitHandler, RiveWidget.PointerEventKind.Exit);
         }
 
         private void HandlePointerEnter(PanelPointerEvent evt)
         {
-            ProcessPointerEvent(evt, m_pointerEnterHandler);
+            ProcessPointerEvent(evt, m_pointerEnterHandler, RiveWidget.PointerEventKind.Enter);
         }
 
-        private void ProcessPointerEvent(PanelPointerEvent evt, Action<IRiveWidget, Vector2, PanelPointerEvent> handler)
+        private void ProcessPointerEvent(
+            PanelPointerEvent evt,
+            Action<IRiveWidget, Vector2, PanelPointerEvent> handler,
+            RiveWidget.PointerEventKind kind)
         {
             m_raycastResults.Clear();
             PanelRaycaster.RaycastAll(this, evt.Position, m_raycastResults);
@@ -1015,7 +1320,20 @@ namespace Rive.Components
                     ? evt
                     : new PanelPointerEvent(evt.Position, 0);
 
-                handler(widget, normalizedWidgetPoint, effectiveEvent);
+                if (m_threadingMode == ThreadingMode.BackgroundThread &&
+                    widget is RiveWidget riveWidget &&
+                    riveWidget.HitTestBehavior == HitTestBehavior.Opaque &&
+                    Orchestrator.Instance != null)
+                {
+                    Orchestrator.Instance.QueuePointerInput(
+                        this, riveWidget, normalizedWidgetPoint,
+                        effectiveEvent.PointerId, kind);
+                }
+                else
+                {
+                    JoinForSynchronousPointerInput();
+                    handler(widget, normalizedWidgetPoint, effectiveEvent);
+                }
 
             }
         }

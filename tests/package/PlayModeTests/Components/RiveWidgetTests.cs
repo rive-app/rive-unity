@@ -987,6 +987,16 @@ namespace Rive.Tests
             Assert.That(receivedEvent.Name, Is.EqualTo(ReportedEventTests.EVENT_SIMPLE));
         }
 
+        // Scenes saved while HitTestBehavior.Transparent (2) existed load as
+        // its replacement.
+        [Test]
+        public void RemovedTransparentHitTest_LoadsAsTranslucent()
+        {
+            JsonUtility.FromJsonOverwrite("{\"m_hitTestBehavior\":2}", m_widget);
+
+            Assert.AreEqual(HitTestBehavior.Translucent, m_widget.HitTestBehavior);
+        }
+
         [Test]
         public void SpeedProperty_GetSet_WorksCorrectly()
         {
@@ -1022,12 +1032,12 @@ namespace Rive.Tests
             m_loadedFiles.Add(originalFile);
 
             Assert.IsNotNull(originalFile);
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(originalFile.NativeFile));
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(originalFile.NativeFile));
 
             UnityEngine.Object.Destroy(m_widget);
             yield return null;
 
-            Assert.IsFalse(NativeFileInterface.isRiveFileValid(originalFile.NativeFile));
+            Assert.IsFalse(NativeFileInterface.IsRiveFileValid(originalFile.NativeFile));
         }
 
         /// <summary>
@@ -1057,13 +1067,13 @@ namespace Rive.Tests
 
             File originalFile = m_widget.File;
             Assert.IsNotNull(originalFile);
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(originalFile.NativeFile));
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(originalFile.NativeFile));
 
             UnityEngine.Object.Destroy(m_widget);
             yield return null;
 
             // File should still be valid since widget didn't load it from an asset
-            Assert.IsTrue(NativeFileInterface.isRiveFileValid(originalFile.NativeFile));
+            Assert.IsTrue(NativeFileInterface.IsRiveFileValid(originalFile.NativeFile));
 
             // Clean up the file ourselves since widget didn't
             riveFile.Dispose();
@@ -1223,7 +1233,6 @@ namespace Rive.Tests
             const string ArtboardName = "Main";
             const float TapYNormalized = 0.5f;
 
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
 
             Asset riveAsset = null;
             yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
@@ -1254,45 +1263,6 @@ namespace Rive.Tests
                 observedValues,
                 "Pointer down/up in the same frame should still process and report the intermediate down state.");
         }
-
-        public IEnumerator PointerDownAndUpInSameFrame_WithOptOut_DoesNotProcessIntermediateDownState()
-        {
-            const string ArtboardName = "Main";
-            const float TapYNormalized = 0.5f;
-
-
-            RiveWidget.ShouldAdvanceAfterPointerEvent = false;
-
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
-
-            Asset riveAsset = null;
-            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
-                TestAssetReferences.riv_multitouch_test,
-                (asset) => riveAsset = asset,
-                () => Assert.Fail("Failed to load multitouch asset"));
-
-            m_widget.Fit = Fit.Contain;
-            m_widget.Load(riveAsset, artboardName: ArtboardName, stateMachineName: null);
-            RivePanelTestUtils.MakeWidgetFillPanel(m_widget);
-            m_panel.SetDimensions(new Vector2Int(1080, 1080));
-            yield return null;
-
-            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
-            Assert.IsNotNull(viewModelInstance, "ViewModel instance should be bound");
-
-            var targetDown = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>("Target 1/Down");
-            Assert.IsNotNull(targetDown, "Target 1/Down property should exist");
-
-            List<bool> observedValues = new List<bool>();
-            targetDown.OnValueChanged += observedValues.Add;
-
-            Vector2 tapPoint = new Vector2(0.10f, TapYNormalized);
-            Assert.IsTrue(m_widget.OnPointerDown(tapPoint, 0), "Pointer down should hit a target in the test rig");
-            Assert.IsTrue(m_widget.OnPointerUp(tapPoint, 0), "Pointer up should be handled in the test rig");
-            Assert.AreEqual(1, observedValues.Count, "Only one value should be observed");
-            Assert.AreEqual(true, observedValues[0], "The value should be true");
-        }
-
 
         /// <summary>
         /// This test verifies that when a pointer is moved while pressing a target, the target that was pressed is reassigned to the new column. It also verifies that the other targets are not affected by moves from other pointers.

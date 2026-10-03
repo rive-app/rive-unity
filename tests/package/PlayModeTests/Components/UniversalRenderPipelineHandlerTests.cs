@@ -166,7 +166,7 @@ namespace Rive.Tests
             m_handler.Register(m_renderer);
 
             int commandBufferCount = 0;
-            m_renderer.OnAddToCommandBuffer += (buffer, release) => commandBufferCount++;
+            m_renderer.OnAddToCommandBuffer += buffer => commandBufferCount++;
 
             UnityEngine.Object.Destroy(m_camera.gameObject);
             yield return null;

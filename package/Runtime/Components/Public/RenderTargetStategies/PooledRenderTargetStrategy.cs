@@ -1,9 +1,11 @@
 using System.Collections.Generic;
 using Rive.Components.Utilities;
 using Rive.EditorTools;
+using Rive.Producer;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Pool;
+using Rive.Host;
 
 namespace Rive.Components
 {
@@ -66,9 +68,6 @@ namespace Rive.Components
 
         }
 
-        [Tooltip("Controls when rendering occurs. In Batched mode, panels are rendered once per frame regardless of redraw requests. In Immediate mode, panels are rendered instantly when requested.")]
-        [SerializeField] private DrawTimingOption m_drawTiming = DrawTimingOption.DrawBatched;
-
         [WidthHeightDimensions("Texture Size")]
         [Tooltip("The size of the pooled render textures. The rendered panels will be scaled to fit within this size.")]
         [SerializeField] private Vector2Int m_pooledTextureSize = new Vector2Int(1024, 1024);
@@ -125,7 +124,6 @@ namespace Rive.Components
         /// The maximum size the pool can grow to.
         /// </summary>
         public int MaxPoolSize { get => m_maxPoolSize; }
-        public override DrawTimingOption DrawTiming { get => m_drawTiming; set => m_drawTiming = value; }
 
         private void InitializePoolIfNeeded()
         {
@@ -275,8 +273,12 @@ namespace Rive.Components
         {
             if (m_rivePanelData.TryGetValue(panel, out var info))
             {
+                using var noWait = CommandTransport.NoWaitIf(
+                    RecordThreadingMode(panel) == ThreadingMode.BackgroundThread, "async panel draw");
                 RefreshRenderTextureDimensions(panel);
                 var renderer = info.Renderer;
+                renderer.SetRecordsAsynchronously(
+                    RecordThreadingMode(panel) == ThreadingMode.BackgroundThread);
                 var offset = info.Offset;
                 var scale = info.Scale;
                 renderer.SetArtboardDirtCheckEnabled(panel.DrawOptimization == DrawOptimizationOptions.DrawWhenChanged);
@@ -318,12 +320,6 @@ namespace Rive.Components
                 return;
             }
 
-            if (DrawTiming == DrawTimingOption.DrawImmediate)
-            {
-                HandlePanelDrawing(panel);
-                return;
-            }
-
             if (m_panelsToRedraw.Contains(panel))
             {
                 return;
@@ -334,10 +330,6 @@ namespace Rive.Components
         }
         internal protected override void PrepareBatchedRender()
         {
-            if (DrawTiming != DrawTimingOption.DrawBatched)
-            {
-                return;
-            }
             // We wait till LateUpdate (via Orchestrator) rather than the end of the current frame
             // (e.g. WaitTillEndOfFrame) because using the latter can cause glitches in the rendering.
             // We want to batch the drawing of all panels only once instead of drawing them multiple
@@ -379,10 +371,12 @@ namespace Rive.Components
             if (!renderTexture.IsCreated())
             {
                 renderTexture.Create();
+                TextureHelper.PrepareForNativeDrawing(renderTexture);
             }
             var offsetScale = CalculatePanelOffsetScale(panel, renderTexture);
 
             var renderer = GetOrCreateRendererForRenderTexture(renderTexture);
+            renderer.InvalidateTarget();
 
             if (!ReferenceEquals(renderer.RenderQueue.Texture, renderTexture))
             {
@@ -439,6 +433,7 @@ namespace Rive.Components
                 }
                 info.Offset = offsetScale.Offset;
                 info.Scale = offsetScale.Scale;
+                info.Renderer.InvalidateTarget();
 
 
             }

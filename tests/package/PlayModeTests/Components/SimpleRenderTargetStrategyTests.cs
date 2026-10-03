@@ -105,9 +105,8 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator DrawTiming_BatchedMode_DrawsOncePerFrame()
+        public IEnumerator DrawPanel_DrawsOncePerFrame()
         {
-            m_strategy.DrawTiming = DrawTimingOption.DrawBatched;
             m_strategy.RegisterPanel(m_panel);
 
             yield return null;
@@ -131,29 +130,9 @@ namespace Rive.Tests
             Assert.IsNotNull(m_strategy.GetRenderTexture(m_panel));
         }
 
-        [Test]
-        public void DrawTiming_ImmediateMode_DrawsInstantly()
-        {
-            m_strategy.UnregisterPanel(m_panel);
-
-            m_strategy.DrawTiming = DrawTimingOption.DrawImmediate;
-            m_strategy.RegisterPanel(m_panel);
-
-            // Get initial texture
-            var initialTexture = m_strategy.GetRenderTexture(m_panel);
-            Assert.IsNotNull(initialTexture);
-
-            // Request a draw
-            m_strategy.DrawPanel(m_panel);
-
-            // Should draw immediately in immediate mode
-            Assert.IsNotNull(m_strategy.GetRenderTexture(m_panel));
-        }
-
         [UnityTest]
-        public IEnumerator DrawTiming_BatchedMode_HandlesMultipleSizeChanges_DrawsOnlyOncePerFrame()
+        public IEnumerator DrawPanel_MultipleSizeChanges_DrawsOnlyOncePerFrame()
         {
-            m_strategy.DrawTiming = DrawTimingOption.DrawBatched;
             m_strategy.RegisterPanel(m_panel);
 
             // Initial setup
@@ -191,35 +170,6 @@ namespace Rive.Tests
             Assert.IsNotNull(finalTexture);
             Assert.AreEqual(400, finalTexture.width);
             Assert.AreEqual(400, finalTexture.height);
-        }
-
-        [UnityTest]
-        public IEnumerator DrawTiming_ImmediateMode_HandlesMultipleSizeChanges_RedrawsEachTime()
-        {
-            m_strategy.DrawTiming = DrawTimingOption.DrawImmediate;
-            m_strategy.RegisterPanel(m_panel);
-
-            yield return null;
-
-            // Initial size
-            m_panel.SetDimensions(new Vector2(100, 100));
-            var initialTexture = m_strategy.GetRenderTexture(m_panel);
-            Assert.IsNotNull(initialTexture);
-            Assert.AreEqual(100, initialTexture.width);
-
-            // Change size and draw multiple times in same frame
-            // The texture should update immediately each time
-            m_panel.SetDimensions(new Vector2(200, 200));
-            m_strategy.DrawPanel(m_panel);
-            Assert.AreEqual(200, m_strategy.GetRenderTexture(m_panel).width);
-
-            m_panel.SetDimensions(new Vector2(300, 300));
-            m_strategy.DrawPanel(m_panel);
-            Assert.AreEqual(300, m_strategy.GetRenderTexture(m_panel).width);
-
-            m_panel.SetDimensions(new Vector2(400, 400));
-            m_strategy.DrawPanel(m_panel);
-            Assert.AreEqual(400, m_strategy.GetRenderTexture(m_panel).width);
         }
 
         [Test]
@@ -339,11 +289,10 @@ namespace Rive.Tests
         }
 
 
-        [Test]
-        public void UsesExternalPixelSizeProvider_ForRenderTextureSize()
+        [UnityTest]
+        public IEnumerator UsesExternalPixelSizeProvider_ForRenderTextureSize()
         {
             m_strategy.UnregisterPanel(m_panel);
-            m_strategy.DrawTiming = DrawTimingOption.DrawImmediate;
 
             // Provider says 1170x2532
             m_strategy.ExternalPixelSizeProvider = (p) => new Vector2Int(1170, 2532);
@@ -351,11 +300,27 @@ namespace Rive.Tests
 
             Assert.IsTrue(m_strategy.RegisterPanel(m_panel));
             m_strategy.DrawPanel(m_panel);
+            yield return WaitForBatchedDraw(1170);
 
             var rt = m_strategy.GetRenderTexture(m_panel);
             Assert.IsNotNull(rt);
             Assert.AreEqual(1170, rt.width);
             Assert.AreEqual(2532, rt.height);
+        }
+
+        // Draws land in the late pass, so give it a few frames to reach the
+        // width, and let the assert after report it if it never does.
+        private IEnumerator WaitForBatchedDraw(int width)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                RenderTexture rt = m_strategy.GetRenderTexture(m_panel);
+                if (rt != null && rt.width == width)
+                {
+                    yield break;
+                }
+                yield return null;
+            }
         }
 
         [UnityTest]
@@ -375,9 +340,8 @@ namespace Rive.Tests
             var canvasRenderer = m_panel.gameObject.AddComponent<RiveCanvasRenderer>();
             canvasRenderer.MatchCanvasResolution = true;
 
-            // Ensure Simple strategy is active and draws immediately
+            // Ensure Simple strategy is active
             m_strategy.UnregisterPanel(m_panel);
-            m_strategy.DrawTiming = DrawTimingOption.DrawImmediate;
             m_panel.RenderTargetStrategy = m_strategy;
 
             // Set panel logical size (UI units)
@@ -385,7 +349,7 @@ namespace Rive.Tests
 
             Assert.IsTrue(m_strategy.RegisterPanel(m_panel));
             m_strategy.DrawPanel(m_panel);
-            yield return null; // allow one frame for changes to propagate
+            yield return WaitForBatchedDraw(Mathf.CeilToInt(360 * 3.25f));
 
             // Assert RT uses UI size × canvas scale (≈ 1170×2535)
             var rt = m_strategy.GetRenderTexture(m_panel);

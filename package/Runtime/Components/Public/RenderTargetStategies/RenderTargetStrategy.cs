@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Rive.Producer;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -135,16 +136,6 @@ namespace Rive.Components
             }
         }
 
-
-
-        /// <summary>
-        /// Controls when rendering occurs. In Batched mode, panels are rendered once per frame regardless of redraw requests. In Immediate mode, panels are rendered instantly when requested.
-        /// </summary>
-        public abstract DrawTimingOption DrawTiming { get; set; }
-
-
-
-
         public event Action<IRivePanel> OnRenderTargetUpdated;
 
         public event Action<IRivePanel> OnPanelRegistered;
@@ -208,6 +199,13 @@ namespace Rive.Components
                 );
                 DrawRenderObject(renderer, widget.RenderObject, panel, context);
             }
+        }
+
+        internal static ThreadingMode RecordThreadingMode(IRivePanel panel)
+        {
+            return panel is RivePanel rivePanel
+                ? rivePanel.ThreadingMode
+                : ThreadingMode.MainThread;
         }
 
         internal static bool ShouldSkipClippingForWidget(RectTransform widgetTransform, RectTransform containerTransform)
@@ -418,7 +416,9 @@ namespace Rive.Components
         /// <returns> The new render texture. </returns>
         protected RenderTexture CreateRenderTexture(int width, int height)
         {
-            return RenderPipelineHandler.AllocateRenderTexture(width, height);
+            RenderTexture texture = RenderPipelineHandler.AllocateRenderTexture(width, height);
+            TextureHelper.PrepareForNativeDrawing(texture);
+            return texture;
         }
 
         protected void ReleaseRenderTexture(RenderTexture renderTexture)
@@ -428,13 +428,17 @@ namespace Rive.Components
 
         protected RenderTexture ResizeRenderTexture(RenderTexture renderTexture, int width, int height)
         {
-            return RenderPipelineHandler.ResizeRenderTexture(renderTexture, width, height);
+            RenderTexture texture = RenderPipelineHandler.ResizeRenderTexture(renderTexture, width, height);
+            TextureHelper.PrepareForNativeDrawing(texture);
+            return texture;
         }
 
         /// <summary>
         /// Returns the renderers managed by this strategy.
         /// </summary>
         protected abstract IEnumerable<Renderer> GetRenderers();
+
+        internal IEnumerable<Renderer> RenderersForTests => GetRenderers();
 
         /// <summary>
         /// Registers the given renderer with the render pipeline to be rendered.
@@ -462,7 +466,10 @@ namespace Rive.Components
         /// <param name="panel"> The panel that was updated. </param>
         protected virtual void TriggerRenderTargetUpdatedEvent(IRivePanel panel)
         {
-            OnRenderTargetUpdated?.Invoke(panel);
+            using (UserCallbacks.Scope())
+            {
+                OnRenderTargetUpdated?.Invoke(panel);
+            }
 
         }
 
@@ -509,41 +516,21 @@ namespace Rive.Components
 
     internal static class ClippingPathHelper
     {
-#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
         /// <summary>
-        /// Configures a clipping path based on the platform and given dimensions. This ensures that it looks correct on all platforms.
+        /// Clips to a rect of the given size, swapping the axes on platforms
+        /// that need the other orientation.
         /// </summary>
-        /// <param name="path">The path to configure</param>
-        /// <param name="width">Width of the clipping rectangle</param>
-        /// <param name="height">Height of the clipping rectangle</param>
-        public static void ConfigureClippingPath(Path path, float width, float height)
+        public static void ClipToRect(IRenderer renderer, float width, float height)
         {
-            path.Reset();
-
-
-            bool shouldFlipYClipPath = RenderTargetStrategy.ProceduralDrawingRequiresRotationCorrection();
-
-
-            if (shouldFlipYClipPath)
+            if (RenderTargetStrategy.ProceduralDrawingRequiresRotationCorrection())
             {
-                // Swap width and height for OpenGL/D3D11 platforms, otherwise the rect will have the wrong orientation, e.g vertical instead of horizontal
-                path.MoveTo(0, 0);
-                path.LineTo(0, width);
-                path.LineTo(height, width);
-                path.LineTo(height, 0);
+                // OpenGL, D3D11 and Vulkan on Windows want the axes the other
+                // way round, or the rect ends up vertical instead of horizontal.
+                renderer.ClipRect(height, width);
+                return;
             }
-            else
-            {
-                // Use normal coordinates for Metal
-                path.MoveTo(0, 0);
-                path.LineTo(width, 0);
-                path.LineTo(width, height);
-                path.LineTo(0, height);
-            }
-
-            path.Close();
+            renderer.ClipRect(width, height);
         }
-#pragma warning restore CS0618
     }
 }
 

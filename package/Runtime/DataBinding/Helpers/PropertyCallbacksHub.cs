@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Rive.Utils;
+using Rive.Producer;
+using Rive.Host;
 
 namespace Rive
 {
@@ -26,14 +27,25 @@ namespace Rive
             }
         }
 
-        private readonly Dictionary<IntPtr, WeakReference<ViewModelInstancePrimitiveProperty>> m_subscribedProperties =
-            new Dictionary<IntPtr, WeakReference<ViewModelInstancePrimitiveProperty>>();
-        private readonly List<ViewModelInstancePrimitiveProperty> m_changedScratch = new List<ViewModelInstancePrimitiveProperty>();
-        private readonly List<ViewModelInstancePrimitiveProperty> m_captureScratch = new List<ViewModelInstancePrimitiveProperty>();
-        private readonly List<IntPtr> m_deadPointersScratch = new List<IntPtr>();
+        private readonly Dictionary<long, WeakReference<ViewModelInstancePrimitiveProperty>> m_subscribedProperties =
+            new Dictionary<long, WeakReference<ViewModelInstancePrimitiveProperty>>();
+        private readonly List<long> m_deadKeysScratch = new List<long>();
+        // Held strongly while subscribed. Unsubscribing or disposing the
+        // instance drops them.
+        private readonly HashSet<ViewModelPropertyHandle> m_subscribedHandles = new HashSet<ViewModelPropertyHandle>();
         private readonly object m_lock = new object();
+        private readonly ViewModelValuesChannel m_values;
 
-        private PropertyCallbacksHub() { }
+        internal struct CapturedChange
+        {
+            internal ViewModelInstancePrimitiveProperty Property;
+            internal PropertyValue Value;
+        }
+
+        private PropertyCallbacksHub()
+        {
+            m_values = new ViewModelValuesChannel(SnapshotProperties);
+        }
 
         /// <summary>
         /// Registers a property with the hub via a weak reference.
@@ -47,98 +59,150 @@ namespace Rive
                 return;
             }
 
-            IntPtr ptr = property.InstancePropertyPtr;
-            if (ptr == IntPtr.Zero)
-            {
-                return;
-            }
-
             lock (m_lock)
             {
-                m_subscribedProperties[ptr] = new WeakReference<ViewModelInstancePrimitiveProperty>(property);
+                m_subscribedProperties[property.CallbackKey] = new WeakReference<ViewModelInstancePrimitiveProperty>(property);
             }
         }
 
         /// <summary>
         /// Unregisters a property from the hub.
         /// </summary>
-        /// <param name="instancePropertyPtr">The pointer to the property to unregister.</param>
-        internal void Unregister(IntPtr instancePropertyPtr)
+        /// <param name="property">The property to unregister.</param>
+        internal void Unregister(ViewModelInstancePrimitiveProperty property)
         {
-            if (instancePropertyPtr == IntPtr.Zero)
+            if (property == null)
             {
                 return;
             }
 
             lock (m_lock)
             {
-                m_subscribedProperties.Remove(instancePropertyPtr);
+                m_subscribedProperties.Remove(property.CallbackKey);
             }
         }
 
+        /// True if it wasn't registered already.
+        internal bool RegisterHandle(ViewModelPropertyHandle handle)
+        {
+            lock (m_lock)
+            {
+                return m_subscribedHandles.Add(handle);
+            }
+        }
+
+        internal void UnregisterHandle(ViewModelPropertyHandle handle)
+        {
+            lock (m_lock)
+            {
+                m_subscribedHandles.Remove(handle);
+            }
+        }
+
+        /// After a StateMachineHandle advance.
+        internal void SubmitCaptureAfterAdvance()
+        {
+            m_values.SendCaptureWithoutPanel();
+        }
+
         /// <summary>
-        /// Captures changed properties and clears their change flags.
-        /// This should run in the same frame as panel/state machine advancement.
+        /// Captures changed properties now and delivers their callbacks, after
+        /// everything sent before it. For synchronous paths, like a pointer
+        /// event on a synchronous panel.
         /// </summary>
         /// <returns>True if any changed properties were captured.</returns>
         internal bool CaptureChanges()
         {
-            m_changedScratch.Clear();
-            m_deadPointersScratch.Clear();
+            return m_values.CaptureNow();
+        }
+
+        /// After the tick pass.
+        internal void SubmitProducerCapture()
+        {
+            m_values.SendTickCapture();
+        }
+
+        /// Straight after an async pointer job. See ViewModelValuesChannel.SendCapture.
+        internal object SubmitPointerCapture()
+        {
+            return m_values.SendCapture();
+        }
+
+        internal void CancelPointerCapture(object capture)
+        {
+            m_values.TryCancelCapture(capture);
+        }
+
+        /// Delivers whatever has landed. Never waits.
+        internal void PollProducerCapture()
+        {
+            m_values.Poll();
+        }
+
+        /// Waits for every capture and read sent so far and delivers them.
+        /// False when a capture went with the producer.
+        internal bool JoinProducerCapture()
+        {
+            return m_values.Join();
+        }
+
+        /// True while any capture or read is in flight.
+        internal bool ProducerCapturePending => m_values.Pending;
+
+        /// True while a value callback or read is being delivered.
+        internal bool Delivering => m_values.Delivering;
+
+        internal Future<T> ReadAsync<T>(ViewModelInstancePrimitiveProperty<T> property)
+        {
+            return m_values.Read(property);
+        }
+
+        internal Future<T> ReadHandleAsync<T>(ViewModelPropertyHandle handle)
+        {
+            return m_values.Read<T>(handle);
+        }
+
+        private void SnapshotProperties(
+            List<ViewModelInstancePrimitiveProperty> properties,
+            List<ViewModelPropertyHandle> handles)
+        {
+            properties.Clear();
+            handles.Clear();
+            m_deadKeysScratch.Clear();
 
             lock (m_lock)
             {
-                m_captureScratch.Clear();
+                foreach (ViewModelPropertyHandle handle in m_subscribedHandles)
+                {
+                    handles.Add(handle);
+                }
+
                 foreach (var kvp in m_subscribedProperties)
                 {
                     if (kvp.Value.TryGetTarget(out var property))
                     {
-                        m_captureScratch.Add(property);
+                        properties.Add(property);
                     }
                     else
                     {
-                        m_deadPointersScratch.Add(kvp.Key);
+                        m_deadKeysScratch.Add(kvp.Key);
                     }
                 }
 
-                for (int i = 0; i < m_deadPointersScratch.Count; i++)
+                for (int i = 0; i < m_deadKeysScratch.Count; i++)
                 {
-                    m_subscribedProperties.Remove(m_deadPointersScratch[i]);
+                    m_subscribedProperties.Remove(m_deadKeysScratch[i]);
                 }
             }
-
-            for (int i = 0; i < m_captureScratch.Count; i++)
-            {
-                var property = m_captureScratch[i];
-
-                if (property.HasChanged)
-                {
-                    property.ClearChanges();
-                    m_changedScratch.Add(property);
-                }
-            }
-
-            return m_changedScratch.Count > 0;
         }
 
         /// <summary>
-        /// Dispatches callbacks that were previously captured by <see cref="CaptureChanges"/>.
+        /// Delivers captured callbacks that have landed. Never waits.
         /// </summary>
         internal void FlushCapturedCallbacks()
         {
-            for (int i = 0; i < m_changedScratch.Count; i++)
-            {
-                try
-                {
-                    m_changedScratch[i].RaiseChangedEvent();
-                }
-                catch (Exception e)
-                {
-                    DebugLogger.Instance.LogException(e);
-                }
-            }
-
-            m_changedScratch.Clear();
+            using var noWait = CommandTransport.NoWait("callback flush");
+            m_values.Poll();
         }
 
 #if UNITY_EDITOR

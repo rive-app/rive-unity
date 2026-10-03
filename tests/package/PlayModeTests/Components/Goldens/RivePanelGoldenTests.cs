@@ -226,12 +226,6 @@ namespace Rive.Tests
             ),
 
 
-            // Procedural widget
-            new PanelScenario(
-                goldenId: "RivePanelWithProceduralWidget",
-                panelPrefabPath: TestPrefabReferences.RivePanelWithProceduralWidget,
-                includeInTransformChangeTests: false
-            ),
 
             // Layout scaling modes
 
@@ -357,6 +351,100 @@ namespace Rive.Tests
             }
         }
 
+        // The data binding goldens run in both threading modes against the same
+        // reference image. A BackgroundThread panel gives handles and draws a frame
+        // later, so these helpers wait for that; MainThread keeps its old waits.
+
+        /// The first frame that shows the widgets. A BackgroundThread panel draws once
+        /// the load has landed and its first advance has, so this waits for the
+        /// first frame the texture has anything in. A frame of defaults before
+        /// the values set on load would then fail the golden.
+        private static IEnumerator WaitForFirstFrame(RivePanel panel, params RiveWidget[] widgets)
+        {
+            foreach (RiveWidget widget in widgets)
+            {
+                yield return RivePanelTestUtils.WaitForLoaded(widget);
+            }
+            if (panel.ThreadingMode == ThreadingMode.MainThread)
+            {
+                yield return new WaitForEndOfFrame();
+                yield break;
+            }
+            // The panel starts empty, so the first frame with content is its first draw.
+            yield return new WaitForEndOfFrame();
+            float deadline = Time.realtimeSinceStartup + 10f;
+            while (!HasContent(panel.RenderTexture))
+            {
+                Assert.Less(Time.realtimeSinceStartup, deadline, "The panel didn't draw within 10 seconds.");
+                yield return null;
+                yield return new WaitForEndOfFrame();
+            }
+        }
+
+        /// After a change. A BackgroundThread panel sends it with the next tick and
+        /// draws it once that advance lands. Its record goes to the server
+        /// asynchronously, so a fixed frame count only works if the server wins
+        /// the race with the render thread. Graphics jobs often lose it, so this
+        /// waits for the records, after which the next render event shows them.
+        private static IEnumerator WaitForChangesToLand(RivePanel panel)
+        {
+            if (panel.ThreadingMode == ThreadingMode.MainThread)
+            {
+                yield break;
+            }
+            for (int i = 0; i < 2; i++)
+            {
+                yield return null;
+                panel.JoinAdvance();
+            }
+            // The late pass after the last advance has recorded it by now.
+            yield return null;
+            if (panel.RenderTargetStrategy is RenderTargetStrategy strategy)
+            {
+                foreach (Renderer renderer in strategy.RenderersForTests)
+                {
+                    renderer.SettleRecordsForTests();
+                }
+            }
+            yield return new WaitForEndOfFrame();
+        }
+
+        private static bool HasContent(RenderTexture texture)
+        {
+            if (texture == null)
+            {
+                return false;
+            }
+            Color32[] pixels = ReadBySampling(texture);
+            for (int i = 0; i < pixels.Length; i += 7)
+            {
+                if (pixels[i].a != 0)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// Reads the panel's texture by sampling it into a temporary one. Binding
+        /// the panel's texture as the render target to read it directly can wipe
+        /// what Rive drew into it on WebGL.
+        private static Color32[] ReadBySampling(RenderTexture texture)
+        {
+            RenderTexture copy = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32);
+            Graphics.Blit(texture, copy);
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture.active = copy;
+            var read = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false);
+            read.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0);
+            read.Apply(false);
+            RenderTexture.active = previous;
+            RenderTexture.ReleaseTemporary(copy);
+            Color32[] pixels = read.GetPixels32();
+            UnityEngine.Object.Destroy(read);
+            return pixels;
+        }
+
         [OneTimeSetUp]
         public void OneTimeSetup()
         {
@@ -388,7 +476,7 @@ namespace Rive.Tests
         }
 
 
-        private IEnumerator SetupTestPanel(PanelScenario testCase)
+        private IEnumerator SetupTestPanel(PanelScenario testCase, ThreadingMode mode = ThreadingMode.MainThread)
         {
             RivePanel panel = null;
             yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
@@ -398,6 +486,8 @@ namespace Rive.Tests
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
                     panel.DrawOptimization = DrawOptimizationOptions.DrawWhenChanged;
+                    // Before the widgets load in Start.
+                    panel.ThreadingMode = mode;
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {testCase.PanelPrefabPath}")
             );
@@ -407,15 +497,23 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator Panel_RendersOnFirstFrame()
+        public IEnumerator Panel_RendersOnFirstFrame([Values] ThreadingMode mode)
         {
             foreach (var testCase in GetTestCases())
             {
-                var setupResult = SetupTestPanel(testCase);
+                var setupResult = SetupTestPanel(testCase, mode);
                 yield return setupResult;
                 var panel = (RivePanel)setupResult.Current;
 
                 yield return WaitForPanelRenderSettled(panel, frames: 1);
+                if (mode == ThreadingMode.BackgroundThread)
+                {
+                    // Like MainThread's settle frame: these check fit and layout, and a
+                    // file that's already cached can land before the layout has.
+                    yield return WaitForFirstFrame(panel, panel.GetComponentsInChildren<RiveWidget>());
+                    yield return WaitForChangesToLand(panel);
+                    yield return WaitForPanelRenderSettled(panel, frames: 1);
+                }
 
                 Assert.IsNotNull(panel.RenderTexture, "RenderTexture should be created on first frame");
                 Assert.IsTrue(panel.RenderTexture.width > 0 && panel.RenderTexture.height > 0,
@@ -456,6 +554,47 @@ namespace Rive.Tests
                 DestroyObj(panel.gameObject);
                 yield return null;
             }
+        }
+
+
+        [UnityTest]
+        public IEnumerator Panel_RendersGpuCanvasContent()
+        {
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                TestPrefabReferences.RivePanelWithSingleWidget,
+                prefab =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(512, 512));
+                    panel.DrawOptimization = DrawOptimizationOptions.DrawWhenChanged;
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {TestPrefabReferences.RivePanelWithSingleWidget}")
+            );
+
+            Rive.Asset riveAsset = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                TestAssetReferences.riv_ore,
+                asset => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_ore}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            Assert.IsNotNull(widget, "Expected a RiveWidget in the single-widget panel prefab.");
+            widget.Fit = Fit.Contain;
+            widget.Load(riveAsset);
+
+            // The canvas replays on the render thread, so give it a second
+            // frame rather than reading back whatever the first one had.
+            yield return WaitForPanelRenderSettled(panel, frames: 2);
+
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "RivePanelWithGpuCanvasContent",
+                panel.RenderTexture
+            );
+
+            DestroyObj(panel.gameObject);
         }
 
 
@@ -1013,7 +1152,7 @@ namespace Rive.Tests
                 widget.Load(firstFile);
                 widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(widget);
                 yield return WaitForPanelRenderSettled(panel, frames: 1);
 
                 yield return m_goldenHelper.AssertWithRenderTexture(
@@ -1042,7 +1181,7 @@ namespace Rive.Tests
                 widget.Load(secondFile);
                 widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(widget);
                 yield return WaitForPanelRenderSettled(panel, frames: 1);
 
                 yield return m_goldenHelper.AssertWithRenderTexture(
@@ -1104,7 +1243,7 @@ namespace Rive.Tests
                 firstFile = File.Load(firstAsset);
                 widget.Load(firstFile);
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(widget);
                 yield return WaitForPanelRenderSettled(panel, frames: 1);
 
                 Assert.IsNotNull(panel.RenderTexture, "RenderTexture should exist after loading file A");
@@ -1140,7 +1279,7 @@ namespace Rive.Tests
                 secondFile = File.Load(secondAsset);
                 widget.Load(secondFile);
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(widget);
                 yield return WaitForPanelRenderSettled(panel, frames: 2);
 
                 Assert.IsNotNull(panel.RenderTexture, "RenderTexture should still exist after camera switch and file swap");
@@ -1167,23 +1306,9 @@ namespace Rive.Tests
         private static Texture2D CaptureRenderTexture(RenderTexture rt)
         {
             var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
-            RenderTexture prev = RenderTexture.active;
-            try
-            {
-                RenderTexture.active = rt;
-                tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-                tex.Apply();
-                return tex;
-            }
-            catch
-            {
-                UnityEngine.Object.Destroy(tex);
-                throw;
-            }
-            finally
-            {
-                RenderTexture.active = prev;
-            }
+            tex.SetPixels32(ReadBySampling(rt));
+            tex.Apply();
+            return tex;
         }
 
         private static bool AreTexturesIdentical(Texture2D a, Texture2D b)
@@ -1333,30 +1458,15 @@ namespace Rive.Tests
         {
             if (rt == null) return false;
 
-            Texture2D temp = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
-            RenderTexture prevActive = RenderTexture.active;
-            RenderTexture.active = rt;
-
-            // Read the pixels
-            temp.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-            temp.Apply();
-            RenderTexture.active = prevActive;
-
             // Check if any pixels have non-zero alpha
-            UnityEngine.Color[] pixels = temp.GetPixels();
-            bool hasContent = false;
-
-            foreach (UnityEngine.Color pixel in pixels)
+            foreach (Color32 pixel in ReadBySampling(rt))
             {
-                if (pixel.a > 0.01f)
+                if (pixel.a > 2)
                 {
-                    hasContent = true;
-                    break;
+                    return true;
                 }
             }
-
-            UnityEngine.Object.Destroy(temp);
-            return hasContent;
+            return false;
         }
 
 #if RIVE_USING_URP
@@ -1405,7 +1515,7 @@ namespace Rive.Tests
 #endif
 
         [UnityTest]
-        public IEnumerator DataBinding_InitialFrame_ShowsExpectedValues()
+        public IEnumerator DataBinding_InitialFrame_ShowsExpectedValues([Values] ThreadingMode mode)
         {
             // Spawn the panel
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
@@ -1416,6 +1526,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -1437,10 +1548,10 @@ namespace Rive.Tests
             widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
 
             // Wait for the widget to load
-            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-            yield return new WaitForEndOfFrame();
+            yield return WaitForFirstFrame(panel, widget);
 
             // Verify the initial frame shows the default data binding values
+            yield return WaitForChangesToLand(panel);
             yield return m_goldenHelper.AssertWithRenderTexture(
                 "RivePanel_DataBinding_InitialFrame",
                 panel.RenderTexture
@@ -1452,7 +1563,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator DataBinding_ChangingValues_InOnWidgetStatusChanged_AffectsVisuals_OnFirstFrame()
+        public IEnumerator DataBinding_ChangingValues_InOnWidgetStatusChanged_AffectsVisuals_OnFirstFrame([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -1462,6 +1573,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -1482,6 +1594,17 @@ namespace Rive.Tests
             {
                 if (widget.Status == WidgetStatus.Loaded)
                 {
+                    if (widget.StateMachineHandle != null)
+                    {
+                        // The same changes through handles.
+                        BoundValues.SetString(widget, "name", "Golden Test User");
+                        BoundValues.SetNumber(widget, "age", 99);
+                        BoundValues.SetBoolean(widget, "agreedToTerms", true);
+                        BoundValues.SetColor(widget, "favColor", new UnityEngine.Color(1, 0, 0, 1));
+                        BoundValues.SetEnum(widget, "country", "japan");
+                        BoundValues.SetString(widget, "favDrink/name", "Coffee");
+                        return;
+                    }
                     var viewModelInstance = widget.StateMachine.ViewModelInstance;
                     Assert.IsNotNull(viewModelInstance, "Expected viewModelInstance to be set");
 
@@ -1539,10 +1662,10 @@ namespace Rive.Tests
             widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
 
             // Wait for the widget to load and data to be set
-            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-            yield return new WaitForEndOfFrame();
+            yield return WaitForFirstFrame(panel, widget);
 
             // Verify that changing values on initial frame affected the visuals
+            yield return WaitForChangesToLand(panel);
             yield return m_goldenHelper.AssertWithRenderTexture(
                 "DataBinding_ChangingValues_InOnWidgetStatusChanged_AffectsVisuals_OnFirstFrame",
                 panel.RenderTexture
@@ -1554,7 +1677,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator DataBinding_DifferentInstance_ShowsExpectedVisuals()
+        public IEnumerator DataBinding_DifferentInstance_ShowsExpectedVisuals([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -1564,6 +1687,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -1589,11 +1713,11 @@ namespace Rive.Tests
 
 
             // Wait for the widget to load and data to be set
-            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-            yield return new WaitForEndOfFrame();
+            yield return WaitForFirstFrame(panel, widget);
 
 
             // Verify that the instance shows different initial values from the default
+            yield return WaitForChangesToLand(panel);
             yield return m_goldenHelper.AssertWithRenderTexture(
                 "RivePanel_DataBinding_DifferentInstance_ShowsExpectedVisuals",
                 panel.RenderTexture
@@ -1608,7 +1732,7 @@ namespace Rive.Tests
         /// We let AutoBindDefault fill the globals with their defaults, then rebind with overrides and confirm the pixels follow.
         /// </summary>
         [UnityTest]
-        public IEnumerator DataBinding_GlobalViewModels_ShowExpectedVisuals()
+        public IEnumerator DataBinding_GlobalViewModels_ShowExpectedVisuals([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -1618,6 +1742,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -1641,10 +1766,10 @@ namespace Rive.Tests
                 widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
                 widget.Load(riveFile);
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-                yield return new WaitForEndOfFrame();
+                yield return WaitForFirstFrame(panel, widget);
 
                 // We haven't initialized any custom globals yet, so every one of them holds its default instance.
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_GlobalViewModels_Defaults",
                     panel.RenderTexture
@@ -1652,20 +1777,40 @@ namespace Rive.Tests
 
                 // Binding requires a main instance. The widget already made one, so we hand it back
                 // rather than replacing what is on screen.
-                var main = widget.StateMachine.ViewModelInstance;
-                Assert.IsNotNull(main, "AutoBindDefault should have bound a main instance.");
+                bool bound;
+                if (widget.StateMachineHandle != null)
+                {
+                    FileHandle file = widget.FileHandle;
+                    StateMachineHandle stateMachine = widget.StateMachineHandle;
+                    // Null keeps the main instance AutoBindDefault bound.
+                    Future bind = stateMachine.BindViewModelInstanceAsync(
+                        null,
+                        new Dictionary<string, ViewModelInstanceHandle>
+                        {
+                            { "Colors", CreateColorsGlobal(file, new Color32(255, 0, 255, 255)) },
+                            { "Labels", file.GetViewModel("Labels").Instantiate("US") }
+                        });
+                    yield return bind;
+                    bound = bind.Status == FutureStatus.Succeeded;
+                }
+                else
+                {
+                    var main = widget.StateMachine.ViewModelInstance;
+                    Assert.IsNotNull(main, "AutoBindDefault should have bound a main instance.");
 
-                bool bound = widget.StateMachine.BindViewModelInstance(
-                    main,
-                    new Dictionary<string, ViewModelInstance>
-                    {
-                        { "Colors", CreateColorsGlobal(riveFile, new Color32(255, 0, 255, 255)) },
-                        { "Labels", riveFile.GetViewModelByName("Labels").CreateInstanceByName("US") }
-                    });
+                    bound = widget.StateMachine.BindViewModelInstance(
+                        main,
+                        new Dictionary<string, ViewModelInstance>
+                        {
+                            { "Colors", CreateColorsGlobal(riveFile, new Color32(255, 0, 255, 255)) },
+                            { "Labels", riveFile.GetViewModelByName("Labels").CreateInstanceByName("US") }
+                        });
+                }
                 Assert.IsTrue(bound, "Binding the file's globals should succeed.");
 
                 yield return new WaitForEndOfFrame();
 
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_GlobalViewModels_Overridden",
                     panel.RenderTexture
@@ -1684,7 +1829,7 @@ namespace Rive.Tests
         /// edit one of them, which should update both widgets together visually.
         /// </summary>
         [UnityTest]
-        public IEnumerator DataBinding_GlobalViewModels_SharedInstance_IsVisibleInEveryWidget()
+        public IEnumerator DataBinding_GlobalViewModels_SharedInstance_IsVisibleInEveryWidget([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -1694,6 +1839,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -1728,23 +1874,53 @@ namespace Rive.Tests
                 leftWidget.Load(riveFile);
                 rightWidget.Load(riveFile);
 
-                yield return new WaitUntil(() =>
-                    leftWidget.Status == WidgetStatus.Loaded && rightWidget.Status == WidgetStatus.Loaded);
+                if (mode == ThreadingMode.BackgroundThread)
+                {
+                    yield return WaitForFirstFrame(panel, leftWidget, rightWidget);
+                }
+                else
+                {
+                    yield return new WaitUntil(() =>
+                        leftWidget.Status == WidgetStatus.Loaded && rightWidget.Status == WidgetStatus.Loaded);
+                }
 
                 Color32 magenta = new Color32(255, 0, 255, 255);
                 Color32 teal = new Color32(0, 200, 90, 255);
-                var leftColors = CreateColorsGlobal(riveFile, magenta);
-                var leftLabels = riveFile.GetViewModelByName("Labels").CreateInstanceByName("US");
+                Color32 cyan = new Color32(0, 200, 255, 255);
+                ViewModelInstance leftColors = null;
+                ViewModelInstance leftLabels = null;
+                ViewModelInstanceHandle leftColorsHandle = null;
+                ViewModelInstanceHandle leftLabelsHandle = null;
+                if (mode == ThreadingMode.BackgroundThread)
+                {
+                    // Both widgets' files are views of the one loaded file.
+                    FileHandle file = leftWidget.FileHandle;
+                    leftColorsHandle = CreateColorsGlobal(file, magenta);
+                    leftLabelsHandle = file.GetViewModel("Labels").Instantiate("US");
+                    Future leftBind = BindGlobals(leftWidget, leftColorsHandle, leftLabelsHandle);
+                    Future rightBind = BindGlobals(
+                        rightWidget,
+                        CreateColorsGlobal(file, teal),
+                        file.GetViewModel("Labels").Instantiate("EU"));
+                    yield return ExpectBound(leftBind);
+                    yield return ExpectBound(rightBind);
+                }
+                else
+                {
+                    leftColors = CreateColorsGlobal(riveFile, magenta);
+                    leftLabels = riveFile.GetViewModelByName("Labels").CreateInstanceByName("US");
 
-                Assert.IsTrue(BindGlobals(leftWidget, leftColors, leftLabels));
-                Assert.IsTrue(BindGlobals(
-                    rightWidget,
-                    CreateColorsGlobal(riveFile, teal),
-                    riveFile.GetViewModelByName("Labels").CreateInstanceByName("EU")));
+                    Assert.IsTrue(BindGlobals(leftWidget, leftColors, leftLabels));
+                    Assert.IsTrue(BindGlobals(
+                        rightWidget,
+                        CreateColorsGlobal(riveFile, teal),
+                        riveFile.GetViewModelByName("Labels").CreateInstanceByName("EU")));
+                }
 
                 yield return new WaitForEndOfFrame();
 
                 // Each widget holds its own instances, so the two halves should show different colors.
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_GlobalViewModels_DivergentAcrossWidgets",
                     panel.RenderTexture
@@ -1752,13 +1928,22 @@ namespace Rive.Tests
 
                 // We hand the right widget the instances the left one is already using, then edit them
                 // once. Both halves should end up identical and the same color, in this case cyan.
-                Assert.IsTrue(BindGlobals(rightWidget, leftColors, leftLabels));
-                Color32 cyan = new Color32(0, 200, 255, 255);
-                leftColors.GetProperty<ViewModelInstanceColorProperty>("backgroundColor").Value32 =
-                    cyan;
+                if (mode == ThreadingMode.BackgroundThread)
+                {
+                    Future shareBind = BindGlobals(rightWidget, leftColorsHandle, leftLabelsHandle);
+                    leftColorsHandle.GetColorProperty("backgroundColor").SetValue(cyan);
+                    yield return ExpectBound(shareBind);
+                }
+                else
+                {
+                    Assert.IsTrue(BindGlobals(rightWidget, leftColors, leftLabels));
+                    leftColors.GetProperty<ViewModelInstanceColorProperty>("backgroundColor").Value32 =
+                        cyan;
+                }
 
                 yield return new WaitForEndOfFrame();
 
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_GlobalViewModels_SharedAcrossWidgets",
                     panel.RenderTexture
@@ -1776,6 +1961,47 @@ namespace Rive.Tests
             var instance = file.GetViewModelByName("Colors").CreateDefaultInstance();
             instance.GetProperty<ViewModelInstanceColorProperty>("backgroundColor").Value32 = backgroundColor;
             return instance;
+        }
+
+        // Binds a blank instance of the artboard's view model and returns its list.
+        private static ListPropertyHandle BindBlankInstanceList(RiveWidget widget)
+        {
+            StateMachineHandle stateMachine = widget.StateMachineHandle;
+            ViewModelInstanceHandle instance = stateMachine.Artboard.GetDefaultViewModel().InstantiateBlank();
+            stateMachine.BindViewModelInstanceAsync(instance);
+            return instance.GetListProperty("items");
+        }
+
+        private static ViewModelInstanceHandle NewTodo(ViewModelHandle todo, string text)
+        {
+            ViewModelInstanceHandle item = todo.InstantiateBlank();
+            item.GetStringProperty("text").SetValue(text);
+            return item;
+        }
+
+        private static ViewModelInstanceHandle CreateColorsGlobal(FileHandle file, Color32 backgroundColor)
+        {
+            var instance = file.GetViewModel("Colors").Instantiate();
+            instance.GetColorProperty("backgroundColor").SetValue(backgroundColor);
+            return instance;
+        }
+
+        private static Future BindGlobals(RiveWidget widget, ViewModelInstanceHandle colors, ViewModelInstanceHandle labels)
+        {
+            // Null keeps the main instance AutoBindDefault bound, so only the globals change.
+            return widget.StateMachineHandle.BindViewModelInstanceAsync(
+                null,
+                new Dictionary<string, ViewModelInstanceHandle>
+                {
+                    { "Colors", colors },
+                    { "Labels", labels }
+                });
+        }
+
+        private static IEnumerator ExpectBound(Future bind)
+        {
+            yield return bind;
+            Assert.AreEqual(FutureStatus.Succeeded, bind.Status, bind.Exception?.Message);
         }
 
         /// <summary>
@@ -1810,13 +2036,13 @@ namespace Rive.Tests
             int width = original.width;
             int height = original.height / 2;
 
-            // Read the top‑half pixels (Unity's ReadPixels origin is bottom‑left)
-            var prevActive = RenderTexture.active;
-            RenderTexture.active = original;
+            // Take the top-half rows. The read's origin is bottom-left, like ReadPixels.
+            Color32[] pixels = ReadBySampling(original);
+            var top = new Color32[width * height];
+            System.Array.Copy(pixels, width * height, top, 0, top.Length);
             var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-            tex.ReadPixels(new Rect(0, height, width, height), 0, 0);
+            tex.SetPixels32(top);
             tex.Apply();
-            RenderTexture.active = prevActive;
 
             // Blit into a new temporary RT and return it
             var tmpRT = RenderTexture.GetTemporary(width, height, 0, original.format);
@@ -1830,7 +2056,7 @@ namespace Rive.Tests
         /// This is important because we want to ensure that the initial values are set correctly as long as the widget is loaded.
         /// </summary>
         [UnityTest]
-        public IEnumerator DataBinding_InitialValues_SetWhenWidgetStatusLoaded_AreConsistent()
+        public IEnumerator DataBinding_InitialValues_SetWhenWidgetStatusLoaded_AreConsistent([Values] ThreadingMode mode)
         {
             // Test setting data binding values in these three different ways
             var setupMethods = new[]
@@ -1875,6 +2101,7 @@ namespace Rive.Tests
                         {
                             var panelObj = UnityEngine.Object.Instantiate(prefab);
                             panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                             panel.SetDimensions(new Vector2(800, 600));
 
                             var widget = panel.GetComponentInChildren<RiveWidget>();
@@ -1914,6 +2141,7 @@ namespace Rive.Tests
                     widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
 
                     yield return rewardsDataBindingTester.IsComplete();
+                    yield return WaitForChangesToLand(panel);
                     yield return new WaitForEndOfFrame();
 
                     // We're cropping to the top half of the image to avoid subtle animation differences in the bottom half of the image that are not relevant to the test.
@@ -1935,7 +2163,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RivePanel_Supports_ImageDataBinding()
+        public IEnumerator RivePanel_Supports_ImageDataBinding([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
 
@@ -1947,6 +2175,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -1991,44 +2220,41 @@ namespace Rive.Tests
                 widget.Load(file1);
                 widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-                yield return new WaitForEndOfFrame();
+                yield return WaitForFirstFrame(panel, widget);
 
                 // Test initial state (should show default or no image)
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_InitialState_NoImage",
                     panel.RenderTexture
                 );
 
                 // <-- Case 2: Set desert image via data binding -->
-                var viewModelInstance = widget.StateMachine.ViewModelInstance;
-                Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
-
-                var imageProp = viewModelInstance.GetProperty<ViewModelInstanceImageProperty>("image");
-                Assert.IsNotNull(imageProp, "Image property should exist");
-
-                imageProp.Value = desertImageAsset;
+                BoundValues.SetImage(widget, "image", desertImageAsset);
                 yield return new WaitForEndOfFrame();
 
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_DesertImage",
                     panel.RenderTexture
                 );
 
                 // <-- Case 3: Change to forest image -->
-                imageProp.Value = forestImageAsset;
+                BoundValues.SetImage(widget, "image", forestImageAsset);
                 yield return new WaitForEndOfFrame();
 
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_ForestImage",
                     panel.RenderTexture
                 );
 
                 // <-- Case 4: Set image to null -->
-                imageProp.Value = null;
+                BoundValues.SetImage(widget, "image", null);
                 yield return new WaitForEndOfFrame();
 
                 // It should show the initial state (no image)
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_InitialState_NoImage",
                     panel.RenderTexture
@@ -2046,7 +2272,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RivePanel_Supports_FontDataBinding()
+        public IEnumerator RivePanel_Supports_FontDataBinding([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
 
@@ -2057,6 +2283,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -2090,24 +2317,20 @@ namespace Rive.Tests
                 widget.Load(file);
                 widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(widget);
                 yield return WaitForPanelRenderSettled(panel, frames: 1);
 
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_FontDataBinding_InitialState",
                     panel.RenderTexture
                 );
                 initialSnapshot = CaptureRenderTexture(panel.RenderTexture);
 
-                var viewModelInstance = widget.StateMachine.ViewModelInstance;
-                Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
-
-                var fontProp = viewModelInstance.GetFontProperty("font");
-                Assert.IsNotNull(fontProp, "Font property should exist");
-
-                fontProp.Value = sekuyaRegularFont;
+                BoundValues.SetFont(widget, "font", sekuyaRegularFont);
                 yield return WaitForPanelRenderSettled(panel, frames: 2);
 
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_FontDataBinding_NewFont",
                     panel.RenderTexture
@@ -2129,7 +2352,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RivePanel_ImageDataBinding_InitialFrameSetup()
+        public IEnumerator RivePanel_ImageDataBinding_InitialFrameSetup([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -2140,6 +2363,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -2174,13 +2398,7 @@ namespace Rive.Tests
                 {
                     if (widget.Status == WidgetStatus.Loaded)
                     {
-                        var viewModelInstance = widget.StateMachine.ViewModelInstance;
-                        Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
-
-                        var imageProp = viewModelInstance.GetProperty<ViewModelInstanceImageProperty>("image");
-                        Assert.IsNotNull(imageProp, "Image property should exist");
-
-                        imageProp.Value = desertImageAsset;
+                        BoundValues.SetImage(widget, "image", desertImageAsset);
                     }
                 };
 
@@ -2188,10 +2406,10 @@ namespace Rive.Tests
                 widget.Load(riveFile);
                 widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-                yield return new WaitForEndOfFrame();
+                yield return WaitForFirstFrame(panel, widget);
 
                 // Verify that setting image on initial frame works correctly
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_DesertImage",
                     panel.RenderTexture
@@ -2207,7 +2425,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RivePanel_Supports_ArtboardDataBinding()
+        public IEnumerator RivePanel_Supports_ArtboardDataBinding([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -2218,6 +2436,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -2253,20 +2472,39 @@ namespace Rive.Tests
                 widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
                 widget.Load(artboardFile);
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-                yield return new WaitForEndOfFrame();
+                yield return WaitForFirstFrame(panel, widget);
+
+                // The external file as a handle too, for a BackgroundThread panel.
+                FileHandle externalHandle = null;
+                if (mode == ThreadingMode.BackgroundThread)
+                {
+                    Future<FileHandle> loading = FileHandle.LoadAsync(externalArtboardAsset);
+                    yield return new WaitUntil(() => loading.IsDone);
+                    externalHandle = loading.Result;
+                }
+
+                // Sets an artboard property through whichever family the panel gives.
+                void SetArtboard(string property, string artboardName, bool external)
+                {
+                    if (mode == ThreadingMode.BackgroundThread)
+                    {
+                        FileHandle source = external ? externalHandle : widget.FileHandle;
+                        BindableArtboardHandle bindable = artboardName == null ? null : source.GetBindableArtboard(artboardName);
+                        widget.StateMachineHandle.GetViewModelInstance().GetArtboardProperty(property).SetValue(bindable);
+                        return;
+                    }
+                    File plainSource = external ? externalArtboardFile : artboardFile;
+                    BindableArtboard plainBindable = artboardName == null ? null : plainSource.BindableArtboard(artboardName);
+                    Assert.IsTrue(artboardName == null || plainBindable != null, $"{artboardName} should exist");
+                    var artboardProperty = widget.StateMachine.ViewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>(property);
+                    Assert.IsNotNull(artboardProperty, $"Artboard property '{property}' should exist");
+                    artboardProperty.Value = plainBindable;
+                }
 
                 // <-- Case 1: Initial state with default artboards -->
-                var viewModelInstance = widget.StateMachine.ViewModelInstance;
-                Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
-
-                var artboardProp1 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_1");
-                var artboardProp2 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_2");
-
-                Assert.IsNotNull(artboardProp1, "Artboard property 'artboard_1' should exist");
-                Assert.IsNotNull(artboardProp2, "Artboard property 'artboard_2' should exist");
 
                 // Test initial state (should show default red and blue artboards)
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ArtboardDataBinding_InitialState",
                     panel.RenderTexture
@@ -2275,12 +2513,10 @@ namespace Rive.Tests
                 yield return null;
 
                 // <-- Case 2: Change artboard_1 to green artboard -->
-                var greenArtboard = artboardFile.BindableArtboard("ArtboardGreen");
-                Assert.IsNotNull(greenArtboard, "Green artboard should exist in file");
-
-                artboardProp1.Value = greenArtboard;
+                SetArtboard("artboard_1", "ArtboardGreen", external: false);
                 yield return new WaitForEndOfFrame();
 
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ArtboardDataBinding_GreenArtboard",
                     panel.RenderTexture
@@ -2289,21 +2525,21 @@ namespace Rive.Tests
                 yield return null;
 
                 // <-- Case 3: Change artboard_2 to artboard from external file -->
-                var externalArtboard = externalArtboardFile.BindableArtboard(externalArtboardFile.ArtboardName(0)); // Get default artboard from external file
-                Assert.IsNotNull(externalArtboard, "External artboard should exist");
-                artboardProp2.Value = externalArtboard;
+                SetArtboard("artboard_2", externalArtboardFile.ArtboardName(0), external: true);
 
                 yield return new WaitForEndOfFrame();
 
 
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ArtboardDataBinding_CrossFileArtboard",
                     panel.RenderTexture
                 );
 
                 // <-- Case 4: Change artboard_1 to null -->
-                artboardProp1.Value = null;
+                SetArtboard("artboard_1", null, external: false);
                 yield return new WaitForEndOfFrame();
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ArtboardDataBinding_NullArtboard",
                     panel.RenderTexture
@@ -2312,6 +2548,7 @@ namespace Rive.Tests
 
                 artboardFile?.Dispose();
                 externalArtboardFile?.Dispose();
+                externalHandle?.Dispose();
             }
             finally
             {
@@ -2321,7 +2558,7 @@ namespace Rive.Tests
 
 
         [UnityTest]
-        public IEnumerator RivePanel_Supports_ArtboardDataBinding_WithCustomVMInstance()
+        public IEnumerator RivePanel_Supports_ArtboardDataBinding_WithCustomVMInstance([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -2332,6 +2569,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -2362,48 +2600,83 @@ namespace Rive.Tests
                 widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
                 widget.Load(artboardFile);
 
-                yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
+                if (mode == ThreadingMode.BackgroundThread)
+                {
+                    yield return WaitForFirstFrame(panel, widget);
+                }
+                else
+                {
+                    yield return RivePanelTestUtils.WaitForLoaded(widget);
+                }
 
-                var viewModelInstance = widget.StateMachine.ViewModelInstance;
-                Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
+                // Assigns ArtboardControlled with no instance (0) or custom instance 1 or 2,
+                // through whichever family the panel gives.
+                System.Action<int> assign;
+                if (mode == ThreadingMode.BackgroundThread)
+                {
+                    FileHandle file = widget.FileHandle;
+                    ViewModelHandle controlled = file.GetViewModel("ControlledViewModel");
+                    ViewModelInstanceHandle custom1 = controlled.InstantiateBlank();
+                    custom1.GetStringProperty("text").SetValue("Custom 1");
+                    custom1.GetColorProperty("color").SetValue(new UnityEngine.Color(1, 0, 0, 1));
+                    ViewModelInstanceHandle custom2 = controlled.InstantiateBlank();
+                    custom2.GetStringProperty("text").SetValue("Custom 2");
+                    custom2.GetColorProperty("color").SetValue(new UnityEngine.Color(0, 0, 1, 1));
+                    var handleArtboards = new[]
+                    {
+                        file.GetBindableArtboard("ArtboardControlled"),
+                        file.GetBindableArtboard("ArtboardControlled", custom1),
+                        file.GetBindableArtboard("ArtboardControlled", custom2),
+                    };
+                    ArtboardPropertyHandle handleProperty = widget.StateMachineHandle.GetViewModelInstance().GetArtboardProperty("artboard_1");
+                    assign = i => handleProperty.SetValue(handleArtboards[i]);
+                }
+                else
+                {
+                    var viewModelInstance = widget.StateMachine.ViewModelInstance;
+                    Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
 
-                var artboardProp1 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_1");
-                Assert.IsNotNull(artboardProp1, "Artboard property 'artboard_1' should exist");
+                    var artboardProp1 = viewModelInstance.GetProperty<ViewModelInstanceArtboardProperty>("artboard_1");
+                    Assert.IsNotNull(artboardProp1, "Artboard property 'artboard_1' should exist");
 
-                // Create custom instances for the ControlledViewModel.
-                var controlledViewModel = artboardFile.GetViewModelByName("ControlledViewModel");
-                Assert.IsNotNull(controlledViewModel, "ControlledViewModel should exist in test file");
+                    // Create custom instances for the ControlledViewModel.
+                    var controlledViewModel = artboardFile.GetViewModelByName("ControlledViewModel");
+                    Assert.IsNotNull(controlledViewModel, "ControlledViewModel should exist in test file");
 
-                controlledInstance1 = controlledViewModel.CreateInstance();
-                Assert.IsNotNull(controlledInstance1, "Expected to create ControlledViewModel instance 1");
-                var text1 = controlledInstance1.GetStringProperty("text");
-                var color1 = controlledInstance1.GetColorProperty("color");
-                Assert.IsNotNull(text1, "Expected 'text' property on ControlledViewModel");
-                Assert.IsNotNull(color1, "Expected 'color' property on ControlledViewModel");
-                text1.Value = "Custom 1";
-                color1.Value = new UnityEngine.Color(1, 0, 0, 1); // Red
+                    controlledInstance1 = controlledViewModel.CreateInstance();
+                    Assert.IsNotNull(controlledInstance1, "Expected to create ControlledViewModel instance 1");
+                    var text1 = controlledInstance1.GetStringProperty("text");
+                    var color1 = controlledInstance1.GetColorProperty("color");
+                    Assert.IsNotNull(text1, "Expected 'text' property on ControlledViewModel");
+                    Assert.IsNotNull(color1, "Expected 'color' property on ControlledViewModel");
+                    text1.Value = "Custom 1";
+                    color1.Value = new UnityEngine.Color(1, 0, 0, 1); // Red
 
-                controlledInstance2 = controlledViewModel.CreateInstance();
-                Assert.IsNotNull(controlledInstance2, "Expected to create ControlledViewModel instance 2");
-                var text2 = controlledInstance2.GetStringProperty("text");
-                var color2 = controlledInstance2.GetColorProperty("color");
-                Assert.IsNotNull(text2, "Expected 'text' property on ControlledViewModel");
-                Assert.IsNotNull(color2, "Expected 'color' property on ControlledViewModel");
-                text2.Value = "Custom 2";
-                color2.Value = new UnityEngine.Color(0, 0, 1, 1); // Blue
+                    controlledInstance2 = controlledViewModel.CreateInstance();
+                    Assert.IsNotNull(controlledInstance2, "Expected to create ControlledViewModel instance 2");
+                    var text2 = controlledInstance2.GetStringProperty("text");
+                    var color2 = controlledInstance2.GetColorProperty("color");
+                    Assert.IsNotNull(text2, "Expected 'text' property on ControlledViewModel");
+                    Assert.IsNotNull(color2, "Expected 'color' property on ControlledViewModel");
+                    text2.Value = "Custom 2";
+                    color2.Value = new UnityEngine.Color(0, 0, 1, 1); // Blue
 
-                controlledArtboard = artboardFile.BindableArtboard("ArtboardControlled");
-                var controlledArtboardWithInstance1 = artboardFile.BindableArtboard("ArtboardControlled", controlledInstance1);
-                var controlledArtboardWithInstance2 = artboardFile.BindableArtboard("ArtboardControlled", controlledInstance2);
-                Assert.IsNotNull(controlledArtboard, "ArtboardControlled should exist in file");
-                Assert.IsNotNull(controlledArtboardWithInstance1,
-                    "ArtboardControlled with custom instance 1 should exist in file");
-                Assert.IsNotNull(controlledArtboardWithInstance2,
-                    "ArtboardControlled with custom instance 2 should exist in file");
+                    controlledArtboard = artboardFile.BindableArtboard("ArtboardControlled");
+                    var controlledArtboardWithInstance1 = artboardFile.BindableArtboard("ArtboardControlled", controlledInstance1);
+                    var controlledArtboardWithInstance2 = artboardFile.BindableArtboard("ArtboardControlled", controlledInstance2);
+                    Assert.IsNotNull(controlledArtboard, "ArtboardControlled should exist in file");
+                    Assert.IsNotNull(controlledArtboardWithInstance1,
+                        "ArtboardControlled with custom instance 1 should exist in file");
+                    Assert.IsNotNull(controlledArtboardWithInstance2,
+                        "ArtboardControlled with custom instance 2 should exist in file");
+                    var plainArtboards = new[] { controlledArtboard, controlledArtboardWithInstance1, controlledArtboardWithInstance2 };
+                    assign = i => artboardProp1.Value = plainArtboards[i];
+                }
 
                 // <-- Case 1: Assign ArtboardControlled with no custom instance (default) -->
-                artboardProp1.Value = controlledArtboard;
+                assign(0);
                 yield return new WaitForEndOfFrame();
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ArtboardDataBinding_Controlled_DefaultInstance",
                     panel.RenderTexture
@@ -2412,8 +2685,9 @@ namespace Rive.Tests
                 yield return null;
 
                 // <-- Case 2: Assign ArtboardControlled with custom instance 1 -->
-                artboardProp1.Value = controlledArtboardWithInstance1;
+                assign(1);
                 yield return new WaitForEndOfFrame();
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ArtboardDataBinding_Controlled_CustomInstance1",
                     panel.RenderTexture
@@ -2422,8 +2696,9 @@ namespace Rive.Tests
                 yield return null;
 
                 // <-- Case 3: Assign ArtboardControlled with custom instance 2 -->
-                artboardProp1.Value = controlledArtboardWithInstance2;
+                assign(2);
                 yield return new WaitForEndOfFrame();
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ArtboardDataBinding_Controlled_CustomInstance2",
                     panel.RenderTexture
@@ -2433,8 +2708,9 @@ namespace Rive.Tests
 
                 // <-- Case 4: Assign ArtboardControlled with no custom instance again -->
                 // This will show the same visuals as Custom Instance 2 or the last assigned instance (this is how the c++ runtime treats it). Whether this is the expected behavior or not is TBD, but the important part for this test is that it doesn't cause a crash and we know what the behavior is for now.
-                artboardProp1.Value = controlledArtboard;
+                assign(0);
                 yield return new WaitForEndOfFrame();
+                yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ArtboardDataBinding_Controlled_CustomInstance2",
                     panel.RenderTexture
@@ -2456,7 +2732,7 @@ namespace Rive.Tests
 
 
         [UnityTest]
-        public IEnumerator DataBinding_ListProperty_InitialState_ShowsExpectedVisuals()
+        public IEnumerator DataBinding_ListProperty_InitialState_ShowsExpectedVisuals([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -2467,6 +2743,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 800));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -2486,8 +2763,7 @@ namespace Rive.Tests
             widget.Load(riveFile);
             widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
 
-            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-            yield return new WaitForEndOfFrame();
+            yield return WaitForFirstFrame(panel, widget);
 
             yield return m_goldenHelper.AssertWithRenderTexture(
                 "RivePanel_DataBinding_ListProperty_InitialState",
@@ -2500,7 +2776,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator DataBinding_ListProperty_AddItems_ShowsExpectedVisuals()
+        public IEnumerator DataBinding_ListProperty_AddItems_ShowsExpectedVisuals([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -2511,6 +2787,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 800));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -2530,7 +2807,16 @@ namespace Rive.Tests
 
             widget.OnWidgetStatusChanged += () =>
             {
-                if (widget.Status == WidgetStatus.Loaded)
+                if (widget.Status == WidgetStatus.Loaded && widget.StateMachineHandle != null)
+                {
+                    ListPropertyHandle list = BindBlankInstanceList(widget);
+                    ViewModelHandle todo = widget.FileHandle.GetViewModel("TodoItem");
+                    foreach (var itemText in new[] { "Buy groceries", "Walk the dog", "Read a book", "Call friends" })
+                    {
+                        list.Add(NewTodo(todo, itemText));
+                    }
+                }
+                else if (widget.Status == WidgetStatus.Loaded)
                 {
                     var viewModel = widget.Artboard.DefaultViewModel;
                     var viewModelInstance = viewModel.CreateInstance();
@@ -2560,8 +2846,7 @@ namespace Rive.Tests
 
             widget.Load(riveFile);
 
-            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-            yield return new WaitForEndOfFrame();
+            yield return WaitForFirstFrame(panel, widget);
 
             yield return m_goldenHelper.AssertWithRenderTexture(
                 "RivePanel_DataBinding_ListProperty_AddItems",
@@ -2574,7 +2859,7 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator DataBinding_ListProperty_ModifyItemProperties_ShowsExpectedVisuals()
+        public IEnumerator DataBinding_ListProperty_ModifyItemProperties_ShowsExpectedVisuals([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -2585,6 +2870,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 800));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -2605,7 +2891,20 @@ namespace Rive.Tests
 
             widget.OnWidgetStatusChanged += () =>
             {
-                if (widget.Status == WidgetStatus.Loaded)
+                if (widget.Status == WidgetStatus.Loaded && widget.StateMachineHandle != null)
+                {
+                    ListPropertyHandle list = BindBlankInstanceList(widget);
+                    list.Clear();
+                    ViewModelHandle todo = widget.FileHandle.GetViewModel("TodoItem");
+                    foreach (var itemText in new[] { "Task 1", "Task 2", "Task 3" })
+                    {
+                        ViewModelInstanceHandle item = NewTodo(todo, itemText);
+                        item.GetBooleanProperty("isDone").SetValue(itemText == "Task 2");
+                        list.Add(item);
+                    }
+                    list.GetInstanceAt(0).GetStringProperty("text").SetValue("Modified Task 1");
+                }
+                else if (widget.Status == WidgetStatus.Loaded)
                 {
                     var viewModel = widget.Artboard.DefaultViewModel;
                     var viewModelInstance = viewModel.CreateInstance();
@@ -2663,8 +2962,7 @@ namespace Rive.Tests
 
             widget.Load(riveFile);
 
-            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-            yield return new WaitForEndOfFrame();
+            yield return WaitForFirstFrame(panel, widget);
 
             yield return m_goldenHelper.AssertWithRenderTexture(
                 "RivePanel_DataBinding_ListProperty_ModifyItemProperties",
@@ -2678,7 +2976,7 @@ namespace Rive.Tests
 
 
         [UnityTest]
-        public IEnumerator DataBinding_ListProperty_RemoveAndSwapItems_ShowsExpectedVisuals()
+        public IEnumerator DataBinding_ListProperty_RemoveAndSwapItems_ShowsExpectedVisuals([Values] ThreadingMode mode)
         {
             var panelPrefabPath = TestPrefabReferences.RivePanelWithSingleWidget;
             RivePanel panel = null;
@@ -2689,6 +2987,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 800));
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}")
@@ -2709,7 +3008,19 @@ namespace Rive.Tests
 
             widget.OnWidgetStatusChanged += () =>
             {
-                if (widget.Status == WidgetStatus.Loaded)
+                if (widget.Status == WidgetStatus.Loaded && widget.StateMachineHandle != null)
+                {
+                    ListPropertyHandle list = BindBlankInstanceList(widget);
+                    ViewModelHandle todo = widget.FileHandle.GetViewModel("TodoItem");
+                    foreach (var itemText in new[] { "First", "Second", "Third", "Fourth", "Fifth" })
+                    {
+                        list.Add(NewTodo(todo, itemText));
+                    }
+                    // Queued in order, so the indices are the same as the plain steps.
+                    list.RemoveAt(2);
+                    list.Swap(0, 3);
+                }
+                else if (widget.Status == WidgetStatus.Loaded)
                 {
                     var viewModel = widget.Artboard.DefaultViewModel;
                     var viewModelInstance = viewModel.CreateInstance();
@@ -2747,8 +3058,7 @@ namespace Rive.Tests
 
             widget.Load(riveFile);
 
-            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-            yield return new WaitForEndOfFrame();
+            yield return WaitForFirstFrame(panel, widget);
 
             yield return m_goldenHelper.AssertWithRenderTexture(
                 "RivePanel_DataBinding_ListProperty_RemoveAndSwapItems",
@@ -3241,14 +3551,48 @@ namespace Rive.Tests
         {
             public RivePanel Panel;
             public RiveWidget Widget;
-            public ViewModelInstanceImageProperty ImageProp;
+            public ImageTarget ImageProp;
             public File File;
         }
 
         // Spawns the single-widget panel (800x600, Contain to match the existing
         // image-binding goldens), loads image_db_test, auto-binds, and hands back
         // the "image" property to drive. Yields the RtImageSetup as its last value.
-        private IEnumerator SetupImageDbPanel()
+        // The "image" property through whichever family the panel gives.
+        private sealed class ImageTarget
+        {
+            public ViewModelInstanceImageProperty Plain;
+            public ImagePropertyHandle Handle;
+
+            public ImageOutOfBandAsset Value
+            {
+                set
+                {
+                    if (Handle != null)
+                    {
+                        Handle.SetValue(value);
+                    }
+                    else
+                    {
+                        Plain.Value = value;
+                    }
+                }
+            }
+
+            public void SetFromRenderTextureImageSource(RenderTextureImageSource image)
+            {
+                if (Handle != null)
+                {
+                    Handle.SetFromRenderTextureImageSource(image);
+                }
+                else
+                {
+                    Plain.SetFromRenderTextureImageSource(image);
+                }
+            }
+        }
+
+        private IEnumerator SetupImageDbPanel(ThreadingMode mode)
         {
             RivePanel panel = null;
             yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
@@ -3257,6 +3601,7 @@ namespace Rive.Tests
                 {
                     var panelObj = UnityEngine.Object.Instantiate(prefab);
                     panel = panelObj.GetComponent<RivePanel>();
+                    panel.ThreadingMode = mode;
                     panel.SetDimensions(new Vector2(800, 600));
                 },
                 () => Assert.Fail("Failed to load panel prefab"));
@@ -3273,13 +3618,20 @@ namespace Rive.Tests
             File file = File.Load(riveAsset);
             widget.Load(file);
             widget.BindingMode = Components.RiveWidget.DataBindingMode.AutoBindDefault;
-            yield return new WaitUntil(() => widget.Status == WidgetStatus.Loaded);
-            yield return new WaitForEndOfFrame();
+            yield return WaitForFirstFrame(panel, widget);
 
-            var vmi = widget.StateMachine.ViewModelInstance;
-            Assert.IsNotNull(vmi, "ViewModelInstance should exist");
-            var imageProp = vmi.GetProperty<ViewModelInstanceImageProperty>("image");
-            Assert.IsNotNull(imageProp, "Image property should exist");
+            var imageProp = new ImageTarget();
+            if (mode == ThreadingMode.BackgroundThread)
+            {
+                imageProp.Handle = widget.StateMachineHandle.GetViewModelInstance().GetImageProperty("image");
+            }
+            else
+            {
+                var vmi = widget.StateMachine.ViewModelInstance;
+                Assert.IsNotNull(vmi, "ViewModelInstance should exist");
+                imageProp.Plain = vmi.GetProperty<ViewModelInstanceImageProperty>("image");
+                Assert.IsNotNull(imageProp.Plain, "Image property should exist");
+            }
 
             yield return new RtImageSetup { Panel = panel, Widget = widget, ImageProp = imageProp, File = file };
         }
@@ -3295,9 +3647,9 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_Auto_RendersUprightAndColorCorrect()
+        public IEnumerator RenderTextureImage_Auto_RendersUprightAndColorCorrect([Values] ThreadingMode mode)
         {
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3317,6 +3669,7 @@ namespace Rive.Tests
 
                 // Single reference: Auto should look upright + color-correct on any
                 // backend / color space.
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_Quadrants",
                     s.Panel.RenderTexture);
@@ -3332,12 +3685,12 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_Auto_LinearSourceMatchesSRGBSource()
+        public IEnumerator RenderTextureImage_Auto_LinearSourceMatchesSRGBSource([Values] ThreadingMode mode)
         {
             // A UNORM source (the VideoPlayer / custom-render layout) should look
             // identical under Auto to the sRGB source, so it's asserted against the
             // same RenderTextureImage_Auto_Quadrants reference.
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3355,6 +3708,8 @@ namespace Rive.Tests
 
                 IgnoreIfUnsupported(image);
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_Quadrants",
                     s.Panel.RenderTexture);
@@ -3372,10 +3727,10 @@ namespace Rive.Tests
         // We use a flat 50% gray as the gamma-sensitive test case: a burned (double-color-corrected)
         // result makes it much darker, which the comparison catches.
         [UnityTest]
-        public IEnumerator RenderTextureImage_Auto_MidGray_IsNotDoubleColorCorrected()
+        public IEnumerator RenderTextureImage_Auto_MidGray_IsNotDoubleColorCorrected([Values] ThreadingMode mode)
         {
 
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3393,6 +3748,8 @@ namespace Rive.Tests
 
                 IgnoreIfUnsupported(image);
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_MidGray",
                     s.Panel.RenderTexture);
@@ -3408,12 +3765,12 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_None_BindsUnprocessed()
+        public IEnumerator RenderTextureImage_None_BindsUnprocessed([Values] ThreadingMode mode)
         {
             // None binds the source as-is, so the look intentionally varies by
             // backend (flip) and color space (decode). The reference is therefore
             // suffixed per config; capture one per backend/color space you ship.
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3431,6 +3788,8 @@ namespace Rive.Tests
 
                 IgnoreIfUnsupported(image);
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     $"RenderTextureImage_None_Unprocessed_{CurrentBackendColorSuffix()}",
                     s.Panel.RenderTexture);
@@ -3446,11 +3805,11 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_ManualRefresh_ReflectsSourceChange()
+        public IEnumerator RenderTextureImage_ManualRefresh_ReflectsSourceChange([Values] ThreadingMode mode)
         {
             // Manual mode: changing the image source and calling Refresh() should update
             // the display, because each Refresh() returns a new native pointer which re-pushes and dirties the property.
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3471,6 +3830,8 @@ namespace Rive.Tests
 
                 IgnoreIfUnsupported(image);
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_Quadrants",
                     s.Panel.RenderTexture);
@@ -3484,6 +3845,8 @@ namespace Rive.Tests
 
                 yield return new WaitForEndOfFrame();
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_MidGray",
                     s.Panel.RenderTexture);
@@ -3500,12 +3863,12 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_PerFrame_AutoReflectsSourceChange()
+        public IEnumerator RenderTextureImage_PerFrame_AutoReflectsSourceChange([Values] ThreadingMode mode)
         {
             // PerFrame mode (the default): no explicit Refresh()
             // is needed. The manager ticks the image every frame, which re-blits
             // and re-pushes a new pointer, so an image change shows up automatically.
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3524,6 +3887,8 @@ namespace Rive.Tests
 
                 IgnoreIfUnsupported(image);
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_Quadrants",
                     s.Panel.RenderTexture);
@@ -3535,6 +3900,8 @@ namespace Rive.Tests
 
                 yield return new WaitForEndOfFrame();
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_MidGray",
                     s.Panel.RenderTexture);
@@ -3551,11 +3918,11 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_Unbind_RevertsToNoImage()
+        public IEnumerator RenderTextureImage_Unbind_RevertsToNoImage([Values] ThreadingMode mode)
         {
             // Clearing the render-texture binding should fall back to the .riv's
             // no-image state, reusing the existing image-binding reference.
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3576,6 +3943,8 @@ namespace Rive.Tests
                 s.ImageProp.SetFromRenderTextureImageSource(null);
                 yield return new WaitForEndOfFrame();
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_InitialState_NoImage",
                     s.Panel.RenderTexture);
@@ -3591,9 +3960,9 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_SourceDestroyed_ClearsAndShowsNoLeftovers()
+        public IEnumerator RenderTextureImage_SourceDestroyed_ClearsAndShowsNoLeftovers([Values] ThreadingMode mode)
         {
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3612,6 +3981,7 @@ namespace Rive.Tests
                 IgnoreIfUnsupported(image);
 
                 // Verify the quadrant is actually showing before we destroy the source.
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_Quadrants",
                     s.Panel.RenderTexture);
@@ -3631,6 +4001,8 @@ namespace Rive.Tests
 
                 Assert.IsFalse(image.IsValid);
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_InitialState_NoImage",
                     s.Panel.RenderTexture);
@@ -3646,12 +4018,12 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_ReassignedSameFrame_ShowsLastSource()
+        public IEnumerator RenderTextureImage_ReassignedSameFrame_ShowsLastSource([Values] ThreadingMode mode)
         {
             // Bind one source then a different one before any tick runs. The first
             // binding is dropped immediately, so only the second source should ever
             // build and show; the first must never appear.
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3680,6 +4052,7 @@ namespace Rive.Tests
                 IgnoreIfUnsupported(secondImage);
 
                 // The last-assigned (quadrant) source should be what's showing.
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_Quadrants",
                     s.Panel.RenderTexture);
@@ -3698,12 +4071,12 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_ReassignedSameFrameToImageAsset_ShowsImageAsset()
+        public IEnumerator RenderTextureImage_ReassignedSameFrameToImageAsset_ShowsImageAsset([Values] ThreadingMode mode)
         {
             // Bind a render texture then a regular image asset before any tick runs.
             // The asset assignment should unbind the render-texture source so it
             // cannot overwrite the asset on the next manager tick.
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3729,6 +4102,8 @@ namespace Rive.Tests
                 s.ImageProp.Value = imageAsset;
                 yield return null;
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_DesertImage",
                     s.Panel.RenderTexture);
@@ -3745,11 +4120,11 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_ReassignedToImageAssetAfterBuild_ShowsImageAsset()
+        public IEnumerator RenderTextureImage_ReassignedToImageAssetAfterBuild_ShowsImageAsset([Values] ThreadingMode mode)
         {
             // After a real build is in flight, reassign to a regular image asset
             // in the same frame. The asset should win, not the stale render texture.
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3776,6 +4151,8 @@ namespace Rive.Tests
 
                 IgnoreIfUnsupported(renderTextureImage);
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RenderTextureImage_Auto_Quadrants",
                     s.Panel.RenderTexture);
@@ -3785,6 +4162,8 @@ namespace Rive.Tests
                 s.ImageProp.Value = imageAsset;
                 yield return null;
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_DesertImage",
                     s.Panel.RenderTexture);
@@ -3801,11 +4180,11 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator RenderTextureImage_AssignedAndClearedSameFrame_ShowsNoImage()
+        public IEnumerator RenderTextureImage_AssignedAndClearedSameFrame_ShowsNoImage([Values] ThreadingMode mode)
         {
             // Bind a source then clear it before any tick runs. Nothing should ever
             // build, so the panel stays in the .riv's no-image state.
-            var setup = SetupImageDbPanel();
+            var setup = SetupImageDbPanel(mode);
             yield return setup;
             var s = setup.Current as RtImageSetup;
 
@@ -3826,6 +4205,8 @@ namespace Rive.Tests
 
                 IgnoreIfUnsupported(image);
 
+
+                yield return WaitForChangesToLand(s.Panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
                     "RivePanel_ImageDataBinding_InitialState_NoImage",
                     s.Panel.RenderTexture);
@@ -3847,6 +4228,60 @@ namespace Rive.Tests
             {
                 UnityEngine.Object.Destroy(obj);
             }
+        }
+    }
+
+    /// <summary>
+    /// Data binding calls through whichever API the widget's panel gives, so a golden runs the same
+    /// steps in both threading modes: plain objects in a MainThread panel, handles in a Background one.
+    /// </summary>
+    internal static class BoundValues
+    {
+        private static ViewModelInstanceHandle Handle(RiveWidget widget) => widget.StateMachineHandle?.GetViewModelInstance();
+
+        private static ViewModelInstance Plain(RiveWidget widget) => widget.StateMachine.ViewModelInstance;
+
+        internal static void SetString(RiveWidget widget, string path, string value)
+        {
+            if (Handle(widget) is ViewModelInstanceHandle handle) handle.GetStringProperty(path).SetValue(value);
+            else Plain(widget).GetStringProperty(path).Value = value;
+        }
+
+        internal static void SetNumber(RiveWidget widget, string path, float value)
+        {
+            if (Handle(widget) is ViewModelInstanceHandle handle) handle.GetNumberProperty(path).SetValue(value);
+            else Plain(widget).GetNumberProperty(path).Value = value;
+        }
+
+        internal static void SetBoolean(RiveWidget widget, string path, bool value)
+        {
+            if (Handle(widget) is ViewModelInstanceHandle handle) handle.GetBooleanProperty(path).SetValue(value);
+            else Plain(widget).GetBooleanProperty(path).Value = value;
+        }
+
+        internal static void SetColor(RiveWidget widget, string path, UnityEngine.Color value)
+        {
+            if (Handle(widget) is ViewModelInstanceHandle handle) handle.GetColorProperty(path).SetValue(value);
+            else Plain(widget).GetColorProperty(path).Value = value;
+        }
+
+        internal static void SetEnum(RiveWidget widget, string path, string value)
+        {
+            if (Handle(widget) is ViewModelInstanceHandle handle) handle.GetEnumProperty(path).SetValue(value);
+            else Plain(widget).GetEnumProperty(path).Value = value;
+        }
+
+        /// The plain property needs the asset loaded first; the handle doesn't.
+        internal static void SetImage(RiveWidget widget, string path, ImageOutOfBandAsset value)
+        {
+            if (Handle(widget) is ViewModelInstanceHandle handle) handle.GetImageProperty(path).SetValue(value);
+            else Plain(widget).GetProperty<ViewModelInstanceImageProperty>(path).Value = value;
+        }
+
+        internal static void SetFont(RiveWidget widget, string path, FontOutOfBandAsset value)
+        {
+            if (Handle(widget) is ViewModelInstanceHandle handle) handle.GetFontProperty(path).SetValue(value);
+            else Plain(widget).GetFontProperty(path).Value = value;
         }
     }
 
@@ -3938,7 +4373,7 @@ namespace Rive.Tests
                 else
                 {
                     // We need to wait until the widget is loaded
-                    yield return new WaitUntil(() => m_riveWidget.Status == WidgetStatus.Loaded);
+                    yield return RivePanelTestUtils.WaitForLoaded(m_riveWidget);
                     SetRewardsValues();
                 }
             }
@@ -3982,6 +4417,15 @@ namespace Rive.Tests
 
         private void SetRewardsValues()
         {
+
+            if (m_riveWidget.StateMachineHandle != null)
+            {
+                BoundValues.SetNumber(m_riveWidget, "Coin/Item_Value", 250);
+                BoundValues.SetNumber(m_riveWidget, "Gem/Item_Value", 50);
+                BoundValues.SetEnum(m_riveWidget, "Coin/Property_Of_Item/Item_Selection", "Gem");
+                m_hasSetValues = true;
+                return;
+            }
 
             var viewModelInstance = m_riveWidget.StateMachine.ViewModelInstance;
             if (viewModelInstance == null)

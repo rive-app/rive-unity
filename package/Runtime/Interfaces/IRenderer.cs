@@ -19,20 +19,12 @@ namespace Rive
         /// <param name="artboard">The artboard to draw</param>
         void Draw(Artboard artboard);
 
-#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
         /// <summary>
-        /// Draw the given path and paint to the render queue
+        /// Clip the render queue to a rect of the given size, starting at the origin
         /// </summary>
-        /// <param name="path">The path to draw</param>
-        /// <param name="paint">The paint to apply to the path</param>
-        void Draw(Path path, Paint paint);
-
-        /// <summary>
-        /// Clip the render queue to the given path
-        /// </summary>
-        /// <param name="path">The path to use as a clip mask</param>
-        void Clip(Path path);
-#pragma warning restore CS0618
+        /// <param name="width">Width of the clip rect</param>
+        /// <param name="height">Height of the clip rect</param>
+        void ClipRect(float width, float height);
 
         /// <summary>
         /// Save the current render queue state
@@ -87,8 +79,7 @@ namespace Rive
         /// Add the render queue commands to an existing command buffer
         /// </summary>
         /// <param name="commandBuffer">The command buffer to add commands to</param>
-        /// <param name="release">Whether to release resources after execution (defaults to false)</param>
-        void AddToCommandBuffer(UnityEngine.Rendering.CommandBuffer commandBuffer, bool release = false);
+        void AddToCommandBuffer(UnityEngine.Rendering.CommandBuffer commandBuffer);
 
 
     }

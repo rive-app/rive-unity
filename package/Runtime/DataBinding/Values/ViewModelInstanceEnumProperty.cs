@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Rive.Utils;
+
+using Rive.Host;
 
 namespace Rive
 {
@@ -12,26 +13,12 @@ namespace Rive
     {
         private string[] m_enumValues;
 
-        /// <summary>
-        /// Constructor for the enum property. This is used when the enum values are known ahead of time.
-        /// </summary>
-        /// <param name="instanceValuePtr"> The pointer to the instance property. </param>
-        /// <param name="rootInstance"> The root instance of the view model. </param>
-        /// <param name="enumValues"> The list of enum values. </param>
-        internal ViewModelInstanceEnumProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance, string[] enumValues) : base(instanceValuePtr, rootInstance)
+        internal ViewModelInstanceEnumProperty(ViewModelInstance rootInstance, string name, int slot, string[] enumValues) : base(rootInstance, name, slot)
         {
-            m_enumValues = enumValues;
+            m_enumValues = enumValues ?? Array.Empty<string>();
         }
 
-        /// <summary>
-        /// Constructor for the enum property. This is used when the enum values are not known ahead of time.
-        /// </summary>
-        /// <param name="instanceValuePtr"> The pointer to the instance property. </param>
-        /// <param name="rootInstance"> The root instance of the view model. </param>
-        internal ViewModelInstanceEnumProperty(IntPtr instanceValuePtr, ViewModelInstance rootInstance) : base(instanceValuePtr, rootInstance)
-        {
-            PopulateEnumValuesIfNeeded();
-        }
+        internal override string FromValue(in PropertyValue value) => value.Text;
 
         /// <summary>
         /// The current enum value of the property.
@@ -42,7 +29,7 @@ namespace Rive
             {
                 ThrowIfOwnerDisposed();
 
-                if (InstancePropertyPtr == IntPtr.Zero)
+                if (!IsAttached)
                 {
                     DebugLogger.Instance.LogWarning("Trying to get a null enum property.");
                     return null;
@@ -53,8 +40,8 @@ namespace Rive
                     return null;
                 }
 
-
-                return m_enumValues[(int)getViewModelInstanceEnumIndex(InstancePropertyPtr)];
+                int valueIndex = ReadIndex();
+                return valueIndex >= 0 && valueIndex < m_enumValues.Length ? m_enumValues[valueIndex] : null;
             }
             set
             {
@@ -74,7 +61,7 @@ namespace Rive
                     return;
                 }
 
-                setViewModelInstanceEnumIndex(InstancePropertyPtr, (uint)index);
+                WriteNative(0f, index, null);
             }
         }
 
@@ -87,13 +74,13 @@ namespace Rive
             {
                 ThrowIfOwnerDisposed();
 
-                if (InstancePropertyPtr == IntPtr.Zero)
+                if (!IsAttached)
                 {
                     DebugLogger.Instance.LogWarning("Trying to get a null enum property.");
                     return -1;
                 }
 
-                return (int)getViewModelInstanceEnumIndex(InstancePropertyPtr);
+                return ReadIndex();
             }
             set
             {
@@ -105,25 +92,8 @@ namespace Rive
                     return;
                 }
 
-                setViewModelInstanceEnumIndex(InstancePropertyPtr, (uint)value);
+                WriteNative(0f, value, null);
             }
-        }
-
-        private void PopulateEnumValuesIfNeeded()
-        {
-            if (m_enumValues == null)
-            {
-                IntPtr m_enumValuesPtr = getViewModelInstanceEnumValues(InstancePropertyPtr);
-                nuint valueCount = getViewModelInstanceEnumValueCount(m_enumValuesPtr);
-                m_enumValues = new string[(int)valueCount];
-                for (nuint i = 0; i < valueCount; i++)
-                {
-                    m_enumValues[i] = Marshal.PtrToStringAnsi(getViewModelInstanceEnumValueAtIndex(m_enumValuesPtr, i));
-                }
-
-                freeViewModelInstanceEnumValues(m_enumValuesPtr);
-            }
-
         }
 
         /// <summary>
@@ -131,33 +101,17 @@ namespace Rive
         /// </summary>
         public IReadOnlyList<string> EnumValues
         {
-            get
-            {
-                if (m_enumValues == null)
-                {
-                    PopulateEnumValuesIfNeeded();
-                }
-
-                return m_enumValues;
-            }
+            get { return m_enumValues; }
         }
 
-        [DllImport(NativeLibrary.name)]
-        private static extern uint getViewModelInstanceEnumIndex(IntPtr instanceProperty);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void setViewModelInstanceEnumIndex(IntPtr instanceProperty, uint value);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceEnumValues(IntPtr instanceProperty);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern nuint getViewModelInstanceEnumValueCount(IntPtr listPtr);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceEnumValueAtIndex(IntPtr listPtr, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void freeViewModelInstanceEnumValues(IntPtr listPtr);
+        // A read replies with the value's name, then its index.
+        private int ReadIndex()
+        {
+            return ReadNative((ref PayloadReader reader) =>
+            {
+                reader.String();
+                return (int)reader.U32();
+            }, -1);
+        }
     }
 }

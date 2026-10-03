@@ -1,23 +1,24 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using UnityEngine.Pool;
 
 namespace Rive
 {
-    [StructLayout(LayoutKind.Sequential)]
     internal struct ReportedEventData
     {
-        public IntPtr nativeEvent;
-        public float secondsDelay;
+        internal string Name;
+        internal float SecondsDelay;
+        internal ushort Type;
+        internal ReportedEventPropertyData[] Properties;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct UnityCustomProperty
+    internal struct ReportedEventPropertyData
     {
-        public IntPtr nativeProperty;
-        public IntPtr name;
-        public ushort type;
+        internal string Name;
+        internal ushort Type;
+        internal float NumberValue;
+        internal bool BoolValue;
+        internal string StringValue;
     }
 
 
@@ -45,9 +46,7 @@ namespace Rive
         private string m_name;
         private uint m_propertyCount;
         private ushort m_type;
-        private IntPtr m_nativeEvent;
-
-        private bool m_nameLoaded = false;
+        private ReportedEventPropertyData[] m_propertyData;
 
         private bool m_propertiesLoaded = false;
 
@@ -68,15 +67,7 @@ namespace Rive
         /// </summary>
         public string Name
         {
-            get
-            {
-                if (!m_nameLoaded && m_nativeEvent != IntPtr.Zero)
-                {
-                    m_name = Marshal.PtrToStringAnsi(NativeEventInterface.getEventName(m_nativeEvent));
-                    m_nameLoaded = true;
-                }
-                return m_name;
-            }
+            get { return m_name; }
         }
 
         /// <summary>
@@ -108,22 +99,19 @@ namespace Rive
                 {
                     for (uint i = 0; i < PropertyCount; i++)
                     {
-                        var property = NativeEventInterface.getEventCustomProperty(m_nativeEvent, i);
-                        var name = Marshal.PtrToStringAnsi(property.name);
-                        switch (property.type)
+                        var property = m_propertyData[i];
+                        switch (property.Type)
                         {
                             case (ushort)PropertyType.Bool:
-                                m_properties[name] = NativeEventInterface.getCustomBool(property.nativeProperty);
+                                m_properties[property.Name] = property.BoolValue;
                                 break;
 
                             case (ushort)PropertyType.String:
-                                m_properties[name] = Marshal.PtrToStringAnsi(
-                                    NativeEventInterface.getCustomString(property.nativeProperty)
-                                );
+                                m_properties[property.Name] = property.StringValue;
                                 break;
 
                             case (ushort)PropertyType.Number:
-                                m_properties[name] = NativeEventInterface.getCustomNumber(property.nativeProperty);
+                                m_properties[property.Name] = property.NumberValue;
                                 break;
                         }
                     }
@@ -178,31 +166,19 @@ namespace Rive
 
         internal void Initialize(ReportedEventData data)
         {
-            // If a previous consumer called Dispose(), it doesn't matter because
-            // once we pop from the pool, we fully reset the object here.
+            // A previous consumer may have disposed this pooled instance.
+            // Reset it before exposing the next event.
             m_isDisposed = false;
-
-            // Reset old data
-            m_nativeEvent = IntPtr.Zero;
-            m_secondsDelay = 0f;
-            m_type = 0;
-            m_propertyCount = 0;
-            m_name = null;
             m_properties?.Clear();
 
-            // We use this flag because we want to lazy load the properties in the Properties getter.
-            // If we were to update the dictionary here, we would be allocating memory for no reason if the consumer never accesses the Properties property and instead uses the TryGet methods for accessing properties.
+            // The values are already snapshotted. Build the dictionary only if
+            // Properties is requested; indexed getters read the snapshot directly.
             m_propertiesLoaded = false;
-
-            m_nameLoaded = false;
-
-            m_nativeEvent = data.nativeEvent;
-            m_secondsDelay = data.secondsDelay;
-
-            m_type = NativeEventInterface.getEventType(m_nativeEvent);
-            m_propertyCount = NativeEventInterface.getEventCustomPropertyCount(m_nativeEvent);
-
-
+            m_name = data.Name;
+            m_secondsDelay = data.SecondsDelay;
+            m_type = data.Type;
+            m_propertyData = data.Properties;
+            m_propertyCount = (uint)(m_propertyData?.Length ?? 0);
         }
 
 
@@ -236,7 +212,7 @@ namespace Rive
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
-            return new Property(NativeEventInterface.getEventCustomProperty(m_nativeEvent, index));
+            return new Property(m_propertyData[index]);
         }
 
 
@@ -246,38 +222,24 @@ namespace Rive
         /// </summary>
         public struct Property
         {
-            private readonly IntPtr m_nativeProperty;
-            private readonly IntPtr m_nativeName;
-            private string m_name;
-            private readonly PropertyType m_type;
+            private readonly ReportedEventPropertyData m_data;
 
-            internal Property(UnityCustomProperty native)
+            internal Property(ReportedEventPropertyData data)
             {
-                m_nativeProperty = native.nativeProperty;
-                m_name = null; // lazy load to avoid unnecessary string allocations
-                m_type = (PropertyType)native.type;
-                m_nativeName = native.name;
-
+                m_data = data;
             }
             /// <summary>
             /// The name of this property.
             /// </summary>
             public string Name
             {
-                get
-                {
-                    if (m_name == null)
-                    {
-                        m_name = Marshal.PtrToStringAnsi(m_nativeName);
-                    }
-                    return m_name;
-                }
+                get { return m_data.Name; }
             }
 
             /// <summary>
             /// The type of this property.
             /// </summary>
-            public PropertyType Type => m_type;
+            public PropertyType Type => (PropertyType)m_data.Type;
 
             /// <summary>
             /// Attempts to get the numeric value of this property.
@@ -286,12 +248,12 @@ namespace Rive
             /// <returns>True if the property is a number type and the value was retrieved, false otherwise.</returns>
             public bool TryGetNumber(out float value)
             {
-                if (m_type != PropertyType.Number)
+                if (Type != PropertyType.Number)
                 {
                     value = default;
                     return false;
                 }
-                value = NativeEventInterface.getCustomNumber(m_nativeProperty);
+                value = m_data.NumberValue;
                 return true;
             }
 
@@ -302,12 +264,12 @@ namespace Rive
             /// <returns>True if the property is a boolean type and the value was retrieved, false otherwise.</returns>
             public bool TryGetBool(out bool value)
             {
-                if (m_type != PropertyType.Bool)
+                if (Type != PropertyType.Bool)
                 {
                     value = default;
                     return false;
                 }
-                value = NativeEventInterface.getCustomBool(m_nativeProperty);
+                value = m_data.BoolValue;
                 return true;
             }
 
@@ -318,12 +280,12 @@ namespace Rive
             /// <returns>True if the property is a string type and the value was retrieved, false otherwise.</returns>
             public bool TryGetString(out string value)
             {
-                if (m_type != PropertyType.String)
+                if (Type != PropertyType.String)
                 {
                     value = default;
                     return false;
                 }
-                value = Marshal.PtrToStringAnsi(NativeEventInterface.getCustomString(m_nativeProperty));
+                value = m_data.StringValue;
                 return true;
             }
         }
@@ -336,37 +298,4 @@ namespace Rive
         }
 
     }
-
-    /// <summary>
-    /// Helper class to interface with native event data.
-    /// </summary>
-    internal class NativeEventInterface
-    {
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getEventName(IntPtr nativeEvent);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern ushort getEventType(IntPtr nativeEvent);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern uint getEventCustomPropertyCount(IntPtr nativeEvent);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern UnityCustomProperty getEventCustomProperty(
-            IntPtr nativeEvent,
-            uint index
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getCustomString(IntPtr nativeProperty);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool getCustomBool(IntPtr nativeProperty);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern float getCustomNumber(IntPtr nativeProperty);
-    }
-
-
 }

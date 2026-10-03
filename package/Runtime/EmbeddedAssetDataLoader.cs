@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Rive.Utils;
 
 
@@ -34,62 +33,22 @@ namespace Rive
 
             NativeUsageGuard.ThrowIfNativeUnavailable();
 
-            IntPtr listPtr = IntPtr.Zero;
-            try
+            FileContents.AssetInfo[] assets = FileNative.ListAssets(riveFileBytes);
+            if (assets == null)
             {
-                listPtr = loadEmbeddedAssetList(riveFileBytes, (nuint)riveFileBytes.Length);
-                nuint assetCount = getEmbeddedAssetCount(listPtr);
-
-                for (nuint i = 0; i < assetCount; i++)
-                {
-                    ushort type = getEmbeddedAssetType(listPtr, i);
-                    var assetType = Enum.IsDefined(typeof(EmbeddedAssetType), type)
-                            ? (EmbeddedAssetType)type
-                            : EmbeddedAssetType.Unknown;
-                    if (assetType == EmbeddedAssetType.Manifest)
-                    {
-                        continue;
-                    }
-
-                    string name = Marshal.PtrToStringAnsi(getEmbeddedAssetName(listPtr, i));
-                    uint id = getEmbeddedAssetId(listPtr, i);
-                    uint embeddedBytes = (uint)getEmbeddedAssetSize(listPtr, i);
-                    var embeddedAsset = new EmbeddedAssetData(assetType, id, name, embeddedBytes);
-
-                    yield return embeddedAsset;
-                }
+                yield break;
             }
-            finally
+            foreach (FileContents.AssetInfo asset in assets)
             {
-                if (listPtr != IntPtr.Zero)
+                var assetType = Enum.IsDefined(typeof(EmbeddedAssetType), asset.Type)
+                        ? (EmbeddedAssetType)asset.Type
+                        : EmbeddedAssetType.Unknown;
+                if (assetType == EmbeddedAssetType.Manifest)
                 {
-                    deleteEmbeddedAssetList(listPtr);
+                    continue;
                 }
+                yield return new EmbeddedAssetData(assetType, asset.Id, asset.Name, asset.EmbeddedBytes);
             }
         }
-
-
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr loadEmbeddedAssetList(byte[] bytes, nuint byteCount);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void deleteEmbeddedAssetList(IntPtr list);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern nuint getEmbeddedAssetCount(IntPtr list);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getEmbeddedAssetName(IntPtr riveFile, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern ushort getEmbeddedAssetType(IntPtr riveFile, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern uint getEmbeddedAssetId(IntPtr riveFile, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern nuint getEmbeddedAssetSize(IntPtr riveFile, nuint index);
-        #endregion
     }
 }

@@ -524,6 +524,10 @@ namespace Rive
                 m_stateMachine = m_artboard?.StateMachine();
             }
 
+            // Metal draws to the bound target, whose size the queue only
+            // learns on its first render, so a new queue's first frame is
+            // empty. A static preview only gets one frame.
+            bool drawAgain = false;
             if (m_artboard != null)
             {
                 // OpenGL in the editor invalidates state across frames if we reuse a renderer.
@@ -548,6 +552,7 @@ namespace Rive
                         rq.Dispose();
                         return null;
                     }
+                    drawAgain = isStatic && rq.Texture == null;
                 }
                 else if (
                     SystemInfo.graphicsDeviceType != GraphicsDeviceType.Metal
@@ -557,9 +562,8 @@ namespace Rive
                     m_renderer.RenderQueue.UpdateTexture(rt);
                 }
 
-                m_renderer.Align(Fit.Contain, Alignment.Center, m_artboard);
-                m_renderer.Draw(m_artboard);
-                m_renderer.AddToCommandBuffer(cmb);
+                // AddToCommandBuffer records the artboard as it is now, so
+                // advance first. A new artboard draws nothing until it has.
                 if (!isStatic)
                 {
                     var now = EditorApplication.timeSinceStartup;
@@ -570,11 +574,22 @@ namespace Rive
                 {
                     m_stateMachine?.Advance(0.0f);
                 }
+                m_renderer.Align(Fit.Contain, Alignment.Center, m_artboard);
+                m_renderer.Draw(m_artboard);
+                m_renderer.AddToCommandBuffer(cmb);
             }
             var prev = RenderTexture.active;
             Graphics.ExecuteCommandBuffer(cmb);
             GL.InvalidateState();
             cmb.Clear();
+            if (drawAgain)
+            {
+                cmb.SetRenderTarget(rt);
+                m_renderer.AddToCommandBuffer(cmb);
+                Graphics.ExecuteCommandBuffer(cmb);
+                GL.InvalidateState();
+                cmb.Clear();
+            }
 
             if (isStatic && FlipY())
             {

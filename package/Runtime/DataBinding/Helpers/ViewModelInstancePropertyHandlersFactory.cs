@@ -1,433 +1,107 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Rive.Utils;
 
 namespace Rive
 {
     /// <summary>
-    /// Factory class responsible for creating property handlers for the ViewModelInstance class.
-    ///  This centralizes all property-related functionality outside of ViewModelInstance.
+    /// Makes the property objects for a ViewModelInstance. Each instance keeps its own by name,
+    /// so asking twice gives the same object.
     /// </summary>
     internal static class ViewModelInstancePropertyHandlersFactory
     {
-        #region Property Result Types
-
-        /// <summary>
-        /// Represents the result of a property getter operation.
-        /// </summary>
-        private readonly struct PropertyGetterResult
-        {
-            public enum EnumTypeOption
+        private static readonly Dictionary<Type, (ViewModelDataType type, Func<ViewModelInstance, string, int, ViewModelInstancePrimitiveProperty> create)>
+            s_handlers = new Dictionary<Type, (ViewModelDataType, Func<ViewModelInstance, string, int, ViewModelInstancePrimitiveProperty>)>
             {
-                None = 0,
-                CustomEnum = 1,
-                SystemEnum = 2
-            }
-
-            public readonly IntPtr PropertyPtr { get; }
-            public readonly EnumTypeOption EnumType { get; }
-            public readonly nuint? EnumIndex { get; }
-            public ViewModelInstance RootViewModelInstance { get; }
-
-            public PropertyGetterResult(IntPtr property, ViewModelInstance rootVmInstance, EnumTypeOption enumType = EnumTypeOption.None, nuint? enumIndex = null)
-            {
-                PropertyPtr = property;
-                EnumType = enumType;
-                EnumIndex = enumIndex;
-                RootViewModelInstance = rootVmInstance;
-            }
-        }
-
-        /// <summary>
-        /// Delegate for property getter functions
-        /// </summary>
-        private delegate PropertyGetterResult PropertyGetter(ViewModelInstance instanceToGetPropertyFrom, string path, ViewModelInstance rootInstance);
-
-        #endregion
-
-        #region Property Cache
-
-
-
-        #endregion
-
-        #region Property Handlers
-
-        private static readonly Dictionary<Type, (PropertyGetter getter, Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator)>
-            PropertyHandlers = InitializePropertyHandlers();
-
-        private static Dictionary<Type, (PropertyGetter getter, Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator)> InitializePropertyHandlers()
-        {
-            return new Dictionary<Type, (PropertyGetter, Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty>)>
-            {
-                { typeof(ViewModelInstanceEnumProperty), CreateEnumPropertyHandler() },
-                { typeof(ViewModelInstanceTriggerProperty), CreateTriggerPropertyHandler() },
-                { typeof(ViewModelInstanceBooleanProperty), CreateBooleanPropertyHandler() },
-                { typeof(ViewModelInstanceNumberProperty), CreateNumberPropertyHandler() },
-                { typeof(ViewModelInstanceStringProperty), CreateStringPropertyHandler() },
-                { typeof(ViewModelInstanceColorProperty), CreateColorPropertyHandler() },
-                { typeof(ViewModelInstanceImageProperty), CreateImagePropertyHandler() },
-                { typeof(ViewModelInstanceFontProperty), CreateFontPropertyHandler() },
-                { typeof(ViewModelInstanceListProperty), CreateListPropertyHandler() },
-                { typeof(ViewModelInstanceArtboardProperty), CreateArtboardPropertyHandler() }
+                { typeof(ViewModelInstanceEnumProperty), (ViewModelDataType.Enum, CreateEnumProperty) },
+                { typeof(ViewModelInstanceTriggerProperty), (ViewModelDataType.Trigger, (i, n, slot) => new ViewModelInstanceTriggerProperty(i, n, slot)) },
+                { typeof(ViewModelInstanceBooleanProperty), (ViewModelDataType.Boolean, (i, n, slot) => new ViewModelInstanceBooleanProperty(i, n, slot)) },
+                { typeof(ViewModelInstanceNumberProperty), (ViewModelDataType.Number, (i, n, slot) => new ViewModelInstanceNumberProperty(i, n, slot)) },
+                { typeof(ViewModelInstanceStringProperty), (ViewModelDataType.String, (i, n, slot) => new ViewModelInstanceStringProperty(i, n, slot)) },
+                { typeof(ViewModelInstanceColorProperty), (ViewModelDataType.Color, (i, n, slot) => new ViewModelInstanceColorProperty(i, n, slot)) },
+                { typeof(ViewModelInstanceImageProperty), (ViewModelDataType.AssetImage, (i, n, slot) => new ViewModelInstanceImageProperty(i, n, slot)) },
+                { typeof(ViewModelInstanceFontProperty), (ViewModelDataType.AssetFont, (i, n, slot) => new ViewModelInstanceFontProperty(i, n, slot)) },
+                { typeof(ViewModelInstanceListProperty), (ViewModelDataType.List, (i, n, slot) => new ViewModelInstanceListProperty(i, n, slot)) },
+                { typeof(ViewModelInstanceArtboardProperty), (ViewModelDataType.Artboard, (i, n, slot) => new ViewModelInstanceArtboardProperty(i, n, slot)) },
             };
-        }
-
-        /// <summary>
-        /// Creates a handler for enum properties
-        /// </summary>
-        private static (PropertyGetter getter,
-            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateEnumPropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) =>
-                {
-                    // If the file that the instance was loaded from is no longer available, this will be null
-                    IntPtr nativeFilePtr = instance.RiveFile != null ? instance.RiveFile.NativeFile : IntPtr.Zero;
-                    var info = getEnumPropertyInfoFromViewModelInstance(
-                        instance.NativeSafeHandle,
-                        nativeFilePtr,
-                        path);
-
-
-
-                    return new PropertyGetterResult(
-                        info.propertyPtr,
-                        rootInstance,
-                        PropertyGetterResult.EnumTypeOption.CustomEnum,
-                        info.enumIndex);
-                },
-                (result) =>
-                {
-                    // If the property was not found, or if the property is not an enum, this will be true
-                    if (result.PropertyPtr == IntPtr.Zero)
-                    {
-                        return null;
-                    }
-
-                    IReadOnlyList<ViewModelEnumData> enumsForFile = result.RootViewModelInstance.RiveFile != null ? result.RootViewModelInstance.RiveFile.ViewModelEnums : null;
-
-                    // If the enums are included in the file, we can reuse them across multiple instances
-                    // Otherwise, we'll have to fetch the enum values from the instance. This happens in the ViewModelInstanceEnumProperty constructor if we don't have the enum values already.
-                    bool isValidIndex = enumsForFile != null && result.EnumIndex.HasValue && result.EnumIndex.Value < (nuint)enumsForFile.Count;
-
-                    if (isValidIndex)
-                    {
-                        string[] enumValues = enumsForFile[(int)result.EnumIndex.Value].ValuesArray;
-                        return new ViewModelInstanceEnumProperty(
-                            result.PropertyPtr,
-                            result.RootViewModelInstance,
-                            enumValues);
-                    }
-                    else
-                    {
-                        return new ViewModelInstanceEnumProperty(
-                            result.PropertyPtr,
-                            result.RootViewModelInstance);
-                    }
-                }
-            );
-        }
-
-        /// <summary>
-        /// Creates a handler for trigger properties
-        /// </summary>
-        private static (PropertyGetter getter,
-            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateTriggerPropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) => new PropertyGetterResult(
-                    getViewModelInstanceTriggerProperty(instance.NativeSafeHandle, path),
-                    rootInstance,
-                    PropertyGetterResult.EnumTypeOption.None),
-                (result) => new ViewModelInstanceTriggerProperty(
-                    result.PropertyPtr,
-                    result.RootViewModelInstance)
-            );
-        }
-
-        /// <summary>
-        /// Creates a handler for boolean properties
-        /// </summary>
-        private static (PropertyGetter getter,
-            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateBooleanPropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) => new PropertyGetterResult(
-                    getViewModelInstanceBooleanProperty(instance.NativeSafeHandle, path),
-                    rootInstance,
-                    PropertyGetterResult.EnumTypeOption.None),
-                (result) => new ViewModelInstanceBooleanProperty(
-                    result.PropertyPtr,
-                    result.RootViewModelInstance)
-            );
-        }
-
-        /// <summary>
-        /// Creates a handler for number properties
-        /// </summary>
-        private static (PropertyGetter getter,
-            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateNumberPropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) => new PropertyGetterResult(
-                    getViewModelInstanceNumberProperty(instance.NativeSafeHandle, path),
-                    rootInstance,
-                    PropertyGetterResult.EnumTypeOption.None),
-                (result) => new ViewModelInstanceNumberProperty(
-                    result.PropertyPtr,
-                    result.RootViewModelInstance)
-            );
-        }
-
-        /// <summary>
-        /// Creates a handler for string properties
-        /// </summary>
-        private static (PropertyGetter getter,
-            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateStringPropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) => new PropertyGetterResult(
-                    getViewModelInstanceStringProperty(instance.NativeSafeHandle, path),
-                    rootInstance,
-                    PropertyGetterResult.EnumTypeOption.None),
-                (result) => new ViewModelInstanceStringProperty(
-                    result.PropertyPtr,
-                    result.RootViewModelInstance)
-            );
-        }
-
-        /// <summary>
-        /// Creates a handler for color properties
-        /// </summary>
-        private static (PropertyGetter getter,
-            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateColorPropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) => new PropertyGetterResult(
-                    getViewModelInstanceColorProperty(instance.NativeSafeHandle, path),
-                    rootInstance,
-                    PropertyGetterResult.EnumTypeOption.None),
-                (result) => new ViewModelInstanceColorProperty(
-                    result.PropertyPtr,
-                    result.RootViewModelInstance)
-            );
-        }
-
-        /// <summary>
-        /// Creates a handler for image properties
-        /// </summary>
-        private static (PropertyGetter getter,
-            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateImagePropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) => new PropertyGetterResult(
-                    getViewModelInstanceImageProperty(instance.NativeSafeHandle, path),
-                    rootInstance),
-                (result) => new ViewModelInstanceImageProperty(
-                    result.PropertyPtr,
-                    result.RootViewModelInstance)
-            );
-        }
-
-        private static (PropertyGetter getter,
-            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateFontPropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) => new PropertyGetterResult(
-                    getViewModelInstanceFontProperty(instance.NativeSafeHandle, path),
-                    rootInstance),
-                (result) => new ViewModelInstanceFontProperty(
-                    result.PropertyPtr,
-                    result.RootViewModelInstance)
-            );
-        }
-
-        private static (PropertyGetter getter,
-    Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateListPropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) => new PropertyGetterResult(
-                    getViewModelInstanceListProperty(instance.NativeSafeHandle, path),
-                    rootInstance,
-                    PropertyGetterResult.EnumTypeOption.None),
-                (result) => new ViewModelInstanceListProperty(
-                    result.PropertyPtr,
-                    result.RootViewModelInstance)
-            );
-        }
-
-        private static (PropertyGetter getter,
-            Func<PropertyGetterResult, ViewModelInstancePrimitiveProperty> creator) CreateArtboardPropertyHandler()
-        {
-            return (
-                (instance, path, rootInstance) => new PropertyGetterResult(
-                    getViewModelInstanceArtboardProperty(instance.NativeSafeHandle, path),
-                    rootInstance),
-                (result) => new ViewModelInstanceArtboardProperty(
-                    result.PropertyPtr,
-                    result.RootViewModelInstance)
-            );
-        }
-
-        #endregion
-
-        #region Public Property Fetching API
 
         /// <summary>
         /// Gets a property of the specified type from a view model instance.
         /// </summary>
-        /// <typeparam name="T">The type of property to get</typeparam>
-        /// <param name="instance">The view model instance to get the property from</param>
-        /// <param name="path">The path to the property</param>
-        /// <returns>The property instance or null if not found</returns>
-        public static T GetPrimitiveProperty<T>(ViewModelInstance instance, string path) where T : ViewModelInstanceProperty
+        /// <param name="instance">The instance that directly holds the property.</param>
+        /// <param name="name">The property's name on that instance. Not a path.</param>
+        /// <returns>The property, or null if it doesn't exist or is another type.</returns>
+        public static T GetPrimitiveProperty<T>(ViewModelInstance instance, string name) where T : ViewModelInstanceProperty
         {
-            if (!PropertyHandlers.TryGetValue(typeof(T), out var handler))
+            if (!s_handlers.TryGetValue(typeof(T), out var handler))
             {
                 DebugLogger.Instance.LogError("Property type not supported: " + typeof(T).Name);
                 return null;
             }
 
-            var result = GetPropertyPointer(handler.getter, instance, path, instance);
-
-            if (result.PropertyPtr == IntPtr.Zero)
+            if (instance.TryGetCachedProperty(name, out ViewModelInstancePrimitiveProperty cached))
             {
-                DebugLogger.Instance.LogError("Property not found: " + path);
+                if (cached is T typed)
+                {
+                    return typed;
+                }
+                DebugLogger.Instance.LogError("Failed to get property: " + name + ". Expected type: " + typeof(T).Name);
                 return null;
             }
 
-            T instanceAsExpectedType = null;
-
-            // Check if we have already created an instance of this property
-            if (ViewModelInstanceProperty.TryGetGloballyCachedVMPropertyForPointer(result.PropertyPtr, out var cachedProperty))
+            if (!ViewModelNative.HasProperty(instance.NativeHandle, name, handler.type))
             {
-                bool isStale = cachedProperty is ViewModelInstancePrimitiveProperty cachedPrim &&
-                               cachedPrim.RootInstance != instance;
-
-                // We want to catch cases where the property was created as a different type than expected
-                if (isStale)
-                {
-                    ViewModelInstanceProperty.RemoveCachedPropertyForPointer(result.PropertyPtr);
-                }
-                else
-                {
-                    instanceAsExpectedType = cachedProperty as T;
-
-                    if (instanceAsExpectedType == null)
-                    {
-                        DebugLogger.Instance.LogError("Failed to get property: " + path + ". Expected type: " + typeof(T).Name);
-                        return null;
-                    }
-                    return instanceAsExpectedType;
-                }
+                DebugLogger.Instance.LogError("Property not found: " + name);
+                return null;
             }
 
-            // Create a new property instance
-            var propInstance = handler.creator(result);
-            ViewModelInstanceProperty.AddGloballyCachedVMPropertyForPointer(result.PropertyPtr, propInstance);
-
-            instanceAsExpectedType = propInstance as T;
-            return instanceAsExpectedType;
+            ViewModelInstancePrimitiveProperty created = handler.create(instance, name, 0);
+            created.PropertyType = handler.type;
+            // Another thread may have cached one for this name meanwhile, and its object is the one to use.
+            var cachedProperty = instance.CacheProperty(name, created);
+            if (cachedProperty is T typedProperty)
+            {
+                return typedProperty;
+            }
+            DebugLogger.Instance.LogError("Failed to get property: " + name + ". Expected type: " + typeof(T).Name);
+            return null;
         }
 
-        private static PropertyGetterResult GetPropertyPointer(
-            PropertyGetter getter,
-            ViewModelInstance instance,
-            string path,
-            ViewModelInstance rootInstance)
+        private static ViewModelInstancePrimitiveProperty CreateEnumProperty(ViewModelInstance instance, string name, int slot)
         {
-            return getter(instance, path, rootInstance);
+            // Shared through the file's enum table when it's there, read off the property when not.
+            ViewModelEnumData enumData = GetEnumData(instance, name, out string[] values);
+            return new ViewModelInstanceEnumProperty(instance, name, slot, enumData?.ValuesArray ?? values);
         }
+
+        private static ViewModelEnumData GetEnumData(ViewModelInstance instance, string name, out string[] values)
+        {
+            File file = instance.RiveFile;
+            int index = ViewModelNative.EnumType(instance.NativeHandle, file != null ? file.NativeFile : default, name, out values);
+            if (file == null)
+            {
+                return null;
+            }
+            IReadOnlyList<ViewModelEnumData> enums = file.ViewModelEnums;
+            if (index < 0 || enums == null || index >= enums.Count)
+            {
+                return null;
+            }
+            return enums[index];
+        }
+
 #if UNITY_EDITOR
         /// <summary>
-        /// Editor-only utility to get the enum data for a property at a given path.
+        /// Editor-only utility to get the enum data for a property on an instance.
         /// </summary>
-        /// <param name="vmInstance"></param>
-        /// <param name="path"></param>
-        /// <returns></returns>
         internal static ViewModelEnumData GetEnumForPropertyAtPath(ViewModelInstance vmInstance, string path)
         {
             if (vmInstance == null || vmInstance.RiveFile == null)
             {
                 return null;
             }
-
-            IntPtr nativeFilePtr = vmInstance.RiveFile != null ? vmInstance.RiveFile.NativeFile : IntPtr.Zero;
-            var info = getEnumPropertyInfoFromViewModelInstance(
-                vmInstance.NativeSafeHandle,
-                nativeFilePtr,
-                path);
-
-            if (info.propertyPtr == IntPtr.Zero)
-            {
-                return null;
-            }
-
-            IReadOnlyList<ViewModelEnumData> enumsForFile = vmInstance.RiveFile.ViewModelEnums;
-
-            if (enumsForFile == null || info.enumIndex >= (nuint)enumsForFile.Count)
-            {
-                return null;
-            }
-
-            return enumsForFile[(int)info.enumIndex];
-
-
+            return GetEnumData(vmInstance, path, out _);
         }
 #endif
-        #endregion
-        #region Native Calls
-        [StructLayout(LayoutKind.Sequential)]
-        private struct ViewModelInstanceEnumPropertyInfo
-        {
-            /// <summary>
-            /// The pointer to the instance property.
-            /// </summary>
-            public IntPtr propertyPtr;
-
-            /// <summary>
-            /// The index of the enum value in the Rive file. Allows us to share the same enum value across multiple instances.
-            /// </summary>
-            public nuint enumIndex;
-        }
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceNumberProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceBooleanProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceTriggerProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceStringProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceColorProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceImageProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceFontProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceListProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceArtboardProperty(ViewModelInstanceSafeHandle instanceValue, string path);
-
-
-        [DllImport(NativeLibrary.name)]
-        private static extern ViewModelInstanceEnumPropertyInfo getEnumPropertyInfoFromViewModelInstance(
-            ViewModelInstanceSafeHandle instanceValue,
-            IntPtr fileWrapper,
-            string path);
-
-        #endregion
     }
 }

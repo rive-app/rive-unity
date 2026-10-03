@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using NUnit.Framework;
 using Rive.Components;
+using Rive.Producer;
 using Rive.Tests.Utils;
 using Rive.Utils;
 using UnityEngine;
@@ -12,6 +13,7 @@ using UnityEngine.TestTools;
 using static Rive.Tests.DataBindingTests.DataBindingTestAsset;
 using static Rive.Tests.DataBindingTests.DataBindingTestAsset.ViewModelInfo;
 using Object = UnityEngine.Object;
+using Rive.Host;
 
 namespace Rive.Tests
 {
@@ -423,9 +425,6 @@ namespace Rive.Tests
         [TearDown]
         public void TearDown()
         {
-            // Make sure static callback mode does not leak between tests (espescially when domain reload is disabled in editor).
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
-
             foreach (var file in m_loadedFiles)
             {
                 file.Dispose();
@@ -471,7 +470,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 Assert.IsNotNull(m_widget.StateMachine.ViewModelInstance,
                     $"ViewModelInstance should be available after loading for asset {testAsset.addressableAssetPath}");
@@ -500,7 +499,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -541,7 +540,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -587,7 +586,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -732,7 +731,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -783,7 +782,7 @@ namespace Rive.Tests
 
                 File riveFile = LoadAndTrackFile(riveAsset);
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -885,7 +884,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -917,7 +916,6 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator TriggerProperty_Orchestrator_AutoMode_FiresOncePerTrigger()
         {
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -932,7 +930,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -958,7 +956,6 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator TriggerProperty_HasChanged_IsFalseAfterClearAndStaysFalse()
         {
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -973,7 +970,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -1018,7 +1015,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -1039,7 +1036,6 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator TriggerProperty_Orchestrator_ManualMode_FiresOncePerTriggerAfterTick()
         {
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -1054,7 +1050,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -1085,53 +1081,8 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator TriggerProperty_Propagation_AutoMode_FiresOncePerTrigger()
-        {
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Propagation;
-            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
-
-            var testAsset = GetTestAssetInfo().First(a =>
-                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
-
-            Asset riveAsset = null;
-            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
-                testAsset.addressableAssetPath,
-                (asset) => riveAsset = asset,
-                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
-            );
-
-            File riveFile = LoadAndTrackFile(riveAsset);
-            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
-
-            var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
-            Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
-
-            var triggerProp = viewModelInstance.GetProperty<ViewModelInstanceTriggerProperty>("onFormSubmit");
-            if (triggerProp == null)
-            {
-                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Trigger).FirstOrDefault();
-                Assert.IsNotNull(fallback, "Expected at least one trigger property");
-                triggerProp = viewModelInstance.GetProperty<ViewModelInstanceTriggerProperty>(fallback.Name);
-            }
-            Assert.IsNotNull(triggerProp, "Trigger property should exist");
-
-            int callbackCount = 0;
-            triggerProp.OnTriggered += () => callbackCount++;
-
-            triggerProp.Trigger();
-
-            // Allow at least one full frame cycle plus one extra frame to catch duplicates.
-            yield return null;
-            yield return null;
-
-            Assert.AreEqual(1, callbackCount, "Trigger callback should fire exactly once in Propagation mode.");
-        }
-
-        [UnityTest]
         public IEnumerator NumberProperty_Orchestrator_AutoMode_FiresOncePerSet()
         {
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -1146,7 +1097,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -1175,6 +1126,250 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator BlockingReadInOnValueChanged_DoesNotTripTheGuard()
+        {
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
+
+            var numberProp = m_widget.StateMachine.ViewModelInstance.GetProperty<ViewModelInstanceNumberProperty>("age");
+            if (numberProp == null)
+            {
+                var fallback = GetPropertyInfoOfType(testAsset, ViewModelDataType.Number).FirstOrDefault();
+                Assert.IsNotNull(fallback, "Expected at least one number property");
+                numberProp = m_widget.StateMachine.ViewModelInstance.GetProperty<ViewModelInstanceNumberProperty>(fallback.Name);
+            }
+
+            float readInCallback = float.NaN;
+            numberProp.OnValueChanged += (_) => readInCallback = numberProp.Value;
+            float expected = numberProp.Value + 1f;
+            numberProp.Value = expected;
+
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(expected, readInCallback);
+            Assert.IsFalse(mockLogger.LoggedErrorsContains("no-wait"));
+        }
+
+        // Loads the person view model on an async, manually ticked panel.
+        private IEnumerator LoadPersonOnAsyncPanel(Action<DataBindingTestAsset> onLoaded)
+        {
+            var testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}"));
+
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
+            m_panel.JoinAdvance();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+            onLoaded(testAsset);
+        }
+
+        private NumberPropertyHandle AgeProperty()
+        {
+            var instance = m_widget.StateMachineHandle.GetViewModelInstance();
+            Assert.IsNotNull(instance, "Expected the bound instance");
+            return instance.GetNumberProperty("age");
+        }
+
+        // Reads a handle's value now, for test setup.
+        private static float ValueOf(NumberPropertyHandle number)
+        {
+            Future<float> read = number.GetValueAsync();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+            Assert.IsTrue(read.IsDone, "The read should have landed.");
+            return read.Result;
+        }
+
+        // Holds the producer until the returned gate is set.
+        private static ManualResetEventSlim HoldProducer()
+        {
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+            Assert.IsTrue(started.Wait(2000), "The producer should have picked the job up.");
+            return gate;
+        }
+
+        private void TickAndCapture()
+        {
+            m_panel.Tick(0.016f);
+            Orchestrator.Instance.RunTickPass();
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator ReadsAndChangeCallbacks_NeverGoNewThenOld()
+        {
+            yield return LoadPersonOnAsyncPanel(_ => { });
+            var number = AgeProperty();
+            float start = ValueOf(number);
+            var seen = new List<float>();
+            number.Subscribe(seen.Add);
+
+            var gate = HoldProducer();
+            try
+            {
+                Future<float> before = number.GetValueAsync();
+                before.Completed += read => seen.Add(read.Result);
+                number.SetValue(start + 1f);
+                TickAndCapture();
+                Future<float> after = number.GetValueAsync();
+                after.Completed += read => seen.Add(read.Result);
+            }
+            finally
+            {
+                gate.Set();
+            }
+            m_panel.JoinAdvance();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+
+            CollectionAssert.AreEqual(new[] { start, start + 1f, start + 1f }, seen);
+        }
+
+        [UnityTest]
+        public IEnumerator Read_DoesNotStopSubscriptions()
+        {
+            yield return LoadPersonOnAsyncPanel(_ => { });
+            var number = AgeProperty();
+            int callbackCount = 0;
+            number.Subscribe(_ => callbackCount++);
+
+            number.SetValue(ValueOf(number) + 2f);
+            Future<float> read = number.GetValueAsync();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+            Assert.IsTrue(read.IsDone);
+
+            TickAndCapture();
+            m_panel.JoinAdvance();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+
+            Assert.AreEqual(1, callbackCount);
+        }
+
+        [UnityTest]
+        public IEnumerator WaitForCompletionOnARead_InsideASubscription_Returns()
+        {
+            yield return LoadPersonOnAsyncPanel(_ => { });
+            var number = AgeProperty();
+            float expected = ValueOf(number) + 3f;
+            float readInside = float.NaN;
+            number.Subscribe(_ => readInside = number.GetValueAsync().WaitForCompletion());
+
+            number.SetValue(expected);
+            TickAndCapture();
+            m_panel.JoinAdvance();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+
+            Assert.AreEqual(expected, readInside);
+            Assert.AreEqual(0, mockLogger.LoggedExceptions.Count);
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator NestedPollInACallback_DoesNotReorder()
+        {
+            yield return LoadPersonOnAsyncPanel(_ => { });
+            var number = AgeProperty();
+            float start = ValueOf(number);
+            var log = new List<float>();
+            // Polls before logging, so a nested delivery of the next capture
+            // would log the newer value first.
+            number.Subscribe(value =>
+            {
+                PropertyCallbacksHub.Instance.FlushCapturedCallbacks();
+                log.Add(value);
+            });
+
+            var gate = HoldProducer();
+            try
+            {
+                number.SetValue(start + 1f);
+                PropertyCallbacksHub.Instance.SubmitProducerCapture();
+                number.SetValue(start + 2f);
+                PropertyCallbacksHub.Instance.SubmitPointerCapture();
+            }
+            finally
+            {
+                gate.Set();
+            }
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+
+            CollectionAssert.AreEqual(new[] { start + 1f, start + 2f }, log);
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator Read_OnADisposedInstance_Fails()
+        {
+            File riveFile = null;
+            yield return LoadDataBindingFile(file => riveFile = file);
+            var instance = riveFile.GetViewModelByName("PersonViewModel").CreateInstance();
+            var number = instance.GetProperty<ViewModelInstanceNumberProperty>("age");
+
+            Future<float> read;
+            var gate = HoldProducer();
+            try
+            {
+                read = number.GetValueAsync();
+                instance.Dispose();
+            }
+            finally
+            {
+                gate.Set();
+            }
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+
+            Assert.AreEqual(FutureStatus.Failed, read.Status);
+            Assert.IsInstanceOf<ObjectDisposedException>(read.Exception);
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator RemovingAPanelMidFlight_StillDelivers()
+        {
+            yield return LoadPersonOnAsyncPanel(_ => { });
+            var number = AgeProperty();
+            float start = ValueOf(number);
+            int callbackCount = 0;
+            number.Subscribe(_ => callbackCount++);
+
+            var gate = HoldProducer();
+            try
+            {
+                number.SetValue(start + 4f);
+                TickAndCapture();
+                Assert.IsTrue(PropertyCallbacksHub.Instance.ProducerCapturePending);
+                m_panel.gameObject.SetActive(false);
+            }
+            finally
+            {
+                gate.Set();
+            }
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+
+            Assert.AreEqual(1, callbackCount);
+        }
+
+        [UnityTest]
         public IEnumerator BooleanProperty_FiresCallbackOnSubsequentChanges()
         {
             var testAsset = GetTestAssetInfo().First(a =>
@@ -1189,7 +1384,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -1225,7 +1420,6 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator BooleanProperty_Orchestrator_AutoMode_FiresOncePerSet()
         {
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -1240,7 +1434,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -1302,7 +1496,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -1337,6 +1531,47 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator EnumProperty_SystemEnumsHaveValuesAndAcceptEachOne()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_system_enum_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load the system enum test asset."));
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            Assert.IsNotNull(riveFile);
+
+            int enumProperties = 0;
+            foreach (ViewModel viewModel in riveFile.ViewModels)
+            {
+                ViewModelInstance instance = viewModel.CreateDefaultInstance() ?? viewModel.CreateInstance();
+                Assert.IsNotNull(instance, $"Couldn't make an instance of '{viewModel.Name}'.");
+
+                foreach (ViewModelPropertyData property in viewModel.Properties)
+                {
+                    if (property.Type != ViewModelDataType.Enum)
+                    {
+                        continue;
+                    }
+                    enumProperties++;
+
+                    ViewModelInstanceEnumProperty enumProperty = instance.GetEnumProperty(property.Name);
+                    Assert.IsNotNull(enumProperty, $"'{viewModel.Name}.{property.Name}' should resolve.");
+                    Assert.Greater(enumProperty.EnumValues.Count, 0, $"'{viewModel.Name}.{property.Name}' should have values.");
+
+                    foreach (string value in enumProperty.EnumValues)
+                    {
+                        enumProperty.Value = value;
+                        Assert.AreEqual(value, enumProperty.Value, $"'{viewModel.Name}.{property.Name}' should take '{value}'.");
+                    }
+                }
+            }
+
+            Assert.Greater(enumProperties, 0, "The file should have enum properties.");
+        }
+
+        [UnityTest]
         public IEnumerator ImageProperty_CanBeSetAndTriggersCallback()
         {
 
@@ -1351,7 +1586,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
@@ -1442,7 +1677,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             var imageProp = viewModelInstance.GetProperty<ViewModelInstanceImageProperty>("image");
@@ -1472,7 +1707,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
@@ -1529,7 +1764,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             var fontProp = viewModelInstance.GetFontProperty("font");
@@ -1558,7 +1793,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
@@ -1635,7 +1870,7 @@ namespace Rive.Tests
             File externalArtboardFile = LoadAndTrackFile(externalArtboardAsset);
 
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
@@ -1747,7 +1982,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
@@ -1783,7 +2018,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             var listProperty = viewModelInstance.GetListProperty("items");
@@ -1838,7 +2073,7 @@ namespace Rive.Tests
             m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
             if (viewModelInstance == null)
@@ -1890,7 +2125,7 @@ namespace Rive.Tests
             m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
 
             var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
@@ -1975,7 +2210,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
@@ -2031,7 +2266,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             var listProperty = viewModelInstance.GetListProperty("items");
@@ -2109,7 +2344,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             var listProperty = viewModelInstance.GetListProperty("items");
@@ -2147,7 +2382,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
             var listProperty = boundViewModelInstance.GetListProperty("items");
@@ -2214,7 +2449,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
             var listProperty = boundViewModelInstance.GetListProperty("items");
@@ -2358,7 +2593,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
@@ -2418,7 +2653,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var rootInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(rootInstance, "ViewModelInstance should exist");
@@ -2448,7 +2683,9 @@ namespace Rive.Tests
             textProperty.Value = updatedValue;
 
             // In the legacy path, root processes its own subscribed properties and traverses children.
+#pragma warning disable CS0618
             rootInstance.HandleCallbacks();
+#pragma warning restore CS0618
 
             Assert.AreEqual(1, callbackCount, "Callback should be invoked via root HandleCallbacks traversal");
             Assert.AreEqual(updatedValue, lastCallbackValue, "Callback should receive the updated value");
@@ -2468,7 +2705,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var rootInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(rootInstance, "ViewModelInstance should exist");
@@ -2493,11 +2730,15 @@ namespace Rive.Tests
             textProperty.Value = "Legacy HandleCallbacks - Unparented Instance";
 
             // Root traversal should not reach an unrelated instance.
+#pragma warning disable CS0618
             rootInstance.HandleCallbacks();
+#pragma warning restore CS0618
             Assert.AreEqual(0, callbackCount, "Root HandleCallbacks should not invoke callbacks for an unparented instance");
 
             // But calling HandleCallbacks on the standalone instance should still work.
+#pragma warning disable CS0618
             standaloneInstance.HandleCallbacks();
+#pragma warning restore CS0618
             Assert.AreEqual(1, callbackCount, "Standalone instance HandleCallbacks should invoke its own callbacks");
         }
 
@@ -2517,7 +2758,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
 
 
@@ -2554,6 +2795,130 @@ namespace Rive.Tests
             Assert.AreEqual(1, callbackCount, "Callback should be triggered after manual panel tick");
         }
 
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator AsyncPanel_CapturesCallbacksAfterItsAdvance()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_db_list_test,
+                asset => riveAsset = asset,
+                () => Assert.Fail("Failed to load the data binding test asset")
+            );
+
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = ThreadingMode.BackgroundThread;
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
+
+            var rootInstance = m_widget.StateMachineHandle.GetViewModelInstance();
+            var itemInstance = rootInstance.GetListProperty("items").GetInstanceAt(0);
+            var textProperty = itemInstance.GetStringProperty("text");
+            int callbackCount = 0;
+            string capturedValue = null;
+            textProperty.Subscribe(value =>
+            {
+                callbackCount++;
+                capturedValue = value;
+            });
+            textProperty.SetValue("Async callback");
+
+            var started = new ManualResetEventSlim(false);
+            var gate = new ManualResetEventSlim(false);
+            ServerGate.Hold(started, gate);
+            Assert.IsTrue(started.Wait(2000), "The producer should have picked the job up.");
+
+            m_panel.Tick(0.016f);
+            Orchestrator.Instance.RunTickPass();
+
+            Assert.IsTrue(m_panel.HasAdvanceInFlight);
+            Assert.IsTrue(PropertyCallbacksHub.Instance.ProducerCapturePending);
+            Assert.AreEqual(0, callbackCount);
+
+            gate.Set();
+            m_panel.JoinAdvance();
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+            textProperty.SetValue("Newer value");
+            var secondStarted = new ManualResetEventSlim(false);
+            var secondGate = new ManualResetEventSlim(false);
+            ServerGate.Hold(secondStarted, secondGate);
+
+            try
+            {
+                Assert.IsTrue(secondStarted.Wait(2000), "The producer should be held before callbacks are flushed.");
+                PropertyCallbacksHub.Instance.FlushCapturedCallbacks();
+
+                Assert.AreEqual(1, callbackCount);
+                Assert.AreEqual("Async callback", capturedValue,
+                    "The callback should receive the value captured with the change, not a newer value.");
+                Assert.IsTrue(ServerGate.StillHeld,
+                    "Flushing captured callbacks should not wait for the producer.");
+            }
+            finally
+            {
+                secondGate.Set();
+            }
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator ProducerCapture_SkipsInstanceDisposedAfterSnapshot()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_db_list_test,
+                asset => riveAsset = asset,
+                () => Assert.Fail("Failed to load the data binding test asset")
+            );
+
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            PropertyCallbacksHub.Instance.JoinProducerCapture();
+            PropertyCallbacksHub.Instance.FlushCapturedCallbacks();
+            File riveFile = LoadAndTrackFile(riveAsset);
+            var itemViewModel = riveFile.GetViewModelByName("TodoItem");
+            Assert.IsNotNull(itemViewModel);
+
+            var disposedInstance = itemViewModel.CreateInstance();
+            var liveInstance = itemViewModel.CreateInstance();
+            try
+            {
+                int liveCallbackCount = 0;
+                var disposedProperty = disposedInstance.GetStringProperty("text");
+                var liveProperty = liveInstance.GetStringProperty("text");
+                disposedProperty.OnValueChanged += _ => { };
+                liveProperty.OnValueChanged += _ => liveCallbackCount++;
+
+                var started = new ManualResetEventSlim(false);
+                var gate = new ManualResetEventSlim(false);
+                ServerGate.Hold(started, gate);
+
+                try
+                {
+                    Assert.IsTrue(started.Wait(2000));
+                    disposedProperty.Value = "Disposed";
+                    liveProperty.Value = "Still live";
+                    PropertyCallbacksHub.Instance.SubmitProducerCapture();
+                    Assert.IsTrue(PropertyCallbacksHub.Instance.ProducerCapturePending);
+                    disposedInstance.Dispose();
+                }
+                finally
+                {
+                    gate.Set();
+                }
+
+                Assert.IsTrue(PropertyCallbacksHub.Instance.JoinProducerCapture());
+                PropertyCallbacksHub.Instance.FlushCapturedCallbacks();
+                Assert.AreEqual(1, liveCallbackCount);
+            }
+            finally
+            {
+                disposedInstance.Dispose();
+                liveInstance.Dispose();
+            }
+        }
+
         [UnityTest]
         public IEnumerator Orchestrator_ProcessesUnparentedInstanceProperties()
         {
@@ -2568,7 +2933,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
@@ -2625,7 +2990,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
@@ -2661,58 +3026,6 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator PropertyCallbacks_Propagation_DoesNotProcessUnparentedInstanceProperties()
-        {
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Propagation;
-
-            string testAssetPath = TestAssetReferences.riv_db_list_test;
-            Asset riveAsset = null;
-            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
-                testAssetPath,
-                (asset) => riveAsset = asset,
-                () => Assert.Fail($"Failed to load asset at {testAssetPath}")
-            );
-
-            File riveFile = LoadAndTrackFile(riveAsset);
-            m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
-
-            var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
-            Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
-
-            var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
-            if (itemViewModel == null)
-            {
-                Assert.Fail("No item view model found for list testing");
-                yield break;
-            }
-
-            // Create an instance that is NOT parented/contained by the bound root instance.
-            var standaloneInstance = itemViewModel.CreateInstance();
-            Assert.IsNotNull(standaloneInstance, "Should be able to create standalone instance");
-
-            var textProperty = standaloneInstance.GetStringProperty("text");
-            if (textProperty == null)
-            {
-                Assert.Fail("No text property found in item view model for callback testing");
-                yield break;
-            }
-
-            int callbackCount = 0;
-            textProperty.OnValueChanged += _ => callbackCount++;
-
-            textProperty.Value = "Updated Value On Unparented Instance";
-
-            // Propagation mode does not have a centralized orchestrator, and this instance is not part of the root traversal.
-            yield return null;
-            Assert.AreEqual(0, callbackCount, "Propagation mode should not process callbacks for an unparented instance automatically.");
-
-            // Manual legacy call should process it.
-            standaloneInstance.HandleCallbacks();
-            Assert.AreEqual(1, callbackCount, "Calling HandleCallbacks() on the standalone instance should process the callback in Propagation mode.");
-        }
-
-        [UnityTest]
         public IEnumerator ListProperty_RemoveAt_WithDuplicateInstance_DoesNotDetachCallbacksUntilLastOccurrenceRemoved()
         {
             string testAssetPath = TestAssetReferences.riv_db_list_test;
@@ -2726,7 +3039,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
@@ -2805,7 +3118,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
@@ -2868,7 +3181,7 @@ namespace Rive.Tests
             m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
             if (viewModelInstance == null)
@@ -2925,7 +3238,7 @@ namespace Rive.Tests
             m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
             if (viewModelInstance == null)
@@ -2966,7 +3279,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
@@ -3014,7 +3327,7 @@ namespace Rive.Tests
             m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
             if (viewModelInstance == null)
@@ -3073,7 +3386,7 @@ namespace Rive.Tests
             m_widget.BindingMode = RiveWidget.DataBindingMode.Manual;
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
             if (viewModelInstance == null)
@@ -3147,7 +3460,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var boundViewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(boundViewModelInstance, "ViewModelInstance should exist");
@@ -3189,6 +3502,8 @@ namespace Rive.Tests
             }
         }
 
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
         [UnityTest]
         public IEnumerator PropertyCallbacksHub_CaptureChanges_DoesNotThrow_WhenRegistrationsChangeConcurrently()
         {
@@ -3203,7 +3518,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
             if (itemViewModel == null)
@@ -3238,7 +3553,7 @@ namespace Rive.Tests
                     {
                         for (int i = 0; i < properties.Count && !cancellationTokenSource.Token.IsCancellationRequested; i++)
                         {
-                            PropertyCallbacksHub.Instance.Unregister(properties[i].InstancePropertyPtr);
+                            PropertyCallbacksHub.Instance.Unregister(properties[i]);
                             PropertyCallbacksHub.Instance.Register(properties[i]);
                         }
                     }
@@ -3291,7 +3606,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var vmInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(vmInstance, "ViewModelInstance should exist");
@@ -3329,7 +3644,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var itemViewModel = m_widget.File.GetViewModelByName("TodoItem");
             if (itemViewModel == null)
@@ -3379,7 +3694,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             CallbackCounter callbackCounter = new CallbackCounter();
 
@@ -3453,7 +3768,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -3473,6 +3788,338 @@ namespace Rive.Tests
                     $"Both property references should be the same instance in {testAsset.addressableAssetPath}");
 
             }
+        }
+
+        private const int kRaceThreads = 8;
+        private const int kRaceRounds = 50;
+
+        // Runs the work on several threads released together, and returns what each got.
+        private static List<T> RaceOnThreads<T>(Func<T> work)
+        {
+            return RaceOnThreads(() => 0, _ => work());
+        }
+
+        // Each thread prepares first, then they all do the work together. For when
+        // the preparation goes through the producer, which would stagger them.
+        private static List<T> RaceOnThreads<TPrepared, T>(Func<TPrepared> prepare, Func<TPrepared, T> work)
+        {
+            var results = new T[kRaceThreads];
+            var errors = new Exception[kRaceThreads];
+            using (var start = new Barrier(kRaceThreads))
+            {
+                var threads = new Thread[kRaceThreads];
+                for (int i = 0; i < kRaceThreads; i++)
+                {
+                    int index = i;
+                    threads[i] = new Thread(() =>
+                    {
+                        try
+                        {
+                            TPrepared prepared = prepare();
+                            start.SignalAndWait();
+                            results[index] = work(prepared);
+                        }
+                        catch (Exception e)
+                        {
+                            errors[index] = e;
+                        }
+                    });
+                    threads[i].Start();
+                }
+                foreach (var thread in threads)
+                {
+                    thread.Join();
+                }
+            }
+            foreach (var error in errors)
+            {
+                if (error != null)
+                {
+                    throw error;
+                }
+            }
+            return new List<T>(results);
+        }
+
+        private IEnumerator LoadDataBindingFile(Action<File> onLoaded)
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_asset_databinding_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load the data binding asset."));
+            onLoaded(LoadAndTrackFile(riveAsset));
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator PropertyCache_ConcurrentGetsGiveTheSameObject()
+        {
+            File riveFile = null;
+            yield return LoadDataBindingFile(f => riveFile = f);
+
+            ViewModel viewModel = null;
+            string numberName = null;
+            foreach (ViewModel candidate in riveFile.ViewModels)
+            {
+                numberName = candidate.Properties.FirstOrDefault(p => p.Type == ViewModelDataType.Number).Name;
+                if (numberName != null)
+                {
+                    viewModel = candidate;
+                    break;
+                }
+            }
+            Assert.IsNotNull(viewModel, "The file should have a view model with a number property.");
+
+            for (int round = 0; round < kRaceRounds; round++)
+            {
+                ViewModelInstance instance = viewModel.CreateInstance();
+                List<ViewModelInstanceNumberProperty> got = RaceOnThreads(() => instance.GetNumberProperty(numberName));
+
+                Assert.IsNotNull(got[0]);
+                foreach (var property in got)
+                {
+                    Assert.AreSame(got[0], property, "Every thread should get the same property object.");
+                }
+                instance.Dispose();
+            }
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator InstanceCache_ConcurrentFetchesGiveOneLiveWrapper()
+        {
+            File riveFile = null;
+            yield return LoadDataBindingFile(f => riveFile = f);
+
+            ViewModel viewModel = null;
+            string nestedName = null;
+            foreach (ViewModel candidate in riveFile.ViewModels)
+            {
+                nestedName = candidate.Properties.FirstOrDefault(p => p.Type == ViewModelDataType.ViewModel).Name;
+                if (nestedName != null)
+                {
+                    viewModel = candidate;
+                    break;
+                }
+            }
+            Assert.IsNotNull(viewModel, "The file should have a view model with a nested view model.");
+
+            // Each call hands back a fresh native count for the same nested instance.
+            var fetchNested = typeof(ViewModelInstance).GetMethod(
+                "GetViewModelInstanceViewModelProperty",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.IsNotNull(fetchNested);
+            var parentsField = typeof(ViewModelInstance).GetField(
+                "m_parents",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.IsNotNull(parentsField);
+
+            for (int round = 0; round < kRaceRounds; round++)
+            {
+                ViewModelInstance root = viewModel.CreateInstance();
+                List<ViewModelInstance> got = RaceOnThreads(
+                    () => (NativeViewModelInstanceHandle)fetchNested.Invoke(null, new object[] { root.NativeHandle, nestedName }),
+                    handle => ViewModelInstance.GetOrCreateFromHandle(handle, riveFile, root));
+
+                Assert.IsNotNull(got[0]);
+                foreach (var wrapper in got)
+                {
+                    Assert.AreSame(got[0], wrapper, "Every thread should get the same wrapper.");
+                    Assert.IsFalse(wrapper.IsDisposed, "No thread should get a disposed wrapper.");
+                }
+                Assert.AreEqual(1, ((System.Collections.ICollection)parentsField.GetValue(got[0])).Count,
+                    "The parent should be registered once.");
+
+                // The extra counts are released on the producer.
+                CommandTransport.Barrier();
+#if UNITY_EDITOR
+                int countAfterRace = got[0].DebugNativeRefCount;
+#endif
+
+                got[0].Dispose();
+#if UNITY_EDITOR
+                // Native ref counts are only readable in the editor.
+                CommandTransport.Barrier();
+                ViewModelInstance single = ViewModelInstance.GetOrCreateFromHandle(
+                    (NativeViewModelInstanceHandle)fetchNested.Invoke(null, new object[] { root.NativeHandle, nestedName }), riveFile);
+                Assert.AreEqual(single.DebugNativeRefCount, countAfterRace,
+                    "Racing fetches should hold the same native count as one fetch.");
+                single.Dispose();
+#endif
+                root.Dispose();
+            }
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator InstanceParents_ConcurrentAddsAreAllKept()
+        {
+            File riveFile = null;
+            yield return LoadDataBindingFile(f => riveFile = f);
+
+            ViewModel viewModel = riveFile.ViewModels.First(v => v.Properties.Any(p => p.Type == ViewModelDataType.ViewModel));
+            string nestedName = viewModel.Properties.First(p => p.Type == ViewModelDataType.ViewModel).Name;
+            var parentsField = typeof(ViewModelInstance).GetField(
+                "m_parents",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+            for (int round = 0; round < kRaceRounds; round++)
+            {
+                var parents = new List<ViewModelInstance>();
+                for (int i = 0; i < kRaceThreads; i++)
+                {
+                    parents.Add(viewModel.CreateInstance());
+                }
+                ViewModelInstance child = parents[0].GetViewModelInstanceProperty(nestedName);
+                int next = -1;
+
+                RaceOnThreads(() =>
+                {
+                    child.AddParent(parents[Interlocked.Increment(ref next)]);
+                    return 0;
+                });
+
+                Assert.AreEqual(kRaceThreads, ((System.Collections.ICollection)parentsField.GetValue(child)).Count,
+                    "Every parent added at once should be kept, once each.");
+
+                foreach (var parent in parents)
+                {
+                    parent.Dispose();
+                }
+            }
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator NestedReplace_ConcurrentReplacesLeaveTheGraphMatchingNative()
+        {
+            File riveFile = null;
+            yield return LoadDataBindingFile(f => riveFile = f);
+
+            ViewModel viewModel = riveFile.ViewModels.First(v => v.Properties.Any(p => p.Type == ViewModelDataType.ViewModel));
+            string nestedName = viewModel.Properties.First(p => p.Type == ViewModelDataType.ViewModel).Name;
+            var fetchNested = typeof(ViewModelInstance).GetMethod(
+                "GetViewModelInstanceViewModelProperty",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+            for (int round = 0; round < kRaceRounds; round++)
+            {
+                ViewModelInstance root = viewModel.CreateInstance();
+                ViewModel nestedViewModel = riveFile.GetViewModelByName(root.GetViewModelInstanceProperty(nestedName).ViewModelName);
+                var candidates = new List<ViewModelInstance>();
+                for (int i = 0; i < kRaceThreads; i++)
+                {
+                    candidates.Add(nestedViewModel.CreateInstance());
+                }
+                int next = -1;
+
+                RaceOnThreads(() =>
+                {
+                    root.SetViewModelInstance(nestedName, candidates[Interlocked.Increment(ref next)]);
+                    return 0;
+                });
+
+                ViewModelInstance inGraph = root.GetViewModelInstanceProperty(nestedName);
+                ViewModelInstance inNative = ViewModelInstance.GetOrCreateFromHandle(
+                    (NativeViewModelInstanceHandle)fetchNested.Invoke(null, new object[] { root.NativeHandle, nestedName }), riveFile);
+                Assert.AreSame(inNative, inGraph, "The cached nested instance should be the one native holds.");
+
+                foreach (var candidate in candidates)
+                {
+                    candidate.Dispose();
+                }
+                root.Dispose();
+            }
+        }
+
+        [NeedsManagedThreads]
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator ListProperty_ConcurrentAddsAndClearKeepTrackingMatchingNative()
+        {
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_db_list_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load the list asset."));
+            File riveFile = LoadAndTrackFile(riveAsset);
+
+            ViewModel ownerViewModel = riveFile.ViewModels.First(v => v.Properties.Any(p => p.Type == ViewModelDataType.List && p.Name == "items"));
+            ViewModel itemViewModel = riveFile.GetViewModelByName("TodoItem");
+            var trackedField = typeof(ViewModelInstanceListProperty).GetField(
+                "m_trackedInstances",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+            for (int round = 0; round < kRaceRounds; round++)
+            {
+                ViewModelInstance owner = ownerViewModel.CreateInstance();
+                ViewModelInstanceListProperty list = owner.GetListProperty("items");
+                list.Clear();
+                var items = new List<ViewModelInstance>();
+                for (int i = 0; i < kRaceThreads; i++)
+                {
+                    items.Add(itemViewModel.CreateInstance());
+                }
+                int next = -1;
+
+                RaceOnThreads(() =>
+                {
+                    int index = Interlocked.Increment(ref next);
+                    if (index == kRaceThreads / 2)
+                    {
+                        list.Clear();
+                    }
+                    else
+                    {
+                        list.Add(items[index]);
+                    }
+                    return 0;
+                });
+
+                int tracked = ((HashSet<ViewModelInstance>)trackedField.GetValue(list)).Count;
+                Assert.AreEqual(list.Count, tracked, "Tracking should match what native holds.");
+
+                foreach (var item in items)
+                {
+                    item.Dispose();
+                }
+                owner.Dispose();
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator PropertyCache_NestedPathAndNestedInstanceGiveTheSameObject()
+        {
+            DataBindingTestAsset testAsset = GetTestAssetInfo().First(a =>
+                a.addressableAssetPath == TestAssetReferences.riv_asset_databinding_test);
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                testAsset.addressableAssetPath,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {testAsset.addressableAssetPath}")
+            );
+
+            File riveFile = LoadAndTrackFile(riveAsset);
+            m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
+
+            var root = m_widget.StateMachine.ViewModelInstance;
+            string nestedKey = testAsset.testPropertyValuesToSet.Keys.First(k => k.Contains("/"));
+            string[] parts = nestedKey.Split('/');
+            Type propertyType = testAsset.testPropertyValuesToSet[nestedKey].PropertyType;
+
+            var getProperty = typeof(ViewModelInstance).GetMethod(nameof(ViewModelInstance.GetProperty)).MakeGenericMethod(propertyType);
+            object viaPath = getProperty.Invoke(root, new object[] { nestedKey });
+            object viaNested = getProperty.Invoke(root.GetViewModelInstanceProperty(parts[0]), new object[] { parts[1] });
+
+            Assert.IsNotNull(viaPath, $"'{nestedKey}' should resolve.");
+            Assert.AreSame(viaPath, viaNested, "A path and the nested instance should give the same property.");
         }
 
         [UnityTest]
@@ -3496,7 +4143,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -3567,7 +4214,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -3663,7 +4310,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -3723,7 +4370,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -3757,7 +4404,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -3877,13 +4524,13 @@ namespace Rive.Tests
             try
             {
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 secondWidget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-                yield return new WaitUntil(() => secondWidget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(secondWidget);
 
                 thirdWidget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-                yield return new WaitUntil(() => thirdWidget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(thirdWidget);
 
                 var firstViewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 var secondViewModelInstance = secondWidget.StateMachine.ViewModelInstance;
@@ -4084,7 +4731,7 @@ namespace Rive.Tests
 
                 File riveFile = LoadAndTrackFile(riveAsset);
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -4190,7 +4837,7 @@ namespace Rive.Tests
                 File riveFile = LoadAndTrackFile(riveAsset);
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModel = m_widget.Artboard.DefaultViewModel;
                 Assert.IsNotNull(viewModel, $"DefaultViewModel should exist for asset {testAsset.addressableAssetPath}");
@@ -4217,7 +4864,7 @@ namespace Rive.Tests
                 File riveFile = LoadAndTrackFile(riveAsset);
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModel = m_widget.Artboard.DefaultViewModel;
                 Assert.IsNotNull(viewModel, $"DefaultViewModel should exist for asset {testAsset.addressableAssetPath}");
@@ -4263,7 +4910,7 @@ namespace Rive.Tests
                 File riveFile = LoadAndTrackFile(riveAsset);
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModel = m_widget.Artboard.DefaultViewModel;
                 Assert.IsNotNull(viewModel, $"DefaultViewModel should exist for asset {testAsset.addressableAssetPath}");
@@ -4316,7 +4963,7 @@ namespace Rive.Tests
                 File riveFile = LoadAndTrackFile(riveAsset);
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 // Loop through each expected view model
                 foreach (var vmodelinfo in testAsset.expectedViewModelsInFile)
@@ -4435,7 +5082,7 @@ namespace Rive.Tests
 
             File listFile = LoadAndTrackFile(listAsset);
             m_widget.Load(listFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var listOwner = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(listOwner, "List owner instance should exist");
@@ -4466,7 +5113,7 @@ namespace Rive.Tests
 
                 File riveFile = LoadAndTrackFile(riveAsset);
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
 
                 IReadOnlyList<ViewModel> viewModels = riveFile.ViewModels;
@@ -4591,7 +5238,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 // In Manual mode, the ViewModelInstance should not be automatically bound
                 Assert.IsNull(m_widget.StateMachine.ViewModelInstance,
@@ -4620,7 +5267,7 @@ namespace Rive.Tests
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
                 // Wait for loading to complete
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 // In AutoBindDefault mode, the ViewModelInstance should be automatically bound
                 Assert.IsNotNull(m_widget.StateMachine.ViewModelInstance,
@@ -4645,7 +5292,7 @@ namespace Rive.Tests
 
                 // Load the file first to get the view model
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 string instanceName = m_widget.Artboard.DefaultViewModel.InstanceNames[0];
 
@@ -4656,7 +5303,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 // In AutoBindSelected mode, the ViewModelInstance should be automatically bound
                 Assert.IsNotNull(m_widget.StateMachine.ViewModelInstance,
@@ -4687,7 +5334,7 @@ namespace Rive.Tests
 
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
 
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 Assert.IsTrue(mockLogger.LoggedErrors.Count > 0,
                     $"Should log an error when using an invalid instance name in AutoBindSelected mode for asset {testAsset.addressableAssetPath}");
@@ -4709,7 +5356,7 @@ namespace Rive.Tests
 
                 File riveFile = LoadAndTrackFile(riveAsset);
                 m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-                yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+                yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
                 var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
                 Assert.IsNotNull(viewModelInstance, $"ViewModelInstance should exist for asset {testAsset.addressableAssetPath}");
@@ -5041,7 +5688,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.Artboard.DefaultViewModel?.CreateInstance();
             Assert.IsNotNull(viewModelInstance, "Should be able to create ViewModelInstance");
@@ -5142,7 +5789,6 @@ namespace Rive.Tests
         [UnityTest]
         public IEnumerator Orchestrator_ExceptionInOneCallback_DoesNotPreventOtherCallbacksFromFiring()
         {
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             var testAsset = GetTestAssetInfo().First(a =>
@@ -5157,7 +5803,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile, testAsset.defaultArtboardName, testAsset.defaultStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
             Assert.IsNotNull(viewModelInstance, "ViewModelInstance should exist");
@@ -5224,7 +5870,6 @@ namespace Rive.Tests
         /// </summary>
         private IEnumerator LoadWidgetWithGlobals()
         {
-            RiveWidget.propertyCallbackApproach = RiveWidget.DataBindingPropertyCallbackApproach.Orchestrator;
             m_panel.UpdateMode = RivePanel.PanelUpdateMode.Auto;
 
             Asset riveAsset = null;
@@ -5236,7 +5881,7 @@ namespace Rive.Tests
 
             File riveFile = LoadAndTrackFile(riveAsset);
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
         }
 
         [UnityTest]
@@ -5254,7 +5899,7 @@ namespace Rive.Tests
 
             m_widget.BindingMode = RiveWidget.DataBindingMode.AutoBindDefault;
             m_widget.Load(riveFile, NoMainArtboardName, NoMainStateMachineName);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             Assert.IsFalse(m_widget.Artboard.HasDefaultViewModel,
                 "This artboard is authored without a main view model.");
@@ -5292,7 +5937,7 @@ namespace Rive.Tests
             m_widget.BindingMode = RiveWidget.DataBindingMode.AutoBindSelected;
             m_widget.ViewModelInstanceName = "NonExistentInstance";
             m_widget.Load(riveFile);
-            yield return new WaitUntil(() => m_widget.Status == WidgetStatus.Loaded);
+            yield return RivePanelTestUtils.WaitForLoaded(m_widget);
 
             Assert.IsTrue(mockLogger.LoggedErrors.Count > 0,
                 "AutoBindSelected with a missing instance name should still log an error.");

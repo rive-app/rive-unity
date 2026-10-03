@@ -87,30 +87,6 @@ namespace Rive.Tests
         }
 
         [Test]
-        public void RaycastAll_TransparentWidget_AllowsLowerWidgets()
-        {
-#pragma warning disable CS0618 // Transparent hit testing is deprecated but kept for backward compatibility
-            var backWidget = CreateMockRiveWidget("BackWidget");
-            var frontWidget = CreateMockRiveWidget("FrontWidget");
-
-            m_panel.AddToHierarchy(backWidget);
-            m_panel.AddToHierarchy(frontWidget);
-
-            RivePanelTestUtils.MakeWidgetFillPanel(backWidget);
-            RivePanelTestUtils.MakeWidgetFillPanel(frontWidget);
-
-            backWidget.HitTestBehavior = HitTestBehavior.Opaque;
-            frontWidget.HitTestBehavior = HitTestBehavior.Transparent;
-
-            PanelRaycaster.RaycastAll(m_panel, new Vector2(0.5f, 0.5f), m_raycastResults);
-
-            Assert.AreEqual(2, m_raycastResults.Count);
-            Assert.AreEqual(frontWidget, m_raycastResults[0]);
-            Assert.AreEqual(backWidget, m_raycastResults[1]);
-#pragma warning restore CS0618
-        }
-
-        [Test]
         public void RaycastAll_TranslucentWidget_OnlyBlocksOnHit()
         {
             var backWidget = CreateMockRiveWidget("BackWidget");

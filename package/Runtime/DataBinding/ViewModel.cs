@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Rive.Utils;
 
 namespace Rive
@@ -10,7 +9,11 @@ namespace Rive
     /// </summary>
     public sealed class ViewModel
     {
-        private IntPtr m_modelPtr;
+        // A view model is its file plus its index there.
+        private readonly NativeFileHandle m_file;
+        private readonly int m_index;
+        // The file's names for it, read when it loaded.
+        private readonly FileContents.ViewModelInfo m_info;
         private string m_name;
 
         private ViewModelPropertyData[] m_propertyData;
@@ -42,12 +45,7 @@ namespace Rive
         {
             get
             {
-                if (m_modelPtr == IntPtr.Zero)
-                {
-                    return 0;
-                }
-
-                return (int)getViewModelInstanceCount(m_modelPtr);
+                return m_info.InstanceNames.Length;
             }
         }
 
@@ -60,7 +58,7 @@ namespace Rive
             {
                 if (m_name == null)
                 {
-                    m_name = Marshal.PtrToStringAnsi(getViewModelName(m_modelPtr));
+                    m_name = m_info.Name;
                 }
 
                 return m_name;
@@ -83,71 +81,29 @@ namespace Rive
             }
         }
 
-        internal ViewModel(IntPtr viewModelPtr, File riveFile)
-
+        internal ViewModel(File riveFile, int index)
         {
-            m_modelPtr = viewModelPtr;
+            m_file = riveFile.NativeFile;
+            m_index = index;
+            m_info = riveFile.Contents.ViewModels[index];
             m_riveFile = new WeakReference<File>(riveFile);
         }
 
         private ViewModelPropertyData[] InitializeProperties()
         {
-            nuint propertyCount = getViewModelPropertyCount(m_modelPtr);
-            ViewModelPropertyData[] properties = new ViewModelPropertyData[propertyCount];
-
-            for (nuint i = 0; i < propertyCount; i++)
-            {
-                IntPtr namePtr = getViewModelPropertyNameAtIndex(m_modelPtr, i);
-                string name = namePtr == IntPtr.Zero ? null : Marshal.PtrToStringAnsi(namePtr);
-                uint type = getViewModelPropertyTypeAtIndex(m_modelPtr, i);
-
-                properties[i] = new ViewModelPropertyData(name, (ViewModelDataType)type);
-
-                // Free the string in memory
-                freeViewModelString(namePtr);
-
-            }
-
-            return properties;
+            return (ViewModelPropertyData[])m_info.Properties.Clone();
         }
 
 
         private string[] GetInstanceNames()
         {
-            var namesList = getViewModelInstanceNamesList(m_modelPtr);
-            if (namesList == IntPtr.Zero)
-            {
-                return new string[0];
-            }
-
-            int count = (int)getViewModelInstanceNamesCount(namesList);
-            string[] names = new string[count];
-
-            for (int i = 0; i < count; i++)
-            {
-                IntPtr namePtr = getViewModelInstanceNameAtIndex(namesList, (nuint)i);
-                names[i] = Marshal.PtrToStringAnsi(namePtr);
-            }
-
-            freeViewModelInstanceNamesList(namesList);
-            return names;
+            return (string[])m_info.InstanceNames.Clone();
         }
 
-        /// <summary>
-        /// Creates a new instance of this view model from the given pointer. This is also used to cache instances that are created from the native code to avoid creating multiple instances of the same view model that share the same pointer.
-        /// </summary>
-        /// <param name="instanceValue"></param>
-        /// <returns> The view model instance.</returns>
-        private ViewModelInstance GetOrCreateInstanceFromPointer(IntPtr instanceValue)
+        private ViewModelInstance GetOrCreateInstance(NativeViewModelInstanceHandle handle)
         {
-            if (instanceValue == IntPtr.Zero)
-            {
-                DebugLogger.Instance.LogError("Failed to create instance.");
-                return null;
-            }
-
-            return ViewModelInstance.GetOrCreateFromPointer(
-                instanceValue,
+            return ViewModelInstance.GetOrCreateFromHandle(
+                handle,
                 m_riveFile.TryGetTarget(out File file) ? file : null);
         }
 
@@ -165,16 +121,16 @@ namespace Rive
             }
 
 
-            IntPtr instanceValue = createViewModelInstanceAtIndex(m_modelPtr, (nuint)index);
+            NativeViewModelInstanceHandle instanceValue = ViewModelNative.Create(m_file, (uint)m_index, ViewModelNative.InstanceKind.Named, m_info.InstanceNames[index]);
 
-            if (instanceValue == IntPtr.Zero)
+            if (!instanceValue.IsValid)
             {
                 DebugLogger.Instance.LogError("Failed to create instance at index: " + index);
                 return null;
             }
 
 
-            return GetOrCreateInstanceFromPointer(instanceValue);
+            return GetOrCreateInstance(instanceValue);
         }
 
         /// <summary>
@@ -190,16 +146,18 @@ namespace Rive
                 return null;
             }
 
-            IntPtr instanceValue = createViewModelInstanceByName(m_modelPtr, name);
+            NativeViewModelInstanceHandle instanceValue = Array.IndexOf(m_info.InstanceNames, name) >= 0
+                ? ViewModelNative.Create(m_file, (uint)m_index, ViewModelNative.InstanceKind.Named, name)
+                : default;
 
-            if (instanceValue == IntPtr.Zero)
+            if (!instanceValue.IsValid)
             {
                 DebugLogger.Instance.LogError("Failed to create instance with name: " + name);
                 return null;
             }
 
 
-            return GetOrCreateInstanceFromPointer(instanceValue);
+            return GetOrCreateInstance(instanceValue);
 
         }
 
@@ -210,16 +168,16 @@ namespace Rive
         public ViewModelInstance CreateDefaultInstance()
         {
 
-            IntPtr instanceValue = createDefaultViewModelInstance(m_modelPtr);
+            NativeViewModelInstanceHandle instanceValue = ViewModelNative.Create(m_file, (uint)m_index, ViewModelNative.InstanceKind.Default, null);
 
-            if (instanceValue == IntPtr.Zero)
+            if (!instanceValue.IsValid)
             {
                 DebugLogger.Instance.LogError("Failed to create default instance.");
                 return null;
             }
 
 
-            return GetOrCreateInstanceFromPointer(instanceValue);
+            return GetOrCreateInstance(instanceValue);
 
         }
 
@@ -231,69 +189,16 @@ namespace Rive
         public ViewModelInstance CreateInstance()
         {
 
-            IntPtr instanceValue = createViewModelInstance(m_modelPtr);
+            NativeViewModelInstanceHandle instanceValue = ViewModelNative.Create(m_file, (uint)m_index, ViewModelNative.InstanceKind.Blank, null);
 
-            if (instanceValue == IntPtr.Zero)
+            if (!instanceValue.IsValid)
             {
                 DebugLogger.Instance.LogError("Failed to create instance.");
                 return null;
             }
 
-            return GetOrCreateInstanceFromPointer(instanceValue);
+            return GetOrCreateInstance(instanceValue);
 
         }
-
-
-
-        [DllImport(NativeLibrary.name)]
-        private static extern nuint getViewModelInstanceCount(IntPtr modelPtr);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelName(IntPtr modelPtr);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern nuint getViewModelPropertyCount(IntPtr modelPtr);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelPropertyNameAtIndex(IntPtr modelPtr, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern uint getViewModelPropertyTypeAtIndex(IntPtr modelPtr, nuint index);
-
-        #region Instance
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr createViewModelInstanceAtIndex(IntPtr modelPtr, nuint index);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr createViewModelInstanceByName(IntPtr modelPtr, string name);
-
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr createDefaultViewModelInstance(IntPtr modelPtr);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr createViewModelInstance(IntPtr modelPtr);
-
-
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceNamesList(IntPtr modelPtr);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void freeViewModelInstanceNamesList(IntPtr namesList);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern nuint getViewModelInstanceNamesCount(IntPtr namesList);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getViewModelInstanceNameAtIndex(IntPtr namesList, nuint index);
-
-
-        #endregion
-
-        #region Cleanup
-        [DllImport(NativeLibrary.name)]
-        private static extern void freeViewModelString(IntPtr stringPtr);
-        #endregion  
     }
 }

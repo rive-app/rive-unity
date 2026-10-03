@@ -1,29 +1,20 @@
-using System;
-using System.Runtime.InteropServices;
-
 namespace Rive
 {
     /// <summary>
-    /// Represents an out-of-band Rive font asset.
+    /// Represents an out-of-band Rive audio asset.
     /// </summary>
     public class AudioOutOfBandAsset : OutOfBandAsset
     {
-        protected override IntPtr LoadNative(byte[] data)
+        internal override EmbeddedAssetType AssetType => EmbeddedAssetType.Audio;
+
+        internal override ulong SendDecode(ulong requestId, byte[] bytes)
         {
-            return loadAudioSource(data, (nuint)data.Length);
+            return OutOfBandAssetNative.DecodeAudio(requestId, bytes);
         }
 
-        protected override void UnloadNative(IntPtr nativePtr)
+        internal override void DeleteNative(ulong handle)
         {
-            unrefAudioSource(nativePtr);
+            OutOfBandAssetNative.DeleteAudio(handle);
         }
-
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr loadAudioSource(byte[] bytes, nuint byteCount);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void unrefAudioSource(IntPtr audioSource);
-        #endregion
     }
 }

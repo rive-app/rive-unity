@@ -1,9 +1,13 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
 using System.Numerics;
+using Rive.Producer;
+using Rive.Host;
+using Rive.Utils;
 
 namespace Rive
 {
@@ -22,28 +26,85 @@ namespace Rive
     public class Renderer : IRenderer
     {
         protected RenderQueue m_renderQueue;
-        private IntPtr m_nativeRenderQueue = IntPtr.Zero;
-        private uint m_index;
+        // Copies, so a disposed queue's handle and id resolve to nothing
+        // rather than to whatever comes next.
+        private readonly NativeRenderQueueHandle m_nativeRenderQueue;
+        private readonly uint m_renderId;
+
+        // The draw list lives here, not in native, so a frame costs one call.
+        private readonly List<DrawOp> m_ops = new List<DrawOp>();
+        // One entry per op, null when the op has no artboard. The native
+        // pointer is read from here at record time, so a disposed artboard is
+        // dropped instead of leaving a dangling pointer in the list.
+        private readonly List<Artboard> m_opArtboards = new List<Artboard>();
+        private DrawOp[] m_scratch = new DrawOp[64];
+        private readonly RecordStaging m_staging = new RecordStaging();
+        private readonly RecordBatch m_synchronousRecord = new RecordBatch();
+        private bool m_recordsAsynchronously;
+        private bool m_artboardDirtCheckEnabled;
+        private bool m_forceRenderNext = true;
+
+        // Queues with a renderer added to a command buffer. Unity can replay
+        // that buffer every frame without calling back in, so the late step
+        // records any that nothing else has since the last one. Weak, so a
+        // queue nobody holds still finalizes. Main thread only.
+        private static readonly List<WeakReference<RenderQueue>> s_replayedQueues =
+            new List<WeakReference<RenderQueue>>();
+        // Counts late steps, so a record can tell whether it's this frame's.
+        private static int s_lateStep;
+        private int m_recordedAtStep = -1;
+        private int m_replayRecordsForTests;
+
+        private sealed class RecordBatch
+        {
+            internal DrawOp[] Ops;
+            internal int Count;
+            internal uint Generation;
+            internal bool DirtCheckEnabled;
+            internal bool ForceRenderNext;
+        }
 
         internal Renderer(RenderQueue queue)
         {
             m_renderQueue = queue;
-            m_nativeRenderQueue = queue.m_nativeRenderQueue;
-            m_index = getNextCommandBufferIndex(m_nativeRenderQueue);
+            m_nativeRenderQueue = queue.NativeHandle;
+            m_renderId = queue.RenderId;
         }
 
         internal RenderQueue RenderQueue => m_renderQueue;
 
-        void Release()
+        internal bool RecordsAsynchronously =>
+            m_recordsAsynchronously;
+
+        internal void SetRecordsAsynchronously(bool enabled)
         {
-            releaseCommandBuffer(m_nativeRenderQueue, m_index);
+            m_recordsAsynchronously = enabled;
         }
+
+        /// The late step this last recorded in. Tests only.
+        internal int RecordedAtStep => m_recordedAtStep;
+
+        /// Tests. Everything recorded so far has reached the server.
+        internal void SettleRecordsForTests() => m_staging.SettleForTests();
+
+        internal static int LateStep => s_lateStep;
+
+        /// Records the late step made because nothing else did. Tests only.
+        internal int ReplayRecordsForTests => m_replayRecordsForTests;
+
+        internal void InvalidateTarget()
+        {
+            m_renderQueue.AdvanceGeneration();
+        }
+
         /// <summary>
         /// Clear the commands in the render queue.
         /// </summary>
         public void Clear()
         {
-            clearCommandBuffer(m_nativeRenderQueue, m_index);
+            m_ops.Clear();
+            m_opArtboards.Clear();
+            m_forceRenderNext = true;
         }
 
         /// <summary>
@@ -53,9 +114,12 @@ namespace Rive
         /// </summary>
         internal void SetArtboardDirtCheckEnabled(bool enabled)
         {
-            setRenderQueueArtboardDirtCheckEnabled(m_nativeRenderQueue, enabled);
+            if (m_artboardDirtCheckEnabled != enabled)
+            {
+                m_artboardDirtCheckEnabled = enabled;
+                m_forceRenderNext = true;
+            }
         }
-
 
         /// <summary>
         /// Draw the given artboard to the render queue.
@@ -66,33 +130,23 @@ namespace Rive
             {
                 throw new ArgumentException("A non null artboard must be provided.");
             }
-            renderQueueDrawArtboard(m_nativeRenderQueue, m_index, artboard.NativeArtboard);
-        }
-
-#pragma warning disable CS0618 // Low-level procedural drawing API is deprecated but still used internally
-        /// <summary>
-        /// Draw the given path and paint to the render queue.
-        /// </summary>
-        public void Draw(Path path, Paint paint)
-        {
-            renderQueueDrawPath(m_nativeRenderQueue, m_index, path.NativePath, paint.NativePaint);
+            Add(DrawOp.DrawArtboard(default), artboard);
         }
 
         /// <summary>
-        /// Clip the render queue to the given path.
+        /// Clip the render queue to a rect of the given size, starting at the origin.
         /// </summary>
-        public void Clip(Path path)
+        public void ClipRect(float width, float height)
         {
-            renderQueueClipPath(m_nativeRenderQueue, m_index, path.NativePath);
+            Add(DrawOp.ClipRect(width, height), null);
         }
-#pragma warning restore CS0618
 
         /// <summary>
         /// Save the current render queue state.
         /// </summary>
         public void Save()
         {
-            renderQueueSave(m_nativeRenderQueue, m_index);
+            Add(DrawOp.Save(), null);
         }
 
         /// <summary>
@@ -100,7 +154,7 @@ namespace Rive
         /// </summary>
         public void Restore()
         {
-            renderQueueRestore(m_nativeRenderQueue, m_index);
+            Add(DrawOp.Restore(), null);
         }
 
         /// <summary>
@@ -108,16 +162,7 @@ namespace Rive
         /// </summary>
         public void Translate(System.Numerics.Vector2 translation)
         {
-            renderQueueTransform(
-                m_nativeRenderQueue,
-                m_index,
-                1.0f,
-                0.0f,
-                0.0f,
-                1.0f,
-                translation.X,
-                translation.Y
-            );
+            Add(DrawOp.Translate(translation.X, translation.Y), null);
         }
 
         /// <summary>
@@ -125,24 +170,15 @@ namespace Rive
         /// </summary>
         public void Translate(float x, float y)
         {
-            renderQueueTransform(m_nativeRenderQueue, m_index, 1.0f, 0.0f, 0.0f, 1.0f, x, y);
+            Add(DrawOp.Translate(x, y), null);
         }
 
         /// <summary>
         /// Transform the render queue by the given matrix.
         /// </summary>
-        public void Transform(Matrix3x2 matrix)
+        public void Transform(System.Numerics.Matrix3x2 matrix)
         {
-            renderQueueTransform(
-                m_nativeRenderQueue,
-                m_index,
-                matrix.M11,
-                matrix.M12,
-                matrix.M21,
-                matrix.M22,
-                matrix.M31,
-                matrix.M32
-            );
+            Add(DrawOp.Transform(matrix), null);
         }
 
         /// <summary>
@@ -154,56 +190,29 @@ namespace Rive
             {
                 throw new ArgumentException("A non null artboard must be provided.");
             }
-            renderQueueAlign(
-                m_nativeRenderQueue,
-                m_index,
-                (byte)fit,
-                alignment.X,
-                alignment.Y,
-                artboard.NativeArtboard,
-                scaleFactor
-            );
+            Add(DrawOp.Align(fit, alignment, default, scaleFactor), artboard);
         }
 
         /// <summary>
-        /// Align the artboard to the given fit and alignment, with the given frame.
+        /// Align the artboard to the given fit and alignment, within the given frame.
         /// </summary>
         public void Align(Fit fit, Alignment alignment, Artboard artboard, AABB frame, float scaleFactor = 1.0f)
         {
-            renderQueueAlignWithFrame(
-                m_nativeRenderQueue,
-                m_index,
-                (byte)fit,
-                alignment.X,
-                alignment.Y,
-                artboard.NativeArtboard,
-                frame.minX,
-                frame.minY,
-                frame.maxX,
-                frame.maxY,
-                scaleFactor
-            );
+            if (artboard == null)
+            {
+                throw new ArgumentException("A non null artboard must be provided.");
+            }
+            Add(
+                DrawOp.AlignWithFrame(fit, alignment, default, frame, scaleFactor),
+                artboard);
         }
 
         public void Submit()
         {
-            var commandBuffer = new RiveCommandBuffer(this);
-            if (m_renderQueue.Texture != null)
-            {
-                commandBuffer.SetRenderTarget(m_renderQueue.Texture);
-            }
-
-            m_renderQueue.UpdateDelayedRenderTexture();
-
-            commandBuffer.IssuePluginEventAndData(
-                getRenderCommandBufferCallback(),
-                (int)m_index,
-                m_nativeRenderQueue
-            );
-            Graphics.ExecuteCommandBuffer(commandBuffer);
+            IssueSubmit();
         }
 
-        public void SubmitAndRelease()
+        private void IssueSubmit()
         {
             var commandBuffer = new RiveCommandBuffer(this);
             if (m_renderQueue.Texture != null)
@@ -212,11 +221,12 @@ namespace Rive
             }
 
             m_renderQueue.UpdateDelayedRenderTexture();
+            RecordForGpuCanvas();
 
             commandBuffer.IssuePluginEventAndData(
-                getRenderAndReleaseCommandBufferCallback(),
-                (int)m_index,
-                m_nativeRenderQueue
+                getRenderCommandBufferCallback(),
+                0,
+                RenderLifetime.EventData(m_renderId)
             );
             Graphics.ExecuteCommandBuffer(commandBuffer);
         }
@@ -228,9 +238,8 @@ namespace Rive
             return commandBuffer;
         }
 
-        public void AddToCommandBuffer(CommandBuffer commandBuffer, bool release = false)
+        public void AddToCommandBuffer(CommandBuffer commandBuffer)
         {
-
             if (
                 UnityEngine.SystemInfo.graphicsDeviceType
                 == UnityEngine.Rendering.GraphicsDeviceType.Metal
@@ -247,30 +256,26 @@ namespace Rive
             }
 
             m_renderQueue.UpdateDelayedRenderTexture();
+            RecordForGpuCanvas();
+            TrackReplayed();
 
             commandBuffer.IssuePluginEventAndData(
-                release
-                    ? getRenderAndReleaseCommandBufferCallback()
-                    : getRenderCommandBufferCallback(),
-                (int)m_index,
-                m_nativeRenderQueue
+                getRenderCommandBufferCallback(),
+                0,
+                RenderLifetime.EventData(m_renderId)
             );
             commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
         }
 
 #if UNITY_2023_1_OR_NEWER && RIVE_USING_URP
 
-        public void AddToCommandBuffer(UnsafeCommandBuffer commandBuffer, bool release = false)
+        public void AddToCommandBuffer(UnsafeCommandBuffer commandBuffer)
         {
-
             if (
                 UnityEngine.SystemInfo.graphicsDeviceType
                 == UnityEngine.Rendering.GraphicsDeviceType.Metal
             )
             {
-                // Unity seems to have the wrong texture bound when querying the
-                // exposed CurrentRenderPassDescriptor's colorAttachment. This
-                // forces the Metal backend to catch up.
                 commandBuffer.DrawMesh(
                     GetResetMesh(),
                     new UnityEngine.Matrix4x4(),
@@ -279,18 +284,161 @@ namespace Rive
             }
 
             m_renderQueue.UpdateDelayedRenderTexture();
+            RecordForGpuCanvas();
+            TrackReplayed();
 
             commandBuffer.IssuePluginEventAndData(
-                release
-                    ? getRenderAndReleaseCommandBufferCallback()
-                    : getRenderCommandBufferCallback(),
-                (int)m_index,
-                m_nativeRenderQueue
+                getRenderCommandBufferCallback(),
+                0,
+                RenderLifetime.EventData(m_renderId)
             );
             commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
         }
 
 #endif
+
+        /// <summary>
+        /// Hands this frame's draw list to the server, which records it into
+        /// the deferred session so the render thread only has to replay it.
+        ///
+        /// Has to run once per frame the queue is going to be drawn. Submit and
+        /// AddToCommandBuffer cover the callers that re-issue every frame; a caller
+        /// that registers a command buffer once and lets it replay, like the
+        /// built-in render pipeline handler, calls this itself.
+        /// </summary>
+        private void Add(DrawOp op, Artboard artboard)
+        {
+            m_ops.Add(op);
+            m_opArtboards.Add(artboard);
+        }
+
+        internal void RecordForGpuCanvas()
+        {
+            m_recordedAtStep = s_lateStep;
+            int count = m_ops.Count;
+            using var noWait = CommandTransport.NoWaitIf(
+                m_recordsAsynchronously, "async record");
+            if (!m_recordsAsynchronously)
+            {
+                if (count > m_scratch.Length)
+                {
+                    m_scratch = new DrawOp[Mathf.NextPowerOfTwo(count)];
+                }
+                CopyDrawOps(m_scratch, count);
+                m_synchronousRecord.Ops = m_scratch;
+                m_synchronousRecord.Count = count;
+                m_synchronousRecord.Generation = m_renderQueue.Generation;
+                m_synchronousRecord.DirtCheckEnabled = m_artboardDirtCheckEnabled;
+                m_synchronousRecord.ForceRenderNext = m_forceRenderNext;
+                RecordSynchronous();
+                m_forceRenderNext = false;
+                return;
+            }
+
+            RecordStaging.Record record = m_staging.Begin();
+            if (record.Ops == null || record.Ops.Length < count)
+            {
+                record.Ops = new DrawOp[Mathf.NextPowerOfTwo(Mathf.Max(1, count))];
+            }
+            CopyDrawOps(record.Ops, count);
+            record.Count = count;
+            record.Queue = m_nativeRenderQueue;
+            record.Generation = m_renderQueue.Generation;
+            record.DirtCheckEnabled = m_artboardDirtCheckEnabled;
+            // A record still waiting may carry a force the server hasn't seen.
+            record.ForceRenderNext |= m_forceRenderNext;
+            m_forceRenderNext = false;
+            m_staging.Send(record);
+        }
+
+        private void CopyDrawOps(DrawOp[] destination, int count)
+        {
+            m_ops.CopyTo(destination);
+
+            // Read the handles now rather than when the op was added. The
+            // list is replayed every camera render and a widget can be
+            // unloaded in between; a handle for an artboard that has gone
+            // resolves to nothing natively, so nothing here has to guess.
+            for (int i = 0; i < count; i++)
+            {
+                Artboard artboard = m_opArtboards[i];
+                destination[i].Artboard =
+                    artboard != null ? artboard.NativeArtboard : default;
+            }
+        }
+
+        // Play mode only, where the late step runs. The editor's previews
+        // record on every repaint anyway.
+        private void TrackReplayed()
+        {
+            if (ReferenceEquals(m_renderQueue.ReplayedRenderer, this) ||
+                !CommandTransport.IsMainThread || !Application.isPlaying)
+            {
+                return;
+            }
+            // The queue keeps it, since the buffer may be all that's left of
+            // it, as with queue.Renderer().AddToCommandBuffer(buffer).
+            if (m_renderQueue.KeepReplayed(this))
+            {
+                s_replayedQueues.Add(new WeakReference<RenderQueue>(m_renderQueue));
+            }
+            RiveFrameLoop.Ensure();
+        }
+
+        /// The frame loop's late step, after the components have recorded.
+        /// Records each replayed renderer nothing has recorded since the last
+        /// one. URP and HDRP record while rendering, after this step, which
+        /// counts for the next one, so they're never recorded twice.
+        internal static void RecordReplayed()
+        {
+            for (int i = s_replayedQueues.Count - 1; i >= 0; i--)
+            {
+                if (!s_replayedQueues[i].TryGetTarget(out RenderQueue queue) ||
+                    queue.IsDisposed)
+                {
+                    s_replayedQueues[i] = s_replayedQueues[s_replayedQueues.Count - 1];
+                    s_replayedQueues.RemoveAt(s_replayedQueues.Count - 1);
+                    continue;
+                }
+                Renderer renderer = queue.ReplayedRenderer;
+                if (renderer == null || renderer.m_recordedAtStep == s_lateStep)
+                {
+                    continue;
+                }
+                renderer.m_replayRecordsForTests++;
+                try
+                {
+                    renderer.RecordForGpuCanvas();
+                }
+                catch (Exception e)
+                {
+                    DebugLogger.Instance.LogException(e);
+                }
+            }
+            s_lateStep++;
+        }
+
+        // MainThread panels record and wait every frame, so the send is made
+        // once and reads the batch. Native copies the ops as it goes out.
+        private Action<ulong> m_sendSynchronousRecord;
+
+        private void RecordSynchronous()
+        {
+            m_sendSynchronousRecord ??= id =>
+            {
+                RecordBatch batch = m_synchronousRecord;
+                CanvasNative.RecordDrawList(
+                    id,
+                    m_nativeRenderQueue,
+                    batch.Ops,
+                    (uint)batch.Count,
+                    batch.Generation,
+                    batch.DirtCheckEnabled,
+                    batch.ForceRenderNext);
+            };
+            RequestTicket ticket = CommandTransport.Send(m_sendSynchronousRecord);
+            CommandTransport.Join(ref ticket);
+        }
 
         private static Material m_resetMaterial;
         private static Mesh m_resetMesh;
@@ -315,110 +463,19 @@ namespace Rive
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        protected static extern uint getNextCommandBufferIndex(IntPtr renderQueue);
-
-        [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getRenderCommandBufferCallback();
 
         [DllImport(NativeLibrary.name)]
-        internal static extern void releaseCommandBuffer(
-            IntPtr renderQueue,
-            uint commandBufferIndex
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void clearCommandBuffer(
-            IntPtr renderQueue,
-            uint commandBufferIndex
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void setRenderQueueArtboardDirtCheckEnabled(
-            IntPtr renderQueue,
-            [MarshalAs(UnmanagedType.U1)] bool enabled
-        );
-
-
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueDrawArtboard(
-            IntPtr renderQueue,
-            uint commandBufferIndex,
-            IntPtr artboard
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueDrawPath(
-            IntPtr renderQueue,
-            uint commandBufferIndex,
-            IntPtr path,
-            IntPtr Paint
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueClipPath(
-            IntPtr renderQueue,
-            uint commandBufferIndex,
-            IntPtr path
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueSave(IntPtr renderQueue, uint commandBufferIndex);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueRestore(IntPtr renderQueue, uint commandBufferIndex);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueTransform(
-            IntPtr renderQueue,
-            uint commandBufferIndex,
-            float xx,
-            float xy,
-            float yx,
-            float yy,
-            float tx,
-            float ty
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueAlign(
-            IntPtr renderQueue,
-            uint commandBufferIndex,
-            byte fit,
-            float alignX,
-            float alignY,
-            IntPtr artboard,
-            float scaleFactor
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueAlignWithFrame(
-            IntPtr renderQueue,
-            uint commandBufferIndex,
-            byte fit,
-            float alignX,
-            float alignY,
-            IntPtr artboard,
-            float minX,
-            float minY,
-            float maxX,
-            float maxY,
-            float scaleFactor
-        );
-
-
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getRenderAndReleaseCommandBufferCallback();
-
-        [DllImport(NativeLibrary.name)]
         internal static extern IntPtr getInvalidateState();
+
         #endregion
     }
+
 
     public class RenderQueue : IDisposable
     {
         private bool m_disposed = false;
+        private uint m_generation = 1;
 
         // When using Vulkan we need to pass the RenderTexture.colorBuffer's
         // native pointer. This colorBuffer's native pointer sometimes returns 0
@@ -427,6 +484,40 @@ namespace Rive
         private bool m_delayed = false;
 
         public RenderTexture Texture { get; private set; }
+
+        internal uint Generation => m_generation;
+
+        internal void AdvanceGeneration()
+        {
+            m_generation++;
+            CanvasNative.SetRenderQueueGeneration(m_nativeRenderQueue, m_generation);
+        }
+
+        /// For server calls. Stale once disposed.
+        internal NativeRenderQueueHandle NativeHandle => m_nativeRenderQueue;
+
+        internal bool IsDisposed => m_disposed;
+
+        // The renderer most recently added to a command buffer, held for as
+        // long as the queue is. Each record replaces the frame the queue
+        // shows, so an older one would only be wasted work. See
+        // Renderer.RecordReplayed.
+        private Renderer m_replayedRenderer;
+        private bool m_inReplayList;
+
+        internal Renderer ReplayedRenderer => m_replayedRenderer;
+
+        /// True the first time, when the queue needs adding to the list.
+        internal bool KeepReplayed(Renderer renderer)
+        {
+            m_replayedRenderer = renderer;
+            bool first = !m_inReplayList;
+            m_inReplayList = true;
+            return first;
+        }
+
+        /// What render events carry. 0 once disposed.
+        internal uint RenderId => m_renderId;
 
 
         private void Initialize(RenderTexture texture, bool clear)
@@ -440,24 +531,30 @@ namespace Rive
             {
                 texture.Create();
             }
+            IntPtr pointer = texture == null ? IntPtr.Zero : GetNativeTexturePointer(texture);
+            uint width = (uint)(texture?.width ?? 0);
+            uint height = (uint)(texture?.height ?? 0);
+            NativeLoadFailureReason? failure = null;
+            uint renderId = 0;
             try
             {
-                m_nativeRenderQueue = makeRenderQueue(
-                    texture == null ? IntPtr.Zero :
-                    GetNativeTexturePointer(texture),
-                    (uint)(texture?.width ?? 0),
-                    (uint)(texture?.height ?? 0),
-                    clear
-                );
+                m_nativeRenderQueue = CanvasNative.MakeRenderQueue(pointer, width, height, clear, out renderId);
             }
             catch (DllNotFoundException)
             {
-                NativeUsageGuard.MarkNativeLoadFailed(NativeLoadFailureReason.LibraryNotFound);
+                failure = NativeLoadFailureReason.LibraryNotFound;
             }
             catch (EntryPointNotFoundException)
             {
-                NativeUsageGuard.MarkNativeLoadFailed(NativeLoadFailureReason.EntryPointMissing);
+                failure = NativeLoadFailureReason.EntryPointMissing;
             }
+            m_renderId = renderId;
+            if (failure.HasValue)
+            {
+                NativeUsageGuard.MarkNativeLoadFailed(failure.Value);
+            }
+            // Anything a finalizer retired off the main thread goes out now.
+            RenderLifetime.Flush();
         }
 
         public RenderQueue(RenderTexture texture = null, bool clear = true)
@@ -473,7 +570,7 @@ namespace Rive
 
         public Renderer Renderer()
         {
-            if (m_nativeRenderQueue == IntPtr.Zero)
+            if (!m_nativeRenderQueue.IsValid)
             {
                 return null;
             }
@@ -495,13 +592,25 @@ namespace Rive
         {
             if (!m_disposed)
             {
-                if (m_nativeRenderQueue != IntPtr.Zero)
+                if (m_nativeRenderQueue.IsValid)
                 {
-                    unrefRenderQueue(m_nativeRenderQueue);
-                    m_nativeRenderQueue = IntPtr.Zero;
+                    // The server lets go first, then the retire event runs
+                    // behind every render event already queued. The queue is
+                    // freed by whichever lands last.
+                    CanvasNative.UnrefRenderQueue(m_nativeRenderQueue);
+                    RenderLifetime.Retire(getRetireRenderQueueCallback(), m_renderId);
+                    m_nativeRenderQueue = default;
+                    m_renderId = 0;
+
+                    // This drops the queue's references to the artboards it
+                    // drew, which is what finally releases their file and
+                    // queues its GPU resources for destruction. Nothing may be
+                    // left to render a frame that would carry them.
+                    GpuCanvasResources.RequestFlush();
                 }
 
                 Texture = null;
+                m_replayedRenderer = null;
                 m_disposed = true;
             }
         }
@@ -587,9 +696,15 @@ namespace Rive
                 return;
             }
             IntPtr pointer = GetNativeTexturePointer(Texture);
-            // Make sure null pointers are set too or the native side could be
-            // left with an invalid/discarded texture.
-            renderQueueUpdateRenderTexture(
+            if (pointer == IntPtr.Zero)
+            {
+                // Unity still hasn't made it, which graphics jobs make likelier.
+                // GetNativeTexturePointer queued another try, and native already
+                // has no texture, so there's nothing to send yet.
+                return;
+            }
+            AdvanceGeneration();
+            CanvasNative.UpdateRenderTexture(
                 m_nativeRenderQueue,
                 pointer,
                 (uint)Texture.width,
@@ -605,7 +720,8 @@ namespace Rive
         {
             ValidateRenderTexture(texture);
             IntPtr pointer = GetNativeTexturePointer(texture);
-            renderQueueUpdateRenderTexture(
+            AdvanceGeneration();
+            CanvasNative.UpdateRenderTexture(
                 m_nativeRenderQueue,
                 pointer,
                 (uint)texture.width,
@@ -614,31 +730,32 @@ namespace Rive
             Texture = texture;
         }
 
-        internal IntPtr m_nativeRenderQueue = IntPtr.Zero;
+        private NativeRenderQueueHandle m_nativeRenderQueue;
+        private uint m_renderId;
+
 
         #region Native Methods
         [DllImport(NativeLibrary.name)]
-        protected static extern IntPtr makeRenderQueue(
-            IntPtr renderTexture,
-            uint width,
-            uint height,
-            [MarshalAs(UnmanagedType.U1)] bool clear
-        );
+        private static extern IntPtr getRetireRenderQueueCallback();
 
-        [DllImport(NativeLibrary.name)]
-        internal static extern void unrefRenderQueue(IntPtr renderQueue);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern void renderQueueUpdateRenderTexture(
-            IntPtr renderQueue,
-            IntPtr texture,
-            uint width,
-            uint heigh
-        );
+        /// Tests. Whether server calls and render events can still reach it.
+        internal static void RiveGetRenderQueueLiveness(
+            NativeRenderQueueHandle renderQueue,
+            uint renderId,
+            out bool handleLive,
+            out bool renderLive)
+        {
+            CanvasNative.GetRenderQueueLiveness(renderQueue, renderId, out handleLive, out renderLive);
+        }
 
         [DllImport(NativeLibrary.name)]
         [return: MarshalAs(UnmanagedType.U1)]
-        public static extern bool supportsDrawingToScreen();
+        private static extern bool supportsDrawingToScreen();
+
+        public static bool SupportsDrawingToScreen()
+        {
+            return supportsDrawingToScreen();
+        }
         #endregion
     }
 }

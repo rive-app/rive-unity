@@ -3,7 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
+using Rive.Producer;
 using Rive.Utils;
+using Rive.Host;
 
 namespace Rive
 {
@@ -12,7 +15,7 @@ namespace Rive
     /// </summary>
     public class StateMachine : IDisposable
     {
-        private readonly IntPtr m_nativeStateMachine;
+        private readonly NativeStateMachineHandle m_nativeStateMachine;
         private ViewModelInstance m_currentViewModelInstance;
 
         // The artboard that instanced this state machine.
@@ -25,22 +28,34 @@ namespace Rive
         // Reused across binds to avoid allocating a new list per call.
         private readonly List<KeyValuePair<string, ViewModelInstance>> m_appliedGlobalViewModelInstances =
             new List<KeyValuePair<string, ViewModelInstance>>();
+        // The list is filled while the caller waits, so it must not be shared
+        // with another caller. Reuse one per calling thread without a lock.
+        [ThreadStatic]
+        private static List<ReportedEventData> t_reportedEventScratch;
 
-        private string m_stateMachineName;
+        private readonly string m_stateMachineName;
+        private readonly NativeLifetime m_lifetime;
+        // Asked for once. A state machine's inputs never change.
+        private StateMachineNative.InputInfo[] m_inputs;
         private bool m_isDisposed = false;
 
-        internal IntPtr NativeStateMachine => m_nativeStateMachine;
+        internal NativeStateMachineHandle NativeStateMachine => m_nativeStateMachine;
 
         /// <summary>
         /// Returns true if the state machine has been disposed.
         /// </summary>
         public bool IsDisposed { get => m_isDisposed; }
 
-        internal StateMachine(IntPtr nativeStateMachine, Artboard artboard)
+        internal StateMachine(NativeStateMachineHandle nativeStateMachine, Artboard artboard, string name)
         {
             m_nativeStateMachine = nativeStateMachine;
             m_artboard = artboard;
+            m_stateMachineName = name;
+            m_lifetime = StateMachineNative.Lifetime(
+                new NativeSlot<NativeStateMachineHandle>(nativeStateMachine), artboard?.Lifetime);
         }
+
+        internal NativeLifetime Lifetime => m_lifetime;
 
         private File RiveFile => m_artboard?.File;
 
@@ -62,8 +77,7 @@ namespace Rive
             new Dictionary<string, ViewModelInstance>();
 
         /// <summary>
-        /// True when the instance can be handed to native code. A disposed instance's SafeHandle is
-        /// already closed, so marshalling it would throw rather than bind.
+        /// True when the instance can be handed to native code. A disposed instance's handle no longer resolves.
         /// </summary>
         private static bool IsViewModelInstanceBindable(ViewModelInstance instance)
         {
@@ -132,10 +146,7 @@ namespace Rive
                     m_currentViewModelInstance = null;
                 }
 
-                if (m_nativeStateMachine != IntPtr.Zero)
-                {
-                    unrefStateMachine(m_nativeStateMachine);
-                }
+                m_lifetime.ReleaseOwner();
                 m_isDisposed = true;
             }
         }
@@ -145,17 +156,7 @@ namespace Rive
             Dispose(false);
         }
 
-        public string Name
-        {
-            get
-            {
-                if (m_stateMachineName == null)
-                {
-                    m_stateMachineName = Marshal.PtrToStringAnsi(stateMachineGetName(m_nativeStateMachine));
-                }
-                return m_stateMachineName;
-            }
-        }
+        public string Name => m_stateMachineName;
 
         /// <summary>
         /// The current ViewModelInstance set as the data context of the StateMachine.
@@ -167,22 +168,56 @@ namespace Rive
 
         public bool Advance(float seconds)
         {
-            return advanceStateMachine(m_nativeStateMachine, seconds);
+            return StateMachineNative.Advance(m_nativeStateMachine, seconds);
         }
 
         /// The number of Inputs stored in the StateMachine.
+        [Obsolete(ObsoleteMessages.Inputs)]
         public uint InputCount()
         {
-            return getSMIInputCountStateMachine(m_nativeStateMachine);
+            return (uint)InputInfos.Length;
+        }
+
+        private StateMachineNative.InputInfo[] InputInfos
+        {
+            get
+            {
+                if (m_inputs == null)
+                {
+                    m_inputs = StateMachineNative.ListInputs(m_nativeStateMachine);
+                }
+                return m_inputs;
+            }
+        }
+
+        internal StateMachineNative.InputInfo InputAt(NativeSMIInputHandle input)
+        {
+            StateMachineNative.InputInfo[] inputs = InputInfos;
+            return input.IsValid && input.Index < inputs.Length ? inputs[input.Index] : default;
+        }
+
+        // The first input with that name and kind, like core's lookups.
+        private NativeSMIInputHandle FindInput(string name, ArtboardNative.InputKind kind)
+        {
+            StateMachineNative.InputInfo[] inputs = InputInfos;
+            for (uint i = 0; i < inputs.Length; i++)
+            {
+                if (inputs[i].Kind == kind && inputs[i].Name == name)
+                {
+                    return new NativeSMIInputHandle(i);
+                }
+            }
+            return default;
         }
 
         /// The SMIInput at the given index.
+        [Obsolete(ObsoleteMessages.Inputs)]
         public SMIInput Input(uint index)
         {
-            IntPtr ptr = getSMIInputFromIndexStateMachine(m_nativeStateMachine, index);
-            return ptr == IntPtr.Zero ? null : new SMIInput(ptr, this);
+            return index < InputInfos.Length ? new SMIInput(new NativeSMIInputHandle(index), this) : null;
         }
 
+        [Obsolete(ObsoleteMessages.Inputs)]
         private SMIInput ConvertInput(SMIInput input)
         {
             if (input.IsBoolean)
@@ -204,6 +239,7 @@ namespace Rive
         }
 
         /// A list of all the SMIInputs stored in the StateMachine.
+        [Obsolete(ObsoleteMessages.Inputs)]
         public List<SMIInput> Inputs()
         {
             var list = new List<SMIInput>();
@@ -231,11 +267,12 @@ namespace Rive
         /// <remarks>
         /// A SMIBool.value is a boolean that can be get/set
         /// </remarks>
+        [Obsolete(ObsoleteMessages.Inputs)]
         public SMIBool GetBool(string name)
         {
-            IntPtr ptr = getSMIBoolStateMachine(m_nativeStateMachine, name);
-            if (ptr != IntPtr.Zero)
-                return new SMIBool(ptr, this);
+            NativeSMIInputHandle input = FindInput(name, ArtboardNative.InputKind.Boolean);
+            if (input.IsValid)
+                return new SMIBool(input, this);
             DebugLogger.Instance.Log($"No SMIBool found with name: {name}.");
             return null;
         }
@@ -246,11 +283,12 @@ namespace Rive
         /// <remarks>
         /// A SMITrigger contains a fire method to trigger.
         /// </remarks>
+        [Obsolete(ObsoleteMessages.Inputs)]
         public SMITrigger GetTrigger(string name)
         {
-            IntPtr ptr = getSMITriggerStateMachine(m_nativeStateMachine, name);
-            if (ptr != IntPtr.Zero)
-                return new SMITrigger(ptr, this);
+            NativeSMIInputHandle input = FindInput(name, ArtboardNative.InputKind.Trigger);
+            if (input.IsValid)
+                return new SMITrigger(input, this);
             DebugLogger.Instance.Log($"No SMITrigger found with name: {name}.");
             return null;
         }
@@ -261,11 +299,12 @@ namespace Rive
         /// <remarks>
         /// A SMINumber.value is a float that can be get/set
         /// </remarks>
+        [Obsolete(ObsoleteMessages.Inputs)]
         public SMINumber GetNumber(string name)
         {
-            IntPtr ptr = getSMINumberStateMachine(m_nativeStateMachine, name);
-            if (ptr != IntPtr.Zero)
-                return new SMINumber(ptr, this);
+            NativeSMIInputHandle input = FindInput(name, ArtboardNative.InputKind.Number);
+            if (input.IsValid)
+                return new SMINumber(input, this);
             DebugLogger.Instance.Log($"No SMINumber found with name: {name}.");
             return null;
         }
@@ -275,7 +314,7 @@ namespace Rive
         /// </summary>
         public HitResult PointerMove(Vector2 position, int pointerId = 0)
         {
-            return (HitResult)pointerMoveStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
+            return (HitResult)StateMachineNative.PointerMoveStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
         }
 
         /// <summary>
@@ -283,7 +322,7 @@ namespace Rive
         /// </summary>
         public HitResult PointerDown(Vector2 position, int pointerId = 0)
         {
-            return (HitResult)pointerDownStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
+            return (HitResult)StateMachineNative.PointerDownStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
         }
 
         /// <summary>
@@ -291,7 +330,7 @@ namespace Rive
         /// </summary>
         public HitResult PointerUp(Vector2 position, int pointerId = 0)
         {
-            return (HitResult)pointerUpStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
+            return (HitResult)StateMachineNative.PointerUpStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
         }
 
         /// <summary>
@@ -299,7 +338,7 @@ namespace Rive
         /// </summary>
         public HitResult PointerExit(Vector2 position, int pointerId = 0)
         {
-            return (HitResult)pointerExitStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
+            return (HitResult)StateMachineNative.PointerExitStateMachineWithHit(m_nativeStateMachine, position.x, position.y, pointerId);
         }
 
         /// <summary>
@@ -309,7 +348,7 @@ namespace Rive
         /// <returns>True if the position hits a component with a listener, false otherwise</returns>
         public bool HitTest(Vector2 position)
         {
-            return hitTestStateMachine(m_nativeStateMachine, position.x, position.y);
+            return StateMachineNative.HitTestStateMachine(m_nativeStateMachine, position.x, position.y);
         }
 
         /// <summary>
@@ -317,12 +356,8 @@ namespace Rive
         /// </summary>
         public List<ReportedEvent> ReportedEvents()
         {
-            uint count = getReportedEventCount(m_nativeStateMachine);
             var list = new List<ReportedEvent>();
-            for (uint i = 0; i < count; i++)
-            {
-                list.Add(ReportedEvent.GetPooled(getReportedEventAt(m_nativeStateMachine, i)));
-            }
+            ReportedEvents(list);
             return list;
         }
 
@@ -334,11 +369,33 @@ namespace Rive
         /// <param name="reportedEvents"> The list to populate with reported events. </param>
         public void ReportedEvents(List<ReportedEvent> reportedEvents)
         {
-            uint count = getReportedEventCount(m_nativeStateMachine);
-            for (uint i = 0; i < count; i++)
+            List<ReportedEventData> scratch = t_reportedEventScratch;
+            if (scratch == null)
             {
-                reportedEvents.Add(ReportedEvent.GetPooled(getReportedEventAt(m_nativeStateMachine, i)));
+                scratch = new List<ReportedEventData>();
+                t_reportedEventScratch = scratch;
             }
+            scratch.Clear();
+            try
+            {
+                CollectReportedEvents(scratch);
+                for (int i = 0; i < scratch.Count; i++)
+                {
+                    reportedEvents.Add(ReportedEvent.GetPooled(scratch[i]));
+                }
+            }
+            finally
+            {
+                scratch.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Adds what the last advance reported. Waits for it.
+        /// </summary>
+        internal void CollectReportedEvents(List<ReportedEventData> into)
+        {
+            StateMachineNative.ReportedEvents(m_nativeStateMachine, into);
         }
 
         /// <summary>
@@ -347,10 +404,11 @@ namespace Rive
         /// <returns>An IEnumerable of ReportedEvents</returns>
         public IEnumerable<ReportedEvent> EnumerateReportedEvents()
         {
-            uint count = getReportedEventCount(m_nativeStateMachine);
-            for (uint i = 0; i < count; i++)
+            var data = new List<ReportedEventData>();
+            CollectReportedEvents(data);
+            for (int i = 0; i < data.Count; i++)
             {
-                yield return ReportedEvent.GetPooled(getReportedEventAt(m_nativeStateMachine, i));
+                yield return ReportedEvent.GetPooled(data[i]);
             }
         }
 
@@ -374,9 +432,13 @@ namespace Rive
                 return;
             }
 
+            // With an instance, the bind is queued and ViewModelInstance is
+            // known now. With null, native makes the default, so it waits.
             if (viewModelInstance != null)
             {
-                SetViewModelInstanceWithoutBind(viewModelInstance);
+                StateMachineNative.BindInstanceLater(m_nativeStateMachine, viewModelInstance.NativeHandle);
+                m_currentViewModelInstance = viewModelInstance;
+                return;
             }
 
             Bind();
@@ -460,13 +522,13 @@ namespace Rive
                 m_globalViewModelInstances.Remove(name);
             }
 
-            IntPtr ptr = getGlobalViewModelInstanceFromStateMachine(m_nativeStateMachine, name);
-            if (ptr == IntPtr.Zero)
+            var instance = ViewModelInstance.GetOrCreateFromHandle(
+                StateMachineNative.GetGlobalViewModelInstanceFromStateMachine(m_nativeStateMachine, name), RiveFile);
+            if (instance == null)
             {
                 return null;
             }
 
-            var instance = ViewModelInstance.GetOrCreateFromPointer(ptr, RiveFile);
             CacheGlobalViewModelInstance(name, instance);
             return instance;
         }
@@ -481,7 +543,7 @@ namespace Rive
                 return;
             }
 
-            setViewModelInstanceOnStateMachine(m_nativeStateMachine, instance.NativeSafeHandle);
+            StateMachineNative.SetViewModelInstanceOnStateMachine(m_nativeStateMachine, instance.NativeHandle);
         }
 
         /// <summary>
@@ -500,10 +562,10 @@ namespace Rive
                 return false;
             }
 
-            bool ok = setGlobalViewModelInstanceOnStateMachine(
+            bool ok = StateMachineNative.SetGlobalViewModelInstanceOnStateMachine(
                 m_nativeStateMachine,
                 name,
-                instance.NativeSafeHandle);
+                instance.NativeHandle);
 
             if (!ok)
             {
@@ -531,6 +593,18 @@ namespace Rive
         /// Applies any staged view model instance changes by rebinding once.
         /// Creates default instances for any empty main or global slots.
         /// </summary>
+        /// Binds without waiting, making defaults like a null bind. The
+        /// instance it leaves lands with the reply.
+        internal void BindWithoutWaiting()
+        {
+            if (!IsNativeStateMachineValid())
+            {
+                return;
+            }
+            StateMachineNative.BindLater(m_nativeStateMachine, bound =>
+                m_currentViewModelInstance = ViewModelInstance.GetOrCreateFromHandle(bound, RiveFile));
+        }
+
         private void Bind()
         {
             if (!IsNativeStateMachineValid())
@@ -538,17 +612,8 @@ namespace Rive
                 return;
             }
 
-            IntPtr ptr = bindStateMachine(m_nativeStateMachine);
-            if (ptr != IntPtr.Zero)
-            {
-                // Must consume the returned ref on every call or it leaks one ref per bind.
-                m_currentViewModelInstance = ViewModelInstance.GetOrCreateFromPointer(ptr, RiveFile);
-            }
-            else
-            {
-                // No main after bind (e.g. artboard has no default view model).
-                m_currentViewModelInstance = null;
-            }
+            // Null when there's no main after the bind, e.g. the artboard has no default view model.
+            m_currentViewModelInstance = ViewModelInstance.GetOrCreateFromHandle(StateMachineNative.BindStateMachine(m_nativeStateMachine), RiveFile);
         }
 
         /// <summary>
@@ -682,81 +747,5 @@ namespace Rive
             }
             return sb.ToString();
         }
-
-        #region Native Methods
-        [DllImport(NativeLibrary.name)]
-        internal static extern void unrefStateMachine(IntPtr stateMachine);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool advanceStateMachine(IntPtr stateMachine, float seconds);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern uint getSMIInputCountStateMachine(IntPtr stateMachine);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getSMIInputFromIndexStateMachine(
-            IntPtr stateMachine,
-            uint index
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getSMIBoolStateMachine(IntPtr stateMachine, string name);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getSMITriggerStateMachine(IntPtr stateMachine, string name);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr getSMINumberStateMachine(IntPtr stateMachine, string name);
-
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern byte pointerMoveStateMachineWithHit(IntPtr smi, float x, float y, int pointerId);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern byte pointerDownStateMachineWithHit(IntPtr smi, float x, float y, int pointerId);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern byte pointerUpStateMachineWithHit(IntPtr smi, float x, float y, int pointerId);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern byte pointerExitStateMachineWithHit(IntPtr smi, float x, float y, int pointerId);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        internal static extern bool hitTestStateMachine(IntPtr stateMachine, float x, float y);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern uint getReportedEventCount(IntPtr stateMachine);
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern ReportedEventData getReportedEventAt(
-            IntPtr stateMachine,
-            uint index
-        );
-
-        [DllImport(NativeLibrary.name)]
-        internal static extern IntPtr stateMachineGetName(IntPtr stateMachine);
-
-        // Data binding
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void setViewModelInstanceOnStateMachine(IntPtr stateMachine, ViewModelInstanceSafeHandle viewModelInstance);
-
-        [DllImport(NativeLibrary.name)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        private static extern bool setGlobalViewModelInstanceOnStateMachine(
-            IntPtr stateMachine,
-            string name,
-            ViewModelInstanceSafeHandle viewModelInstance);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getGlobalViewModelInstanceFromStateMachine(IntPtr stateMachine, string name);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr bindStateMachine(IntPtr stateMachine);
-
-
-        #endregion
     }
 }

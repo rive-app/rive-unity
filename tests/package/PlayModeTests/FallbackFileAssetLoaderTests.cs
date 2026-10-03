@@ -83,7 +83,7 @@ namespace Rive.Tests
 
             fallbackLoader.GenerateAssetMapBytesFromEmbeddedAssets(embeddedAssetData);
 
-            Assert.AreEqual(mockAsset.NativeAsset, fallbackLoader.GetLoadedOobAsset(1).NativeAsset);
+            Assert.AreEqual(mockAsset.NativeHandle, fallbackLoader.GetLoadedOobAsset(1).NativeHandle);
 
         }
 
@@ -102,13 +102,13 @@ namespace Rive.Tests
 
             fallbackLoader.GenerateAssetMapBytesFromEmbeddedAssets(embeddedAssetData);
 
-            Assert.AreEqual(mockAsset.NativeAsset, fallbackLoader.GetLoadedOobAsset(1).NativeAsset);
+            Assert.AreEqual(mockAsset.NativeHandle, fallbackLoader.GetLoadedOobAsset(1).NativeHandle);
 
             Assert.AreEqual(mockAsset.RefCount(), 1);
 
             fallbackLoader.GenerateAssetMapBytesFromEmbeddedAssets(embeddedAssetData);
 
-            Assert.AreEqual(mockAsset.NativeAsset, fallbackLoader.GetLoadedOobAsset(1).NativeAsset);
+            Assert.AreEqual(mockAsset.NativeHandle, fallbackLoader.GetLoadedOobAsset(1).NativeHandle);
 
             Assert.AreEqual(mockAsset.RefCount(), 1);
 
@@ -149,13 +149,13 @@ namespace Rive.Tests
             fallbackLoader.AddLoader(mockLoader);
 
             Assert.IsTrue(fallbackLoader.LoadContents(assetReference));
-            Assert.AreEqual(mockAsset.NativeAsset, fallbackLoader.GetLoadedOobAsset(1).NativeAsset);
+            Assert.AreEqual(mockAsset.NativeHandle, fallbackLoader.GetLoadedOobAsset(1).NativeHandle);
         }
 
         [Test]
-        public void NativeUnityAssetLoaderCallback_ShouldCreateAssetReference()
+        public void AddAssetReference_ShouldCreateAssetReference()
         {
-            var result = fallbackLoader.NativeUnityAssetLoaderCallback(1u, (ushort)EmbeddedAssetType.Image, "test", 100u);
+            fallbackLoader.AddAssetReference(1u, (ushort)EmbeddedAssetType.Image, "test", 100u);
 
 
             var assetReference = fallbackLoader.GetAssetReference(1);
@@ -170,12 +170,11 @@ namespace Rive.Tests
 
 
         [Test]
-        public void NativeUnityAssetLoaderCallback_ShouldReturnNullAsset_ForUnsupportedType()
+        public void AddAssetReference_ShouldSkipUnsupportedType()
         {
-            var result = fallbackLoader.NativeUnityAssetLoaderCallback(1u, 9999, "test", 100u);
+            fallbackLoader.AddAssetReference(1u, 9999, "test", 100u);
 
-
-            Assert.AreEqual(IntPtr.Zero, result);
+            Assert.IsNull(fallbackLoader.GetAssetReference(1));
         }
 
 
@@ -217,7 +216,7 @@ namespace Rive.Tests
 
 
             fallbackLoader.LoadContents(fontReference);
-            Assert.AreEqual(mockFontAsset.NativeAsset, fallbackLoader.GetLoadedOobAsset(1).NativeAsset);
+            Assert.AreEqual(mockFontAsset.NativeHandle, fallbackLoader.GetLoadedOobAsset(1).NativeHandle);
 
             var mockImageAsset = CreateOutOfBandAsset<ImageOutOfBandAsset>(new byte[100]);
 
@@ -228,7 +227,7 @@ namespace Rive.Tests
 
 
             Assert.IsTrue(fallbackLoader.LoadContents(imageReference));
-            Assert.AreEqual(mockImageAsset.NativeAsset, fallbackLoader.GetLoadedOobAsset(2).NativeAsset);
+            Assert.AreEqual(mockImageAsset.NativeHandle, fallbackLoader.GetLoadedOobAsset(2).NativeHandle);
 
             var mockAudioAsset = CreateOutOfBandAsset<AudioOutOfBandAsset>(new byte[120]);
 
@@ -237,20 +236,18 @@ namespace Rive.Tests
             var audioReference = new AudioEmbeddedAssetReference(audioInitializationData);
 
             Assert.IsTrue(fallbackLoader.LoadContents(audioReference));
-            Assert.AreEqual(mockAudioAsset.NativeAsset, fallbackLoader.GetLoadedOobAsset(3).NativeAsset);
+            Assert.AreEqual(mockAudioAsset.NativeHandle, fallbackLoader.GetLoadedOobAsset(3).NativeHandle);
         }
 
         [Test]
-        public void NativeUnityAssetLoaderCallback_ShouldSkipScriptAssetType_WithoutError()
+        public void AddAssetReference_ShouldSkipScriptAssetType_WithoutError()
         {
-            var scriptResult = fallbackLoader.NativeUnityAssetLoaderCallback(1u, (ushort)EmbeddedAssetType.Script, "test_script", 100u);
-
-            Assert.AreEqual(IntPtr.Zero, scriptResult);
+            fallbackLoader.AddAssetReference(1u, (ushort)EmbeddedAssetType.Script, "test_script", 100u);
             Assert.IsNull(fallbackLoader.GetAssetReference(1));
             Assert.IsFalse(mockLogger.LoggedErrorsContains(FallbackFileAssetLoader.LogCodes.ERROR_UNSUPPORTED_ASSET_TYPE));
             Assert.IsFalse(mockLogger.LoggedErrors.Count > 0, "No errors should be logged for the script asset type");
 
-            var imageResult = fallbackLoader.NativeUnityAssetLoaderCallback(2u, (ushort)EmbeddedAssetType.Image, "test_image", 100u);
+            fallbackLoader.AddAssetReference(2u, (ushort)EmbeddedAssetType.Image, "test_image", 100u);
 
             var imageRef = fallbackLoader.GetAssetReference(2);
             Assert.IsNotNull(imageRef);
@@ -259,18 +256,14 @@ namespace Rive.Tests
         }
 
         [Test]
-        public void NativeUnityAssetLoaderCallback_ShouldSkipManifestAssetType_WithoutError()
+        public void AddAssetReference_ShouldSkipManifestAssetType_WithoutError()
         {
-            var manifestResult = fallbackLoader.NativeUnityAssetLoaderCallback(0u, (ushort)EmbeddedAssetType.Manifest, "", 0u);
-
-            Assert.AreEqual(IntPtr.Zero, manifestResult);
+            fallbackLoader.AddAssetReference(0u, (ushort)EmbeddedAssetType.Manifest, "", 0u);
             Assert.IsNull(fallbackLoader.GetAssetReference(0));
             Assert.IsFalse(mockLogger.LoggedErrorsContains(FallbackFileAssetLoader.LogCodes.ERROR_UNSUPPORTED_ASSET_TYPE));
             Assert.IsFalse(mockLogger.LoggedErrors.Count > 0, "No errors should be logged for the manifest asset type");
 
-            var fontResult = fallbackLoader.NativeUnityAssetLoaderCallback(4228759u, (ushort)EmbeddedAssetType.Font, "Inter", 100u);
-
-            Assert.AreEqual(IntPtr.Zero, fontResult);
+            fallbackLoader.AddAssetReference(4228759u, (ushort)EmbeddedAssetType.Font, "Inter", 100u);
             var fontRef = fallbackLoader.GetAssetReference(4228759u);
             Assert.IsNotNull(fontRef);
             Assert.AreEqual(EmbeddedAssetType.Font, fontRef.AssetType);

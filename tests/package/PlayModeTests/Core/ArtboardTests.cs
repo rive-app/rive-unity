@@ -318,6 +318,27 @@ namespace Rive.Tests
         }
 
         [UnityTest]
+        public IEnumerator Size_Set_ReadsBackAndMatchesWidthAndHeight()
+        {
+            foreach (var assetData in GetTestRiveAssetData())
+            {
+                yield return LoadArtboardAndTest(assetData, (file, artboard) =>
+                {
+                    Size original = artboard.Size;
+                    var doubled = new Size(original.Width * 2, original.Height * 2);
+
+                    artboard.Size = doubled;
+                    Assert.AreEqual(doubled, artboard.Size, "Size should read back what was set");
+                    Assert.AreEqual(doubled.Width, artboard.Width, "Width should agree with Size");
+                    Assert.AreEqual(doubled.Height, artboard.Height, "Height should agree with Size");
+
+                    artboard.ResetArtboardSize();
+                    Assert.AreEqual(original, artboard.Size, "Size should reset to the original");
+                });
+            }
+        }
+
+        [UnityTest]
         public IEnumerator ResetArtboardSize_ResetsToOriginalDimensions()
         {
             foreach (var assetData in GetTestRiveAssetData())

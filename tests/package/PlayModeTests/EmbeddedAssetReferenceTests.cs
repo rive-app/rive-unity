@@ -51,7 +51,7 @@ namespace Rive.Tests
             EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Font, 1, "TestFont", 100, null);
             var reference = new FontEmbeddedAssetReference(initializationData);
 
-            var file = new Rive.File(IntPtr.Zero, 0, null);
+            var file = new Rive.File(default, new FileContents(), 0, null);
             Assert.IsFalse(reference.HasFileReference());
 
             reference.SetRiveFileReference(file);
@@ -89,7 +89,7 @@ namespace Rive.Tests
         [Test]
         public void UpdateEmbeddedAssetReferenceInFile_WithFileReference_UpdatesFile()
         {
-            var mockFile = new Rive.File(IntPtr.Zero, 0, null);
+            var mockFile = new Rive.File(default, new FileContents(), 0, null);
             EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Font, 1, "TestFont", 100, null);
             var reference = new FontEmbeddedAssetReference(initializationData);
             var fontAsset = OutOfBandAsset.Create<FontOutOfBandAsset>(new byte[100]);
@@ -107,7 +107,7 @@ namespace Rive.Tests
             EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Font, 1, "TestFont", 100, null);
             var reference = new FontEmbeddedAssetReference(initializationData);
 
-            var file = new Rive.File(IntPtr.Zero, 0, null);
+            var file = new Rive.File(default, new FileContents(), 0, null);
             var fontAsset = OutOfBandAsset.Create<FontOutOfBandAsset>(new byte[100]);
 
             fontAsset.Load();

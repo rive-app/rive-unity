@@ -330,7 +330,8 @@ namespace Rive
 
                     }
 
-                    var artboardMeta = new FileMetadata.ArtboardMetadata(name: file.ArtboardName(i), width: artboard.Width, height: artboard.Height, stateMachines: new List<FileMetadata.StateMachineMetadata>(), defaultViewModel: defaultViewModel);
+                    Size artboardSize = artboard.Size;
+                    var artboardMeta = new FileMetadata.ArtboardMetadata(name: file.ArtboardName(i), width: artboardSize.Width, height: artboardSize.Height, stateMachines: new List<FileMetadata.StateMachineMetadata>(), defaultViewModel: defaultViewModel);
 
 
                     for (uint j = 0; j < artboard.StateMachineCount; j++)
@@ -343,6 +344,8 @@ namespace Rive
                             Name = artboard.StateMachineName(j)
                         };
 
+                        // The inspector still lists a file's inputs.
+#pragma warning disable CS0618
                         foreach (var input in stateMachine.Inputs())
                         {
                             var inputMeta = new FileMetadata.InputMetadata
@@ -354,6 +357,7 @@ namespace Rive
                             };
                             smMeta.Inputs.Add(inputMeta);
                         }
+#pragma warning restore CS0618
 
 
                         artboardMeta.StateMachines.Add(smMeta);

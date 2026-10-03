@@ -1,7 +1,7 @@
 #if RIVE_USING_EXPERIMENTAL
 using System;
+using Rive.Producer;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Rive.Utils;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -31,16 +31,29 @@ namespace Rive
     /// does not change, use <see cref="RefreshMode.Manual"/> and call
     /// <see cref="Refresh"/> when it does.
     ///
-    /// Call <see cref="Dispose"/> when you're done to stop updates and free
-    /// resources.
+    /// Call <see cref="Dispose"/> when you're done. It stops updates, empties
+    /// every property the image drives, and frees resources.
+    ///
+    /// Source lifetime: every mode but <see cref="TextureProcessingMode.None"/>
+    /// draws a copy Rive owns, so the source can be released, destroyed, or
+    /// resized at any time. With None, Rive draws the source itself, and frames
+    /// already recorded can still draw it after this source is disposed. So with
+    /// None:
+    ///   - Don't release, destroy, resize, or recreate the source while it's bound.
+    ///   - To free it, await <see cref="DisposeAsync"/> first. It completes once
+    ///     Rive has nothing left that uses the texture.
+    ///   - To resize it, await <see cref="DisposeAsync"/>, resize, then bind a new
+    ///     <see cref="RenderTextureImageSource"/>.
+    /// Breaking this logs a warning and clears the bound properties, but Rive may
+    /// already have drawn a freed texture by then.
     /// </remarks>
     public sealed class RenderTextureImageSource : IDisposable
     {
         /// <summary>
         /// How much we process a source texture before Rive samples it. Some backends
         /// store a Unity RenderTexture upside-down, and in Linear projects its colors are encoded
-        /// differently than Rive expects.These are opt-in flags; each still only kicks in when
-        /// it's actually needed.
+        /// differently than Rive expects. These are opt-in flags; each still only kicks in when
+        /// it's actually needed. Every mode but None copies the source into a texture Rive owns.
         /// </summary>
         public enum TextureProcessingMode
         {
@@ -50,7 +63,11 @@ namespace Rive
             Orientation = 1,
             /// <summary>Re-encode the texture to gamma so colors composite correctly in Linear projects; leave orientation alone.</summary>
             Color = 2,
-            /// <summary>Bind the texture as-is. No intermediate texture.</summary>
+            /// <summary>
+            /// Bind the texture as-is. No intermediate texture, so Rive draws your
+            /// texture directly. Await <see cref="DisposeAsync"/> before releasing,
+            /// destroying, or resizing it.
+            /// </summary>
             None = 3,
         }
 
@@ -63,13 +80,13 @@ namespace Rive
             /// Keep up to date automatically every frame. Use for live sources
             /// such as video or camera output whose contents change each frame.
             /// </summary>
-            PerFrame,
+            PerFrame = 0,
             /// <summary>
             /// Update only when you call <see cref="Refresh"/>. Use for content
             /// that does not change, or that you update yourself (a snapshot, a
             /// baked texture).
             /// </summary>
-            Manual,
+            Manual = 1,
         }
 
         private readonly RefreshMode m_refreshMode;
@@ -88,6 +105,13 @@ namespace Rive
         // Tracks whether we've already reacted to the source dying, so a dead Manual
         // source clears its properties once instead of every frame.
         private bool m_handledSourceLoss;
+        // When Rive draws the source itself, what it looked like at the last
+        // build, so it being released or resized under us can be flagged.
+        private IntPtr m_builtTexture;
+        private int m_builtWidth;
+        private int m_builtHeight;
+        private Future m_disposeFuture;
+        private bool m_disposedAsync;
 
         internal ITextureFrameProvider FrameProvider => m_textureProvider;
 
@@ -106,6 +130,9 @@ namespace Rive
         public RenderTexture Source => m_textureProvider?.Source;
 
         internal bool IsDisposed => m_disposed;
+
+        // None, so Rive draws the user's texture.
+        internal bool DrawsSourceDirectly => m_textureProvider is DirectTextureFrameProvider;
 
         /// <param name="source">The RenderTexture to use as the image source. Required.</param>
         /// <exception cref="ArgumentNullException">
@@ -200,7 +227,7 @@ namespace Rive
         // Called by the manager once per frame for every registered image, right
         // before panels tick. Decides whether a rebuild is wanted, then queues a
         // build (or clear) command on the queue for the render thread to process.
-        internal void Tick(IReadOnlyList<ViewModelInstanceImageProperty> properties, RenderImageCommandQueue queue)
+        internal void Tick(IReadOnlyList<IRenderImageTarget> properties, RenderImageCommandQueue queue)
         {
             if (m_disposed)
             {
@@ -215,6 +242,11 @@ namespace Rive
                 bool sourceAlive = m_textureProvider.IsSourceAlive;
                 sourceJustLost = !sourceAlive && !m_handledSourceLoss;
                 m_handledSourceLoss = !sourceAlive;
+            }
+
+            if (DrawsSourceDirectly && m_builtTexture != IntPtr.Zero)
+            {
+                CheckSourceUnchanged();
             }
 
             bool rebuild = m_refreshMode == RefreshMode.PerFrame
@@ -242,6 +274,16 @@ namespace Rive
             NativeTextureFrame frame = m_textureProvider.Acquire();
             if (frame.IsValid)
             {
+                if (DrawsSourceDirectly)
+                {
+                    if (m_builtTexture != IntPtr.Zero && frame.Handle != m_builtTexture)
+                    {
+                        WarnSourceChanged("recreated");
+                    }
+                    m_builtTexture = frame.Handle;
+                    m_builtWidth = frame.Width;
+                    m_builtHeight = frame.Height;
+                }
                 queue.EnqueueBuild(
                     m_handle, frame.Handle, frame.Width, frame.Height, frame.IsSRGB, properties);
             }
@@ -254,6 +296,67 @@ namespace Rive
             // frame without clearing.
         }
 
+        // Released and resized are cheap to spot every tick. A texture released
+        // and created again at the same size only shows as a new pointer, which
+        // is seen on the next build.
+        private void CheckSourceUnchanged()
+        {
+            if (!m_textureProvider.IsSourceAlive)
+            {
+                WarnSourceChanged("released or destroyed");
+                // The build below clears the properties.
+                m_refreshRequested = true;
+                return;
+            }
+            RenderTexture source = m_textureProvider.Source;
+            if (source.width != m_builtWidth || source.height != m_builtHeight)
+            {
+                WarnSourceChanged("resized");
+                // Rebind to the new texture rather than leave the old one bound.
+                m_refreshRequested = true;
+            }
+        }
+
+        private void WarnSourceChanged(string change)
+        {
+            // Once per change, the next build sets it again.
+            m_builtTexture = IntPtr.Zero;
+            DebugLogger.Instance.LogWarning(
+                $"RenderTextureImageSource: the source RenderTexture was {change} while bound. " +
+                "Rive draws it directly with TextureProcessingMode.None, so it may have drawn a freed texture. " +
+                "Await DisposeAsync() before releasing or resizing it, then bind a new RenderTextureImageSource.");
+        }
+
+        /// <summary>
+        /// Does what <see cref="Dispose"/> does, and completes once Rive has
+        /// nothing left that uses the source texture, so the texture can then be
+        /// released, destroyed, or resized safely.
+        /// </summary>
+        /// <remarks>
+        /// Needed with <see cref="TextureProcessingMode.None"/>. With the other modes
+        /// <see cref="Dispose"/> is enough, though awaiting this is always safe.
+        /// Calling it again returns the same operation. It completes on Rive's
+        /// update pass, so await or yield it rather than calling WaitForCompletion.
+        /// A panel that has stopped rendering while holding an old frame can delay
+        /// it until that panel goes.
+        /// </remarks>
+        public Future DisposeAsync()
+        {
+            if (m_disposedAsync)
+            {
+                return m_disposeFuture;
+            }
+            m_disposedAsync = true;
+            Dispose();
+            m_disposeFuture = RenderImageCommandQueue.ReleaseAsync(m_handle);
+            return m_disposeFuture;
+        }
+
+        /// <summary>
+        /// Stops updates, empties every property the image drives, and frees
+        /// resources. With <see cref="TextureProcessingMode.None"/>, await
+        /// <see cref="DisposeAsync"/> instead before freeing the source.
+        /// </summary>
         public void Dispose()
         {
             if (m_disposed)
@@ -262,208 +365,12 @@ namespace Rive
             }
             m_disposed = true;
 
-            // Unregister drops the binding, which queues the native image's destroy.
-            // The image's lifetime lives on the native queue, so there's nothing to
-            // free here
-            RenderTextureImageManager.Instance.Unregister(this);
+            // Empty the properties first, so nothing recorded after this draws
+            // it. Dropping the binding queues the native image's destroy.
+            RenderTextureImageManager.Instance.DetachEverywhere(this);
             // Frees the source's GPU resources.
             m_textureProvider?.Dispose();
         }
-    }
-
-    /// <summary>
-    ///The main thread queues handle-based build/destroy commands and triggers one drain per frame; the
-    /// native queue owns the actual RenderImage lifetimes.
-    /// </summary>
-    internal sealed class RenderImageCommandQueue
-    {
-        // 0 is reserved as "no handle". Handles are unique within a session.
-        private static uint s_nextHandle = 1;
-        private static bool s_loggedUnsupportedBackend;
-        private static RenderImageCommandQueue s_instance;
-
-  
-        internal static RenderImageCommandQueue Instance
-        {
-            get
-            {
-                if (s_instance == null)
-                {
-                    s_instance = new RenderImageCommandQueue();
-                }
-                return s_instance;
-            }
-        }
-
-        private RenderImageCommandQueue() { }
-
-        // Whether anything has been queued since the last flush, so an idle frame
-        // doesn't issue a command buffer. Only touched on the main thread.
-        private bool m_pending;
-        // Reused buffer for marshalling a build's property pointers.
-        private IntPtr[] m_propertyScratch = new IntPtr[8];
-        private CommandBuffer m_commandBuffer;
-
-        internal static uint NextHandle()
-        {
-            return s_nextHandle++;
-        }
-
-        // Editor domain reloads keep static state, so start handle numbering fresh.
-        internal static void ResetHandles()
-        {
-            s_nextHandle = 1;
-        }
-
-      
-        internal static void EnqueueDestroyIfActive(uint handle)
-        {
-            s_instance?.EnqueueDestroy(handle);
-        }
-
-        // Drains anything queued this frame, including destroys enqueued between
-        // frames after the last binding went away. No-op if never created.
-        internal static void FlushIfActive()
-        {
-            s_instance?.Flush();
-        }
-
-        public void EnqueueBuild(
-            uint handle, IntPtr nativeTexture, int width, int height, bool isSRGB,
-            IReadOnlyList<ViewModelInstanceImageProperty> properties)
-        {
-            int count = 0;
-            if (properties != null)
-            {
-                EnsureScratch(properties.Count);
-                for (int i = 0; i < properties.Count; i++)
-                {
-                    ViewModelInstanceImageProperty property = properties[i];
-                    if (property != null)
-                    {
-                        m_propertyScratch[count++] = property.InstancePropertyPtr;
-                    }
-                }
-            }
-
-            enqueueBuildRenderImageCommand(
-                handle, nativeTexture, (uint)width, (uint)height, isSRGB, m_propertyScratch, count);
-            m_pending = true;
-        }
-
-        // A clear is a build with no texture: the render thread nulls the bound
-        // properties and drops the image.
-        public void EnqueueClear(uint handle, IReadOnlyList<ViewModelInstanceImageProperty> properties)
-        {
-            EnqueueBuild(handle, IntPtr.Zero, 0, 0, false, properties);
-        }
-
-        public void EnqueueDestroy(uint handle)
-        {
-            enqueueDestroyRenderImageCommand(handle);
-            m_pending = true;
-        }
-
-        // Issues the single per-frame drain event. We stamp the event with the current
-        // generation so a teardown that bumps the generation drops this drain rather
-        // than letting it run against a new session's activity.
-        public void Flush()
-        {
-            if (!m_pending)
-            {
-                return;
-            }
-            m_pending = false;
-
-            if (m_commandBuffer == null)
-            {
-                m_commandBuffer = new CommandBuffer { name = "Rive.RenderImageCommands" };
-            }
-            else
-            {
-                m_commandBuffer.Clear();
-            }
-            int generation = (int)getRenderImageGeneration();
-            m_commandBuffer.IssuePluginEventAndData(
-                getProcessRenderImageCommandsCallback(), generation, IntPtr.Zero);
-            Graphics.ExecuteCommandBuffer(m_commandBuffer);
-        }
-
-        // Full teardown for explicit lifecycle points (manager Clear / runtime
-        // init), main thread only. Resets the global native queue (frees its
-        // images + bumps the generation so in-flight drains are dropped), releases
-        // the managed CommandBuffer, and drops the singleton so the next session
-        // rebuilds clean. 
-        internal static void Shutdown()
-        {
-            clearRenderImageCommandQueue();
-            if (s_instance != null)
-            {
-                s_instance.ReleaseManaged();
-                s_instance = null;
-            }
-        }
-
-        private void ReleaseManaged()
-        {
-            if (m_commandBuffer != null)
-            {
-                m_commandBuffer.Release();
-                m_commandBuffer = null;
-            }
-            m_pending = false;
-        }
-
-
-        internal static void LogUnsupportedBackendOnce()
-        {
-            if (s_loggedUnsupportedBackend)
-            {
-                return;
-            }
-            GraphicsDeviceType backend = SystemInfo.graphicsDeviceType;
-            bool supported = TextureHelper.SupportsRenderTextureImageSource();
-            if (!supported)
-            {
-                s_loggedUnsupportedBackend = true;
-                DebugLogger.Instance.LogError(
-                    "RenderTextureImageSource: binding a RenderTexture as a Rive image is not " +
-                    $"supported on the current graphics backend ({backend}). " +
-                    "Supported backends: Metal, Direct3D11, Direct3D12, Vulkan. The bound image " +
-                    "property will stay empty on this backend.");
-            }
-        }
-
-        private void EnsureScratch(int count)
-        {
-            if (m_propertyScratch.Length >= count)
-            {
-                return;
-            }
-            int size = m_propertyScratch.Length;
-            while (size < count)
-            {
-                size *= 2;
-            }
-            m_propertyScratch = new IntPtr[size];
-        }
-
-        [DllImport(NativeLibrary.name)]
-        private static extern uint getRenderImageGeneration();
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void clearRenderImageCommandQueue();
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void enqueueBuildRenderImageCommand(
-            uint handle, IntPtr nativeTexture, uint width, uint height,
-            [MarshalAs(UnmanagedType.U1)] bool isSRGB, IntPtr[] propertyPtrs, int propertyCount);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern void enqueueDestroyRenderImageCommand(uint handle);
-
-        [DllImport(NativeLibrary.name)]
-        private static extern IntPtr getProcessRenderImageCommandsCallback();
     }
 
     /// <summary>
@@ -514,8 +421,8 @@ namespace Rive
             // While an image has bound properties the manager
             // keeps it alive with a strong reference so it keeps ticking without the caller holding it.
             public readonly RenderTextureImageSource Image;
-            public readonly List<ViewModelInstanceImageProperty> Properties =
-                new List<ViewModelInstanceImageProperty>();
+            public readonly List<IRenderImageTarget> Properties =
+                new List<IRenderImageTarget>();
 
             public Binding(RenderTextureImageSource image)
             {
@@ -524,9 +431,6 @@ namespace Rive
         }
 
         private readonly List<Binding> m_bindings = new List<Binding>();
-        // Intermediates whose source died/realloc'd. So we defer releasing them until the next frame,
-        // after any build referencing them has drained on the render thread.
-        private readonly List<RenderTexture> m_deferredReleases = new List<RenderTexture>();
 
         /// <summary>
         /// True when at least one render-texture image is currently bound. Lets
@@ -540,7 +444,11 @@ namespace Rive
 
         // Removes an image's binding entry outright (e.g. on explicit Dispose),
         // regardless of how many properties it had.
-        internal void Unregister(RenderTextureImageSource image)
+        /// <summary>
+        /// Empties every property the image drives and drops it. The clears go
+        /// through the producer ahead of anything recorded after this.
+        /// </summary>
+        internal void DetachEverywhere(RenderTextureImageSource image)
         {
             if (image == null)
             {
@@ -548,10 +456,16 @@ namespace Rive
             }
             for (int i = m_bindings.Count - 1; i >= 0; i--)
             {
-                if (ReferenceEquals(m_bindings[i].Image, image))
+                Binding binding = m_bindings[i];
+                if (!ReferenceEquals(binding.Image, image))
                 {
-                    RemoveBindingAt(i);
+                    continue;
                 }
+                foreach (IRenderImageTarget property in binding.Properties)
+                {
+                    property.ClearRenderImage();
+                }
+                RemoveBindingAt(i);
             }
         }
 
@@ -560,7 +474,7 @@ namespace Rive
         /// is only ever driven by one image, so it is detached from any others. The
         /// image is pushed to the property on the next tick.
         /// </summary>
-        internal bool BindPropertyToImage(RenderTextureImageSource image, ViewModelInstanceImageProperty property)
+        internal bool BindPropertyToImage(RenderTextureImageSource image, IRenderImageTarget property)
         {
             if (image == null || property == null)
             {
@@ -591,8 +505,8 @@ namespace Rive
                 binding.Properties.Add(property);
             }
 
-            // The render thread pushes the image; force a rebuild so the freshly
-            // bound property receives it on the next tick.
+            // Force a build so the freshly bound property gets an image on
+            // the next tick.
             image.NotifyPropertyBound();
             return true;
         }
@@ -601,7 +515,7 @@ namespace Rive
         /// Detaches a property from whatever image was driving it, dropping that
         /// image's entry if it becomes unbound.
         /// </summary>
-        internal void Unbind(ViewModelInstanceImageProperty property)
+        internal void Unbind(IRenderImageTarget property)
         {
             if (property == null)
             {
@@ -619,10 +533,6 @@ namespace Rive
 
         internal void Tick()
         {
-            // Release last tick's freed intermediate textures.
-            FlushDeferredReleases();
-
-   
             if (m_bindings.Count > 0)
             {
                 RenderImageCommandQueue queue = RenderImageCommandQueue.Instance;
@@ -642,9 +552,8 @@ namespace Rive
                 }
             }
 
-            // Drain everything queued this frame on the render thread, in order.
-            // Also drains destroys enqueued between frames after the last binding
-            // went away.
+            // Sends everything queued this frame, including destroys queued
+            // between frames after the last binding went away.
             RenderImageCommandQueue.FlushIfActive();
         }
 
@@ -653,8 +562,8 @@ namespace Rive
         /// </summary>
         internal void Clear()
         {
-            // Remove each entry before disposing so the Dispose -> Unregister
-            // callback is a no-op and doesn't mutate the list mid-iteration.
+            // Remove each entry before disposing so Dispose finds nothing to
+            // detach and doesn't mutate the list mid-iteration.
             for (int i = m_bindings.Count - 1; i >= 0; i--)
             {
                 RenderTextureImageSource image = m_bindings[i].Image;
@@ -662,38 +571,27 @@ namespace Rive
                 image?.Dispose();
             }
 
-            // Resets the global native queue 
+            // Resets the global native queue, which releases any intermediate
+            // still waiting.
             RenderImageCommandQueue.Shutdown();
-
-            FlushDeferredReleases();
         }
 
-        // Hands an intermediate over to be released a tick later, once any build
-        // referencing it has drained on the render thread.
-        internal void DeferRelease(RenderTexture intermediate)
+        // Frees an intermediate once nothing Rive made from it is left. Queued
+        // frames can still draw it after its replacement is bound.
+        internal void DeferRelease(RenderTexture intermediate, IntPtr nativeTexture)
         {
-            if (intermediate != null)
-            {
-                m_deferredReleases.Add(intermediate);
-            }
-        }
-
-        private void FlushDeferredReleases()
-        {
-            if (m_deferredReleases.Count == 0)
+            if (intermediate == null)
             {
                 return;
             }
-            for (int i = 0; i < m_deferredReleases.Count; i++)
+            RenderImageCommandQueue.RetireTexture(nativeTexture, () =>
             {
-                RenderTexture rt = m_deferredReleases[i];
-                if (rt != null)
+                if (intermediate != null)
                 {
-                    rt.Release();
-                    UnityEngine.Object.Destroy(rt);
+                    intermediate.Release();
+                    UnityEngine.Object.Destroy(intermediate);
                 }
-            }
-            m_deferredReleases.Clear();
+            });
         }
 
         // Drops a binding and queues the native image's destruction.
@@ -706,12 +604,11 @@ namespace Rive
 
         private void PruneDisposedProperties(Binding binding)
         {
-            List<ViewModelInstanceImageProperty> props = binding.Properties;
+            List<IRenderImageTarget> props = binding.Properties;
             for (int i = props.Count - 1; i >= 0; i--)
             {
-                ViewModelInstanceImageProperty property = props[i];
-                if (property == null ||
-                    (property.RootInstance != null && property.RootInstance.IsDisposed))
+                IRenderImageTarget property = props[i];
+                if (property == null || property.IsGone)
                 {
                     props.RemoveAt(i);
                 }
