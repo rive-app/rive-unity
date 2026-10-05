@@ -597,6 +597,48 @@ namespace Rive.Tests
             DestroyObj(panel.gameObject);
         }
 
+        // A script that draws into context:canvas(). Vulkan and D3D12 need a
+        // queue for this, or the canvas flush gets no command buffer.
+        [UnityTest]
+        public IEnumerator Panel_RendersScriptedCanvasContent([Values] ThreadingMode mode)
+        {
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                TestPrefabReferences.RivePanelWithSingleWidget,
+                prefab =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(256, 256));
+                    panel.ThreadingMode = mode;
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {TestPrefabReferences.RivePanelWithSingleWidget}")
+            );
+
+            Rive.Asset riveAsset = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                TestAssetReferences.riv_canvasContent,
+                asset => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_canvasContent}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.Fit = Fit.Fill;
+            widget.Load(riveAsset);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+            yield return WaitForPanelRenderSettled(panel, frames: 5);
+
+            RenderTexture texture = panel.RenderTexture;
+            Color32[] pixels = ReadBySampling(texture);
+            Color32 square = pixels[(texture.height / 2) * texture.width + texture.width / 2];
+            Color32 background = pixels[(texture.height / 10) * texture.width + texture.width / 10];
+            // The script draws an orange square into the canvas over a dark blue clear.
+            Assert.IsTrue(square.r > 180 && square.b < 120, $"The canvas's square should show in the middle. Got {square}.");
+            Assert.IsTrue(background.b > background.r && background.a > 200, $"The canvas's clear color should show at the edge. Got {background}.");
+
+            DestroyObj(panel.gameObject);
+        }
+
 
         [UnityTest]
         public IEnumerator RivePanel_RendersAfterRenderPipelineHandlerDestroyed_SimulatesUnityAsLibraryReload()

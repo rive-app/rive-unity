@@ -10,6 +10,8 @@ namespace Rive.Tests.Utils
 
                 public const string riv_ore = "Packages/app.rive.rive-unity.tests/Shared/Assets/ore.riv";
 
+                public const string riv_canvasContent = "Packages/app.rive.rive-unity.tests/Shared/Assets/canvas_content.riv";
+
                 public const string riv_gameHudScope = "Packages/app.rive.rive-unity.tests/Shared/Assets/game_hud_scope.riv";
 
 
@@ -20,6 +22,7 @@ namespace Rive.Tests.Utils
                 public const string riv_cleanTheCar = "Packages/app.rive.rive-unity.tests/Shared/Assets/clean_the_car.riv";
 
                 public const string riv_ratingAnimationWithEvents = "Packages/app.rive.rive-unity.tests/Shared/Assets/rating_animation_with_events.riv";
+                public const string riv_listenerEvents = "Packages/app.rive.rive-unity.tests/Shared/Assets/listener_events.riv";
 
                 public const string riv_layoutTest = "Packages/app.rive.rive-unity.tests/Shared/Assets/layout_test.riv";
 

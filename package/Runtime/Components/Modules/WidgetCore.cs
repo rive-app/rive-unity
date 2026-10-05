@@ -153,11 +153,13 @@ namespace Rive.Components
             });
         }
 
-        /// Sends a pointer event for the frame point in work. A down or up
-        /// that hits advances by 0 on the server, so what it set settles.
-        internal bool SendPointer(ulong requestId, in RiveWidget.PointerEventWork work)
+        /// Sends a pointer event for the frame point in work. With settle, a
+        /// down or up that hits advances by 0 on the server, so what it set
+        /// settles.
+        internal bool SendPointer(ulong requestId, in RiveWidget.PointerEventWork work, bool settle = true)
         {
-            uint flags = StateMachineNative.PointerInFrame | StateMachineNative.PointerSettle
+            uint flags = StateMachineNative.PointerInFrame
+                         | (settle ? StateMachineNative.PointerSettle : 0)
                          | (work.CollectEvents ? StateMachineNative.PointerCollectEvents : 0);
             return StateMachineNative.SendPointer(
                 requestId, m_stateMachine.NativeStateMachine, m_artboard.NativeArtboard, ToNative(work.Kind),
@@ -167,14 +169,58 @@ namespace Rive.Components
         /// Reads a pointer reply and queues its events. True if it hit.
         internal bool ReadPointer(ref PayloadReader reader)
         {
+            return ReadPointerResult(ref reader) != 0;
+        }
+
+        // The HitResult as a number.
+        private uint ReadPointerResult(ref PayloadReader reader)
+        {
             m_collectScratch.Clear();
-            bool hit = StateMachineNative.ReadPointer(ref reader, m_collectScratch) != 0;
+            uint hit = StateMachineNative.ReadPointer(ref reader, m_collectScratch);
             for (int i = 0; i < m_collectScratch.Count; i++)
             {
                 m_events.Enqueue(m_collectScratch[i]);
             }
             m_collectScratch.Clear();
             return hit;
+        }
+
+        private PointerWait m_pointerWait;
+
+        /// Main thread. Sends a pointer event and waits, and its events queue
+        /// like an async one's. No settle, the caller advances after a hit.
+        /// Returns the HitResult as a number.
+        internal uint PointerAndWait(in RiveWidget.PointerEventWork work)
+        {
+            PointerWait wait = m_pointerWait ?? new PointerWait(this);
+            // Out while in use, so a call made while this one waits gets its own.
+            m_pointerWait = null;
+            wait.Work = work;
+            wait.Hit = 0;
+            RequestTicket ticket = CommandTransport.Send(wait.Send, wait.OnReply);
+            CommandTransport.Join(ref ticket);
+            uint hit = wait.Hit;
+            m_pointerWait = wait;
+            return hit;
+        }
+
+        // Made once per widget, so a pointer event doesn't allocate.
+        private sealed class PointerWait
+        {
+            internal readonly Action<ulong> Send;
+            internal readonly Action<HostMessageBatch, HostMessage> OnReply;
+            internal RiveWidget.PointerEventWork Work;
+            internal uint Hit;
+
+            internal PointerWait(WidgetCore core)
+            {
+                Send = id => core.SendPointer(id, Work, settle: false);
+                OnReply = (batch, message) =>
+                {
+                    var reader = new PayloadReader(batch, message);
+                    Hit = core.ReadPointerResult(ref reader);
+                };
+            }
         }
 
         private static StateMachineNative.PointerKind ToNative(RiveWidget.PointerEventKind kind)

@@ -317,6 +317,16 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b1dec0296e7441a886312815641d9c74
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/listener_events.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 795f9a0421b1442f81960d47e7447130
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/canvas_content.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 93a3e2e63b7c84741abf9b7d8b24c87c
     m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/rating_animation_with_events.riv
     m_ReadOnly: 0

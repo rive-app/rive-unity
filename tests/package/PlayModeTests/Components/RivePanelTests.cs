@@ -398,6 +398,57 @@ namespace Rive.Tests
             assets.UnloadAllAssets();
         }
 
+        // Events a listener fires straight from pointer input, not from a state.
+        [UnityTest]
+        public IEnumerator ListenerFiredEvents_AreReported([Values] ThreadingMode mode)
+        {
+            var assets = new TestAssetLoadingManager();
+            Asset asset = null;
+            yield return assets.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_listenerEvents,
+                loaded => asset = loaded,
+                () => Assert.Fail("Failed to load the listener events asset"));
+
+            var widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            m_panel.AddToHierarchy(widget);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            m_panel.SetDimensions(new Vector2Int(500, 500));
+            m_panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            m_panel.ThreadingMode = mode;
+            var events = new List<string>();
+            widget.OnRiveEventReported += evt => events.Add(evt.Name);
+            widget.Load(asset);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+
+            yield return PumpUntil(events, "started");
+            m_mockInputProvider.SimulatePointerMove(new Vector2(0.5f, 0.5f));
+            yield return PumpUntil(events, "entered");
+            m_mockInputProvider.SimulatePointerDown(new Vector2(0.5f, 0.5f));
+            yield return PumpUntil(events, "clicked");
+            m_mockInputProvider.SimulatePointerUp(new Vector2(0.5f, 0.5f));
+            yield return PumpUntil(events, "released");
+
+            string seen = string.Join(", ", events);
+            Assert.AreEqual(1, events.Count(name => name == "started"), $"A state's event should arrive once. Got: {seen}");
+            Assert.AreEqual(1, events.Count(name => name == "entered"), $"An enter listener's event should arrive once. Got: {seen}");
+            Assert.AreEqual(1, events.Count(name => name == "clicked"), $"A down listener's event should arrive once. Got: {seen}");
+            Assert.AreEqual(1, events.Count(name => name == "released"), $"An up listener's event should arrive once. Got: {seen}");
+            assets.UnloadAllAssets();
+        }
+
+        private IEnumerator PumpUntil(List<string> events, string name)
+        {
+            for (int frame = 0; frame < 10 && !events.Contains(name); frame++)
+            {
+                Orchestrator.Instance.JoinPointerInputs();
+                m_panel.Tick(0.016f);
+                Orchestrator.Instance.RunUpdatePass();
+                m_panel.JoinAdvance();
+                Orchestrator.Instance.RunUpdatePass();
+                yield return null;
+            }
+        }
+
         [UnityTest]
         public IEnumerator AsyncPanelPointer_ReportsPointerAndPanelAdvanceEventsOnce()
         {

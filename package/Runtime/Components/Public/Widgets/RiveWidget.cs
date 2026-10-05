@@ -927,6 +927,17 @@ namespace Rive.Components
             return LoadedStateMachine.HitTest(rivePoint);
         }
 
+        // Synchronous pointer input. Events a listener fires during the call
+        // come back with it, before the next advance clears them.
+        private HitResult PointerAndWait(Vector2 normalizedPoint, int pointerId, PointerEventKind kind)
+        {
+            if (!TryPreparePointerEvent(normalizedPoint, pointerId, kind, out PointerEventWork work))
+            {
+                return HitResult.None;
+            }
+            return (HitResult)work.Core.PointerAndWait(work);
+        }
+
         /// <summary>
         /// Advances the state machine after a pointer event occurs on the widget. This is needed to ensure that intermediate state, such as a view model property set on pointer down, is processed immediately, even when the down and up occur within the same frame.
         /// </summary>
@@ -956,7 +967,7 @@ namespace Rive.Components
                 return false;
             }
 
-            HitResult hitResult = LoadedStateMachine.PointerDown(rivePoint, pointerId);
+            HitResult hitResult = PointerAndWait(normalizedPointInRect, pointerId, PointerEventKind.Down);
             if (hitResult != HitResult.None)
             {
                 AdvanceAfterPointerEvent();
@@ -982,7 +993,7 @@ namespace Rive.Components
                 return false;
             }
 
-            HitResult hitResult = LoadedStateMachine.PointerUp(rivePoint, pointerId);
+            HitResult hitResult = PointerAndWait(normalizedPointInRect, pointerId, PointerEventKind.Up);
             if (hitResult != HitResult.None)
             {
                 AdvanceAfterPointerEvent();
@@ -1010,7 +1021,7 @@ namespace Rive.Components
                 return false;
             }
 
-            HitResult hitResult = LoadedStateMachine.PointerMove(rivePoint, pointerId);
+            HitResult hitResult = PointerAndWait(normalizedPointInRect, pointerId, PointerEventKind.Move);
 
             return hitResult != HitResult.None;
 
@@ -1028,7 +1039,7 @@ namespace Rive.Components
             {
                 return false;
             }
-            HitResult hitResult = LoadedStateMachine.PointerExit(rivePoint, pointerId);
+            HitResult hitResult = PointerAndWait(normalizedPointInRect, pointerId, PointerEventKind.Exit);
 
             return hitResult != HitResult.None;
 
@@ -1047,8 +1058,8 @@ namespace Rive.Components
                 return false;
             }
 
-            // There's no specific LoadedStateMachine.PointerEnter method, so we use PointerMove instead to inform rive of the current pointer position.
-            HitResult hitResult = LoadedStateMachine.PointerMove(rivePoint, pointerId);
+            // Rive has no pointer enter, so a move tells it where the pointer is.
+            HitResult hitResult = PointerAndWait(normalizedPointInRect, pointerId, PointerEventKind.Move);
 
             return hitResult != HitResult.None;
 
