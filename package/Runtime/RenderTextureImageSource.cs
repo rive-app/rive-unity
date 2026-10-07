@@ -284,6 +284,7 @@ namespace Rive
                     m_builtWidth = frame.Width;
                     m_builtHeight = frame.Height;
                 }
+                ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.BuildQueued, m_handle, discreteTrigger);
                 queue.EnqueueBuild(
                     m_handle, frame.Handle, frame.Width, frame.Height, frame.IsSRGB, properties);
             }
@@ -294,6 +295,10 @@ namespace Rive
             }
             // Otherwise the source just isn't ready yet (handle still 0); retry next
             // frame without clearing.
+            else
+            {
+                ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.SourceNotReady, m_handle, null);
+            }
         }
 
         // Released and resized are cheap to spot every tick. A texture released

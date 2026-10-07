@@ -195,6 +195,7 @@ namespace Rive.Components
             {
                 return;
             }
+            ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.RedrawRequested, 0, panel);
 
             m_redrawRequested = true;
 
@@ -206,6 +207,7 @@ namespace Rive.Components
             {
                 return;
             }
+            ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.PanelDrawn, 0, panel);
 
             using var noWait = CommandTransport.NoWaitIf(
                 RecordThreadingMode(panel) == ThreadingMode.BackgroundThread, "async panel draw");

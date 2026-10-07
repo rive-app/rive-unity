@@ -15,6 +15,10 @@ namespace Rive
 
         internal override bool FromValue(in PropertyValue value) => value.Bits != 0;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private UnseenBoolCheck m_unseen;
+#endif
+
         /// <summary>
         /// The value of the property.
         /// </summary>
@@ -28,6 +32,9 @@ namespace Rive
             set
             {
                 ThrowIfOwnerDisposed();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                m_unseen.Write(value, Name);
+#endif
                 WriteNative(0f, value ? 1 : 0, null);
             }
         }

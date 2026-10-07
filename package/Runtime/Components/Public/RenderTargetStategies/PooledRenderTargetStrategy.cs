@@ -271,6 +271,7 @@ namespace Rive.Components
 
         private void HandlePanelDrawing(IRivePanel panel)
         {
+            ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.PanelDrawn, 0, panel);
             if (m_rivePanelData.TryGetValue(panel, out var info))
             {
                 using var noWait = CommandTransport.NoWaitIf(
@@ -319,6 +320,7 @@ namespace Rive.Components
             {
                 return;
             }
+            ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.RedrawRequested, 0, panel);
 
             if (m_panelsToRedraw.Contains(panel))
             {

@@ -12,6 +12,8 @@ namespace Rive.Tests.Utils
 
                 public const string riv_canvasContent = "Packages/app.rive.rive-unity.tests/Shared/Assets/canvas_content.riv";
 
+                public const string riv_pacingClock = "Packages/app.rive.rive-unity.tests/Shared/Assets/pacing_clock.riv";
+
                 public const string riv_gameHudScope = "Packages/app.rive.rive-unity.tests/Shared/Assets/game_hud_scope.riv";
 
 

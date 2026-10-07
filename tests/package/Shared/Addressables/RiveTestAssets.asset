@@ -327,6 +327,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a7e22bbcfc9c4e2986495485d1e1068e
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/pacing_clock.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 93a3e2e63b7c84741abf9b7d8b24c87c
     m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/rating_animation_with_events.riv
     m_ReadOnly: 0

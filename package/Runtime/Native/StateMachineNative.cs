@@ -105,6 +105,9 @@ namespace Rive
         internal static void WriteTickEntry(
             PayloadWriter entries, NativeStateMachineHandle stateMachine, NativeArtboardHandle artboard, float seconds, uint flags)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            UnseenBoolCheck.Advances++;
+#endif
             entries.U64(stateMachine.Value);
             entries.U64(artboard.Value);
             entries.F32(seconds);

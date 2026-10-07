@@ -142,6 +142,13 @@ namespace Rive.Components
         {
             Request request = m_building;
             m_building = null;
+            if (ImagePipelineTrace.ForTests != null)
+            {
+                for (int i = 0; i < request.Count; i++)
+                {
+                    ImagePipelineTrace.ForTests(ImagePipelineTrace.Step.AdvanceSent, 0, request.Widgets[i].Widget);
+                }
+            }
             m_channel.Send(request);
             // No producer means it ran inline and can land now.
             m_channel.Poll();
@@ -209,6 +216,7 @@ namespace Rive.Components
             for (int i = 0; i < request.Count; i++)
             {
                 WidgetAdvance slot = request.Widgets[i];
+                ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.AdvanceLanded, 0, slot.Widget);
                 // Destroyed while it was out.
                 if (slot.Widget != null)
                 {

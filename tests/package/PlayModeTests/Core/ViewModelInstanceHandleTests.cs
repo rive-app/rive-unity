@@ -88,6 +88,44 @@ namespace Rive.Tests
             }
         }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // A state machine only sees the last value written before it advances.
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator BoolSetAndSetBack_BeforeAnAdvance_WarnsOnce()
+        {
+            FileHandle file = null;
+            yield return LoadFile(TestAssetReferences.riv_asset_databinding_test, f => file = f);
+            ViewModelInstanceHandle person = Track(file.GetViewModel("PersonViewModel").Instantiate());
+            BooleanPropertyHandle agreed = person.GetBooleanProperty("agreedToTerms");
+
+            agreed.SetValue(true);
+            agreed.SetValue(false);
+            agreed.SetValue(true);
+
+            Assert.AreEqual(1, m_mockLogger.LoggedWarnings.FindAll(w => w.Contains("agreedToTerms")).Count,
+                "Setting a bool back before an advance should warn once.");
+        }
+
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator BoolSetAcrossAnAdvance_DoesNotWarn()
+        {
+            FileHandle file = null;
+            yield return LoadFile(TestAssetReferences.riv_asset_databinding_test, f => file = f);
+            ViewModelInstanceHandle person = Track(file.GetViewModel("PersonViewModel").Instantiate());
+            BooleanPropertyHandle agreed = person.GetBooleanProperty("agreedToTerms");
+
+            agreed.SetValue(true);
+            // Stands in for an advance going out between the writes.
+            UnseenBoolCheck.Advances++;
+            agreed.SetValue(false);
+
+            Assert.IsFalse(m_mockLogger.LoggedWarningsContains("agreedToTerms"),
+                "A value an advance has seen shouldn't warn when it changes.");
+        }
+#endif
+
         [NeedsRiveThread]
         [UnityTest]
         public IEnumerator SetAndGet_RoundTrip_WithoutWaiting()

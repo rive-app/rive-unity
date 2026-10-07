@@ -288,6 +288,10 @@ namespace Rive
             PollReleases();
             if (m_batches.HasInFlight || (m_pending.Count == 0 && m_retires.Count == 0))
             {
+                if (m_batches.HasInFlight && m_pending.Count > 0)
+                {
+                    ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.FlushBlocked, 0, m_pending.Count);
+                }
                 return;
             }
 
@@ -309,10 +313,38 @@ namespace Rive
             m_retires.CopyTo(batch.Retires, 0);
             m_retires.Clear();
             m_lastBatchCommands = batch.Commands;
+            if (ImagePipelineTrace.ForTests != null)
+            {
+                for (int i = 0; i < batch.Count; i++)
+                {
+                    ImagePipelineTrace.ForTests(ImagePipelineTrace.Step.BatchSent, batch.Commands[i].Handle, null);
+                }
+            }
             m_batches.Send(batch);
+
+            // The server usually makes these images before the render thread
+            // gets to this frame, so fill them now rather than when the reply
+            // lands a frame later. If it hasn't yet, the landing fills them.
+            // Only for plain builds, destroys and retires wait for the reply.
+            if (m_haveGeneration && !m_shuttingDown && batch.RetireCount == 0 && OnlyBuilds(batch))
+            {
+                IssueRenderEvent(m_lastGeneration, batch.LastSerial);
+            }
 
             // An inline host runs it as the main thread drains.
             m_batches.Poll();
+        }
+
+        private static bool OnlyBuilds(Batch batch)
+        {
+            for (int i = 0; i < batch.Count; i++)
+            {
+                if (batch.Commands[i].Destroy)
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         // The event for this batch carries the same serial, and native only
@@ -373,6 +405,13 @@ namespace Rive
 
         private void OnBatchLanded(Batch batch, BatchResult result)
         {
+            if (ImagePipelineTrace.ForTests != null)
+            {
+                for (int i = 0; i < batch.Count; i++)
+                {
+                    ImagePipelineTrace.ForTests(ImagePipelineTrace.Step.BatchLanded, batch.Commands[i].Handle, null);
+                }
+            }
             if (!m_shuttingDown)
             {
                 m_lastGeneration = result.Generation;
@@ -462,6 +501,7 @@ namespace Rive
                 getProcessRenderImageCommandsCallback(), (int)generation,
                 RenderLifetime.EventData((uint)serial));
             Graphics.ExecuteCommandBuffer(m_commandBuffer);
+            ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.FillIssued, 0, generation);
         }
 
         // Full teardown for explicit lifecycle points (manager Clear / runtime
@@ -541,6 +581,15 @@ namespace Rive
         [DllImport(NativeLibrary.name)]
         [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool riveRenderImageBatch(ulong requestId, byte[] batch, uint size);
+
+        /// Tests only. Starts or stops counting the native image fill path, and clears it.
+        [DllImport(NativeLibrary.name)]
+        internal static extern void riveRenderImageCountForTests([MarshalAs(UnmanagedType.U1)] bool count);
+
+        /// Tests only. Images made unfilled and filled, and wraps cached and not, since the last call.
+        [DllImport(NativeLibrary.name)]
+        internal static extern void riveRenderImageTakeCounts(
+            out uint bornUnfilled, out uint bornFilled, out uint wrapsCached, out uint wrapsNotCached);
 
         [DllImport(NativeLibrary.name)]
         [return: MarshalAs(UnmanagedType.U1)]

@@ -293,8 +293,17 @@ namespace Rive
         /// </summary>
         public void SetValue(T value)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            CheckUnseen(value);
+#endif
             WriteLater(nameof(SetValue), instance => Write(value));
         }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private protected virtual void CheckUnseen(T value)
+        {
+        }
+#endif
 
         /// <summary>
         /// Gets the value.
@@ -396,6 +405,12 @@ namespace Rive
         internal override ViewModelDataType Type => ViewModelDataType.Boolean;
 
         internal override bool FromValue(in PropertyValue value) => value.Bits != 0;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private UnseenBoolCheck m_unseen;
+
+        private protected override void CheckUnseen(bool value) => m_unseen.Write(value, Path);
+#endif
 
         internal override void Write(bool value)
         {
