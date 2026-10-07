@@ -89,7 +89,36 @@ namespace Rive.Components
                 new List<FutureState<bool>>();
             internal readonly PayloadWriter Entries = new PayloadWriter();
             internal int Count;
+            internal PanelAdvance Owner;
+            // When it went out, only while the pacing overlay is on.
+            internal double SentAt;
         }
+
+        /// <summary>
+        /// What the pacing overlay shows for a panel. The overlay reads and
+        /// clears it a couple of times a second.
+        /// </summary>
+        internal sealed class PacingStats
+        {
+            internal int Sent;
+            internal int Landed;
+            // Frames that had time to send but an advance was still out.
+            internal int Skipped;
+            internal double RoundTripSum;
+            internal double RoundTripMax;
+
+            internal void Clear()
+            {
+                Sent = 0;
+                Landed = 0;
+                Skipped = 0;
+                RoundTripSum = 0;
+                RoundTripMax = 0;
+            }
+        }
+
+        /// Null unless the pacing overlay is showing this panel.
+        internal PacingStats Pacing;
 
         internal sealed class Landed
         {
@@ -118,6 +147,7 @@ namespace Rive.Components
                 m_channel.Discard(m_building);
             }
             m_building = m_channel.Begin();
+            m_building.Owner = this;
         }
 
         internal void Add(WidgetBehaviour widget, float delta)
@@ -142,6 +172,11 @@ namespace Rive.Components
         {
             Request request = m_building;
             m_building = null;
+            if (Pacing != null)
+            {
+                Pacing.Sent++;
+                request.SentAt = Time.realtimeSinceStartupAsDouble;
+            }
             if (ImagePipelineTrace.ForTests != null)
             {
                 for (int i = 0; i < request.Count; i++)
@@ -213,6 +248,15 @@ namespace Rive.Components
 
         private static void OnLanded(Request request, Landed landed)
         {
+            PacingStats pacing = request.Owner?.Pacing;
+            if (pacing != null && request.SentAt > 0)
+            {
+                double roundTrip = (Time.realtimeSinceStartupAsDouble - request.SentAt) * 1000.0;
+                pacing.Landed++;
+                pacing.RoundTripSum += roundTrip;
+                pacing.RoundTripMax = Math.Max(pacing.RoundTripMax, roundTrip);
+            }
+            request.SentAt = 0;
             for (int i = 0; i < request.Count; i++)
             {
                 WidgetAdvance slot = request.Widgets[i];

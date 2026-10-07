@@ -55,6 +55,21 @@ namespace Rive.Host
         [DllImport(NativeLibrary.name)]
         internal static extern void riveProfilerFrame();
 
+        /// Pacing overlay. Starts or stops timing the server, and clears it.
+        [DllImport(NativeLibrary.name)]
+        internal static extern void riveServerTimingEnable([MarshalAs(UnmanagedType.U1)] bool on);
+
+        /// Pacing overlay. What the server did since the last call. The
+        /// routine arrays are indexed by RoutineTag.
+        [DllImport(NativeLibrary.name)]
+        internal static extern void riveServerTimingTake(
+            out ulong busyNanoseconds,
+            out ulong longestBatchNanoseconds,
+            out uint batches,
+            [Out] ulong[] routineNanoseconds,
+            [Out] uint[] routineCounts,
+            uint tagCount);
+
         /// Tests only. Starts counting live objects.
         [DllImport(NativeLibrary.name)]
         internal static extern void riveTrackLive();

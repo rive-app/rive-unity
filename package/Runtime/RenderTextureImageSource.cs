@@ -285,6 +285,10 @@ namespace Rive
                     m_builtHeight = frame.Height;
                 }
                 ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.BuildQueued, m_handle, discreteTrigger);
+                if (PacingCounters.Enabled)
+                {
+                    PacingCounters.ImageBuilds++;
+                }
                 queue.EnqueueBuild(
                     m_handle, frame.Handle, frame.Width, frame.Height, frame.IsSRGB, properties);
             }

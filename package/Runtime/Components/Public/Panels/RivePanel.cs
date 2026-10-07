@@ -107,6 +107,13 @@ namespace Rive.Components
         [Tooltip("When Disabled, the panel collapses all input to a single pointer for legacy behavior. When Enabled, multiple pointers are tracked independently.")]
         [SerializeField] private MultiTouchSupport m_multiTouchSupport = MultiTouchSupport.Enabled;
 
+#if UNITY_EDITOR
+        [OnValueChanged(nameof(UpdatePacingOverlay))]
+#endif
+        [InspectorField(RivePanelInspectorSections.Advanced, "Pacing Overlay (temporary)")]
+        [Tooltip("Shows this panel's advance timing and Rive's render cost on screen in play mode and in builds, to diagnose stutter. Temporary, it may be removed in a future version.")]
+        [SerializeField] private bool m_showPacingOverlay = false;
+
 
         private List<IRiveWidget> m_sortedWidgets = new List<IRiveWidget>();
         private Dictionary<WidgetBehaviour, WidgetMetadata> widgetMetadata = new Dictionary<WidgetBehaviour, WidgetMetadata>();
@@ -508,8 +515,32 @@ namespace Rive.Components
 
 
             SubscribeToRenderTargetStrategyEvents();
+            UpdatePacingOverlay();
+        }
 
+        internal PanelAdvance AdvanceForPacing => m_advance;
 
+        /// Temporary. Same as the inspector toggle.
+        internal bool ShowPacingOverlay
+        {
+            get => m_showPacingOverlay;
+            set
+            {
+                m_showPacingOverlay = value;
+                UpdatePacingOverlay();
+            }
+        }
+
+        private void UpdatePacingOverlay()
+        {
+            if (m_showPacingOverlay && isActiveAndEnabled && Application.isPlaying)
+            {
+                RivePacingOverlay.Show(this);
+            }
+            else
+            {
+                RivePacingOverlay.Hide(this);
+            }
         }
 
         private void HandlePanelRegistrationStateChange(IRivePanel panel)
@@ -527,6 +558,7 @@ namespace Rive.Components
 
         void OnDisable()
         {
+            RivePacingOverlay.Hide(this);
             Orchestrator.Instance?.UnregisterPanel(this);
 
             // Nothing polls it once the panel stops ticking.
@@ -1139,6 +1171,10 @@ namespace Rive.Components
                 advanceBy = m_pendingDelta;
                 m_pendingDelta = 0f;
                 m_advance.Begin();
+            }
+            else if (m_advance.Pacing != null)
+            {
+                m_advance.Pacing.Skipped++;
             }
 
             bool widgetNeedsRedraw = false;
