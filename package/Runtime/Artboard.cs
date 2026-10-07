@@ -118,7 +118,7 @@ namespace Rive
         }
 
         /// <summary>
-        /// Returns true if the artboard has audio.
+        /// Returns true if the artboard or the file it was loaded from has audio.
         /// </summary>
         public bool HasAudio
         {
