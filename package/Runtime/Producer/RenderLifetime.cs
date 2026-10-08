@@ -30,6 +30,23 @@ namespace Rive.Producer
             return new IntPtr(unchecked((int)renderId));
         }
 
+        /// The high half carries the newest frame tag the replay may consume, so the
+        /// render thread shows a frame only once its main-thread frame is over.
+        internal static IntPtr EventData(uint renderId, uint frameBound)
+        {
+            if (IntPtr.Size < 8 || frameBound == 0)
+            {
+                return EventData(renderId);
+            }
+            return new IntPtr(unchecked((long)(((ulong)frameBound << 32) | renderId)));
+        }
+
+        /// Frames recorded this frame are not safe to show yet; the previous frame's are.
+        internal static uint FrameBound()
+        {
+            return Application.isPlaying && Time.frameCount > 1 ? (uint)Time.frameCount - 1 : 0;
+        }
+
         /// Any thread. Off the main thread it goes out with the next Flush.
         internal static void Retire(IntPtr callback, uint renderId)
         {

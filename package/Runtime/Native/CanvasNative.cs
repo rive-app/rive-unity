@@ -26,10 +26,20 @@ namespace Rive
             uint count,
             uint generation,
             [MarshalAs(UnmanagedType.U1)] bool dirtCheckEnabled,
-            [MarshalAs(UnmanagedType.U1)] bool forceRenderNext);
+            [MarshalAs(UnmanagedType.U1)] bool forceRenderNext,
+            uint frame);
 
         [DllImport(NativeLibrary.name)]
         private static extern void unrefRenderQueue(ulong renderQueue);
+
+        [DllImport(NativeLibrary.name)]
+        private static extern void riveRenderQueueFrameBound(uint renderId, uint bound);
+
+        /// For render events whose data carries no bound, like a buffer added to a camera once.
+        internal static void SetFrameBound(uint renderId, uint bound)
+        {
+            riveRenderQueueFrameBound(renderId, bound);
+        }
 
         [DllImport(NativeLibrary.name)]
         [return: MarshalAs(UnmanagedType.U1)]
@@ -78,10 +88,11 @@ namespace Rive
             uint count,
             uint generation,
             bool dirtCheckEnabled,
-            bool forceRenderNext)
+            bool forceRenderNext,
+            uint frame)
         {
             riveRecordDrawList(
-                requestId, renderQueue.Value, ops, count, generation, dirtCheckEnabled, forceRenderNext);
+                requestId, renderQueue.Value, ops, count, generation, dirtCheckEnabled, forceRenderNext, frame);
         }
 
         internal static void UnrefRenderQueue(NativeRenderQueueHandle renderQueue)

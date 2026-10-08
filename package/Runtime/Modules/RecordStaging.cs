@@ -17,6 +17,7 @@ namespace Rive
             internal uint Generation;
             internal bool DirtCheckEnabled;
             internal bool ForceRenderNext;
+            internal uint Frame;
         }
 
         internal sealed class Recorded
@@ -40,7 +41,10 @@ namespace Rive
         internal Record Begin()
         {
             m_channel.Poll();
-            return m_channel.Begin(this);
+            // No key, so a record is never held behind the one before it. Each
+            // frame's record goes out when it is made and the server takes them
+            // in order; the native queue's accept gate is the backpressure.
+            return m_channel.Begin();
         }
 
         internal void Send(Record record)
@@ -63,6 +67,10 @@ namespace Rive
 
         private static void SendRecord(Record record, ulong requestId)
         {
+            if (PacingCounters.Enabled)
+            {
+                PacingCounters.RecordsSent++;
+            }
             CanvasNative.RecordDrawList(
                 requestId,
                 record.Queue,
@@ -70,7 +78,8 @@ namespace Rive
                 (uint)record.Count,
                 record.Generation,
                 record.DirtCheckEnabled,
-                record.ForceRenderNext);
+                record.ForceRenderNext,
+                record.Frame);
         }
 
         // Keeps the ops array so the next record reuses it.
@@ -81,6 +90,7 @@ namespace Rive
             record.Generation = 0;
             record.DirtCheckEnabled = false;
             record.ForceRenderNext = false;
+            record.Frame = 0;
         }
     }
 }

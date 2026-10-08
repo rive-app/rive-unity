@@ -62,6 +62,7 @@ namespace Rive
             internal uint Generation;
             internal bool DirtCheckEnabled;
             internal bool ForceRenderNext;
+            internal uint Frame;
         }
 
         internal Renderer(RenderQueue queue)
@@ -226,7 +227,7 @@ namespace Rive
             commandBuffer.IssuePluginEventAndData(
                 getRenderCommandBufferCallback(),
                 0,
-                RenderLifetime.EventData(m_renderId)
+                RenderLifetime.EventData(m_renderId, RenderLifetime.FrameBound())
             );
             Graphics.ExecuteCommandBuffer(commandBuffer);
         }
@@ -262,7 +263,7 @@ namespace Rive
             commandBuffer.IssuePluginEventAndData(
                 getRenderCommandBufferCallback(),
                 0,
-                RenderLifetime.EventData(m_renderId)
+                RenderLifetime.EventData(m_renderId, RenderLifetime.FrameBound())
             );
             commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
         }
@@ -290,7 +291,7 @@ namespace Rive
             commandBuffer.IssuePluginEventAndData(
                 getRenderCommandBufferCallback(),
                 0,
-                RenderLifetime.EventData(m_renderId)
+                RenderLifetime.EventData(m_renderId, RenderLifetime.FrameBound())
             );
             commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
         }
@@ -315,6 +316,7 @@ namespace Rive
         internal void RecordForGpuCanvas()
         {
             m_recordedAtStep = s_lateStep;
+            CanvasNative.SetFrameBound(m_renderId, RenderLifetime.FrameBound());
             int count = m_ops.Count;
             using var noWait = CommandTransport.NoWaitIf(
                 m_recordsAsynchronously, "async record");
@@ -330,11 +332,16 @@ namespace Rive
                 m_synchronousRecord.Generation = m_renderQueue.Generation;
                 m_synchronousRecord.DirtCheckEnabled = m_artboardDirtCheckEnabled;
                 m_synchronousRecord.ForceRenderNext = m_forceRenderNext;
+                m_synchronousRecord.Frame = (uint)Time.frameCount;
                 RecordSynchronous();
                 m_forceRenderNext = false;
                 return;
             }
 
+            if (PacingCounters.Enabled)
+            {
+                PacingCounters.RecordsWanted++;
+            }
             RecordStaging.Record record = m_staging.Begin();
             if (record.Ops == null || record.Ops.Length < count)
             {
@@ -347,6 +354,7 @@ namespace Rive
             record.DirtCheckEnabled = m_artboardDirtCheckEnabled;
             // A record still waiting may carry a force the server hasn't seen.
             record.ForceRenderNext |= m_forceRenderNext;
+            record.Frame = (uint)Time.frameCount;
             m_forceRenderNext = false;
             m_staging.Send(record);
         }
@@ -434,7 +442,8 @@ namespace Rive
                     (uint)batch.Count,
                     batch.Generation,
                     batch.DirtCheckEnabled,
-                    batch.ForceRenderNext);
+                    batch.ForceRenderNext,
+                    batch.Frame);
             };
             RequestTicket ticket = CommandTransport.Send(m_sendSynchronousRecord);
             CommandTransport.Join(ref ticket);

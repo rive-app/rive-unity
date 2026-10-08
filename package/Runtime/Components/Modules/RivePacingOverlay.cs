@@ -35,6 +35,18 @@ namespace Rive.Components
         private readonly ulong[] m_routineNanoseconds = new ulong[TagCount];
         private readonly uint[] m_routineCounts = new uint[TagCount];
         private readonly List<int> m_routineOrder = new List<int>(TagCount);
+        // Matches native's PacingCount.
+        private enum PacingCount
+        {
+            RecordPublished = 0,
+            RecordUnchanged = 1,
+            RecordBehind = 2,
+            ReplayEvent = 3,
+            ReplayNothingNew = 4,
+            ReplayCatchUp = 5,
+        }
+        private const int PacingCountTotal = (int)PacingCount.ReplayCatchUp + 1;
+        private readonly uint[] m_pacingCounts = new uint[PacingCountTotal];
         private GUIStyle m_style;
         private Texture2D m_background;
         private readonly GUIContent m_content = new GUIContent();
@@ -99,6 +111,8 @@ namespace Rive.Components
         {
             m_windowStart = Time.realtimeSinceStartup;
             PacingCounters.ImageBuilds = 0;
+            PacingCounters.RecordsWanted = 0;
+            PacingCounters.RecordsSent = 0;
         }
 
         private void Update()
@@ -129,6 +143,7 @@ namespace Rive.Components
 
             m_text.Clear();
             m_text.AppendLine("Rive pacing (temporary)");
+            m_text.AppendLine($"fps: {m_frames / elapsed:F0}");
             m_text.AppendLine($"frame ms: avg {m_frameSum / System.Math.Max(1, m_frames):F1}, worst {m_frameMax:F1}");
             m_text.AppendLine(m_renderFrames > 0
                 ? $"render thread ms: avg {m_renderSum / m_renderFrames:F1}, worst {m_renderMax:F1}"
@@ -138,6 +153,7 @@ namespace Rive.Components
                 : "canvas frames waiting: n/a in this build");
             m_text.AppendLine($"image builds/s: {PacingCounters.ImageBuilds / elapsed:F0}");
             AppendServer(System.Math.Max(1, m_frames));
+            AppendFrames(elapsed);
             foreach (RivePanel panel in m_panels)
             {
                 PanelAdvance.PacingStats stats = panel != null ? panel.AdvanceForPacing.Pacing : null;
@@ -147,7 +163,7 @@ namespace Rive.Components
                 }
                 string average = stats.Landed > 0 ? $"{stats.RoundTripSum / stats.Landed:F1}" : "-";
                 m_text.AppendLine($"{panel.name} ({panel.ThreadingMode}): advance ms avg {average}, worst {stats.RoundTripMax:F1}; " +
-                    $"sent {stats.Sent / elapsed:F0}/s, skipped {stats.Skipped / elapsed:F0}/s");
+                    $"producer frames/s: sent {stats.Sent / elapsed:F0}, landed {stats.Landed / elapsed:F0}, skipped {stats.Skipped / elapsed:F0}");
                 stats.Clear();
             }
             m_shown = m_text.ToString();
@@ -160,6 +176,8 @@ namespace Rive.Components
             m_renderSum = 0;
             m_renderMax = 0;
             PacingCounters.ImageBuilds = 0;
+            PacingCounters.RecordsWanted = 0;
+            PacingCounters.RecordsSent = 0;
         }
 
         // Server time per frame, then the routines taking most of it. What's
@@ -201,6 +219,30 @@ namespace Rive.Components
             ulong other = busy > routines ? busy - routines : 0;
             m_text.AppendLine($" other {other * 1e-6 / frames:F2}");
         }
+
+        // Background panels' recordings, and what became of them on each side.
+        // A render event with nothing new shows the last picture again.
+        private void AppendFrames(float elapsed)
+        {
+            int wanted = PacingCounters.RecordsWanted;
+            int sent = PacingCounters.RecordsSent;
+            m_text.AppendLine($"recordings/s: wanted {wanted / elapsed:F0}, sent {sent / elapsed:F0}, held back {System.Math.Max(0, wanted - sent) / elapsed:F0}");
+            try
+            {
+                HostNative.riveCanvasPacingTake(m_pacingCounts, (uint)PacingCountTotal);
+            }
+            catch (System.EntryPointNotFoundException)
+            {
+                m_text.AppendLine("rive frames: n/a with this plugin");
+                return;
+            }
+            m_text.AppendLine($"rive frames/s: made {Rate(PacingCount.RecordPublished, elapsed)}, " +
+                $"unchanged {Rate(PacingCount.RecordUnchanged, elapsed)}, render behind {Rate(PacingCount.RecordBehind, elapsed)}");
+            m_text.AppendLine($"render events/s: {Rate(PacingCount.ReplayEvent, elapsed)}, " +
+                $"nothing new {Rate(PacingCount.ReplayNothingNew, elapsed)}, caught up {Rate(PacingCount.ReplayCatchUp, elapsed)}");
+        }
+
+        private string Rate(PacingCount which, float elapsed) => (m_pacingCounts[(int)which] / elapsed).ToString("F0");
 
         private void OnGUI()
         {

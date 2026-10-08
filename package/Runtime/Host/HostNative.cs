@@ -70,6 +70,11 @@ namespace Rive.Host
             [Out] uint[] routineCounts,
             uint tagCount);
 
+        /// Pacing overlay. What happened to panel frames since the last call,
+        /// indexed by PacingCount.
+        [DllImport(NativeLibrary.name)]
+        internal static extern void riveCanvasPacingTake([Out] uint[] counts, uint capacity);
+
         /// Tests only. Starts counting live objects.
         [DllImport(NativeLibrary.name)]
         internal static extern void riveTrackLive();
