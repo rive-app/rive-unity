@@ -408,6 +408,9 @@ namespace Rive.Components
         /// </summary>
         public Asset Asset { get => m_asset; }
 
+        // False when the loaded file was passed in directly, so it may not match Asset.
+        internal bool IsFileLoadedFromAsset => m_fileLoadedFromAsset != null && ReferenceEquals(m_fileLoadedFromAsset, m_asset);
+
 
         private ArtboardRenderObject RenderObjectWithArtboard => Controller?.RenderObject;
 

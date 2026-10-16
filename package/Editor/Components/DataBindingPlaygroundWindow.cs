@@ -39,6 +39,12 @@ namespace Rive.EditorTools
 
         private FileMetadata m_fileMetadata;
         private FileMetadata.ArtboardMetadata m_artboardMetadata;
+        // What the metadata was built against, so we can rebuild when the widget loads something else.
+        private File m_metadataFile;
+        private Artboard m_metadataArtboard;
+        // Metadata for files passed to RiveWidget.Load(File) rather than loaded from the widget's asset.
+        private File m_loadedFileMetadataSource;
+        private FileMetadata m_loadedFileMetadata;
         private double m_nextRefreshTime;
         private readonly Dictionary<string, ImageOutOfBandAsset> m_imageSelectionCache = new Dictionary<string, ImageOutOfBandAsset>();
         private readonly Dictionary<string, FontOutOfBandAsset> m_fontSelectionCache = new Dictionary<string, FontOutOfBandAsset>();
@@ -385,12 +391,23 @@ namespace Rive.EditorTools
             m_propertyBindings.Clear();
             m_listBindings.Clear();
             m_widget = null;
+            m_metadataFile = null;
+            m_metadataArtboard = null;
+            m_loadedFileMetadataSource = null;
+            m_loadedFileMetadata = null;
+            ClearArtboardSelections();
+            m_viewModelExpansion.Clear();
+        }
+
+        // Rebuilt artboard rows apply their cached selection on first sync, so we clear it
+        // whenever the rows are built for a different instance.
+        private void ClearArtboardSelections()
+        {
             foreach (var selection in m_artboardSelectionCache.Values)
             {
                 selection.DisposeAll();
             }
             m_artboardSelectionCache.Clear();
-            m_viewModelExpansion.Clear();
         }
 
         private void EditorUpdate()
@@ -402,8 +419,49 @@ namespace Rive.EditorTools
             }
 
             m_nextRefreshTime = EditorApplication.timeSinceStartup + 0.25f;
+            RebuildIfWidgetReloaded();
             UpdateVisibility();
             RefreshValues();
+        }
+
+        // True when the rows were built for a file or artboard the widget no longer has loaded.
+        private bool WidgetReloadedSinceBuild()
+        {
+            return m_widget != null &&
+                (!ReferenceEquals(m_widget.File, m_metadataFile) || !ReferenceEquals(m_widget.Artboard, m_metadataArtboard));
+        }
+
+        private void RebuildIfWidgetReloaded()
+        {
+            if (WidgetReloadedSinceBuild())
+            {
+                ClearArtboardSelections();
+                RefreshMetadata();
+                RebuildProperties();
+            }
+        }
+
+        /// Tests. Targets a widget, as picking it in the window does.
+        internal void SetTargetForTests(RiveWidget widget) => SetTarget(widget);
+
+        /// Tests. One refresh, as the editor update runs it.
+        internal void RefreshForTests()
+        {
+            RebuildIfWidgetReloaded();
+            RefreshValues();
+        }
+
+        /// Tests. The control of the row for a property path, or null.
+        internal VisualElement RowControlForTests(string path)
+        {
+            foreach (var binding in m_propertyBindings)
+            {
+                if (binding.Path == path)
+                {
+                    return binding.Control;
+                }
+            }
+            return null;
         }
 
         private void BuildLayout()
@@ -476,6 +534,7 @@ namespace Rive.EditorTools
         {
             m_widget = widget;
             m_widgetField?.SetValueWithoutNotify(widget);
+            ClearArtboardSelections();
             RefreshMetadata();
             RebuildProperties();
             UpdateVisibility();
@@ -484,7 +543,9 @@ namespace Rive.EditorTools
 
         private void RefreshMetadata()
         {
-            m_fileMetadata = m_widget?.Asset?.EditorOnlyMetadata;
+            m_metadataFile = m_widget?.File;
+            m_metadataArtboard = m_widget?.Artboard;
+            m_fileMetadata = GetWidgetFileMetadata();
             m_artboardMetadata = null;
 
             if (m_fileMetadata == null)
@@ -492,14 +553,42 @@ namespace Rive.EditorTools
                 return;
             }
 
-            var artboardName = !string.IsNullOrEmpty(m_widget?.ArtboardName)
-                ? m_widget.ArtboardName
-                : m_fileMetadata.GetArtboardNames().FirstOrDefault();
+            // The loaded artboard is the source of truth. ArtboardName is empty after Load(File).
+            var artboardName = m_metadataArtboard?.Name;
+            if (string.IsNullOrEmpty(artboardName))
+            {
+                artboardName = !string.IsNullOrEmpty(m_widget?.ArtboardName)
+                    ? m_widget.ArtboardName
+                    : m_fileMetadata.GetArtboardNames().FirstOrDefault();
+            }
 
             if (!string.IsNullOrEmpty(artboardName))
             {
                 m_artboardMetadata = m_fileMetadata.GetArtboard(artboardName);
             }
+        }
+
+        private FileMetadata GetWidgetFileMetadata()
+        {
+            if (m_widget == null)
+            {
+                return null;
+            }
+
+            var file = m_widget.File;
+            if (file == null || m_widget.IsFileLoadedFromAsset)
+            {
+                return m_widget.Asset?.EditorOnlyMetadata;
+            }
+
+            // The user loaded this file themselves, so the asset (if any) may not match it.
+            if (!ReferenceEquals(file, m_loadedFileMetadataSource))
+            {
+                m_loadedFileMetadataSource = file;
+                m_loadedFileMetadata = FileMetadata.FromFile(file);
+            }
+
+            return m_loadedFileMetadata;
         }
 
         private void RebuildProperties()
@@ -1782,7 +1871,7 @@ namespace Rive.EditorTools
 
             if (m_fileMetadata == null)
             {
-                message = "Selected Rive file has no metadata yet. Reimport or select a Rive asset.";
+                message = "Selected Rive file has no metadata yet. Reimport the Rive asset or load a file into the widget.";
                 return PlaygroundState.NoFileMetadata;
             }
 
@@ -1904,6 +1993,12 @@ namespace Rive.EditorTools
 
         private ViewModelInstance GetCurrentInstance()
         {
+            // Rows can repaint before the next rebuild, and we shouldn't look up their paths on another file.
+            if (WidgetReloadedSinceBuild())
+            {
+                return null;
+            }
+
             return m_widget?.StateMachine?.ViewModelInstance;
         }
 
@@ -1914,7 +2009,7 @@ namespace Rive.EditorTools
         private ViewModelInstance GetGlobalInstance(string name)
         {
             var stateMachine = m_widget?.StateMachine;
-            if (stateMachine == null || stateMachine.IsDisposed)
+            if (stateMachine == null || stateMachine.IsDisposed || WidgetReloadedSinceBuild())
             {
                 return null;
             }
