@@ -946,6 +946,111 @@ namespace Rive.Tests
             Assert.AreEqual(0, m_mockLogger.LoggedWarnings.Count);
         }
 
+        // A renderer whose buffer was built once is recorded every frame, but
+        // with nothing running the buffer, like a Built-in panel with no camera,
+        // its frames are never replayed. They shouldn't keep a disposed image
+        // held forever.
+        [UnityTest]
+        public IEnumerator DirectSource_DrawnByABufferNothingRuns_StillLetsGo()
+        {
+            Asset riveAsset = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_image_db_test,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_image_db_test}"));
+            File file = LoadAndTrackFile(riveAsset);
+            Artboard artboard = file.Artboard(0u);
+            StateMachine stateMachine = artboard.StateMachine();
+            ViewModelInstance instance = stateMachine.ViewModelInstance;
+            if (instance == null)
+            {
+                ViewModel viewModel = artboard.DefaultViewModel;
+                Assert.IsNotNull(viewModel, "Expected a view model.");
+                instance = viewModel.CreateDefaultInstance() ?? viewModel.CreateInstance();
+                stateMachine.BindViewModelInstance(instance);
+            }
+            var property = instance.GetProperty<ViewModelInstanceImageProperty>("image");
+            Assert.IsNotNull(property, "Image property should exist");
+
+            RenderTextureImageSource image = CreateTrackRenderTextureImage();
+            property.SetFromRenderTextureImageSource(image);
+
+            RenderTexture target = CreateTrackUnityRenderTexture();
+            var queue = new RenderQueue(target);
+            Renderer renderer = queue.Renderer();
+            renderer.SetRecordsAsynchronously(true);
+            var buffer = new CommandBuffer { name = "RiveNeverRun" };
+            renderer.AddToCommandBuffer(buffer);
+            renderer.Align(Fit.Contain, Alignment.Center, artboard);
+            renderer.Draw(artboard);
+            try
+            {
+                // The frame loop records it each frame, with the image in every frame.
+                for (int i = 0; i < 10; i++)
+                {
+                    stateMachine.Advance(1f / 60f);
+                    yield return WaitForRenderedFrames(1);
+                }
+
+                RenderTexture source = image.Source;
+                Future disposing = image.DisposeAsync();
+                yield return WaitUntilDone(disposing, frames: 60);
+                Assert.AreEqual(FutureStatus.Succeeded, disposing.Status,
+                    "Frames nothing will ever replay shouldn't keep the image from being let go.");
+                source.Release();
+            }
+            finally
+            {
+                buffer.Release();
+                queue.Dispose();
+            }
+        }
+
+        // Plain Dispose returns before Rive lets go of a source it draws
+        // directly, so freeing the texture straight after is the mistake to flag.
+        [UnityTest]
+        public IEnumerator DirectSource_ReleasedRightAfterDispose_Warns()
+        {
+            yield return LoadImagePropertyRoutine();
+            RenderTextureImageSource image = CreateTrackRenderTextureImage();
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+            yield return WaitForRenderedFrames(2);
+
+            RenderTexture source = image.Source;
+            image.Dispose();
+            source.Release();
+            yield return WaitForRenderedFrames(2);
+
+            Assert.IsTrue(m_mockLogger.LoggedWarningsContains("right after Dispose()"),
+                "Releasing the source before Rive let go of it should warn.");
+        }
+
+        [UnityTest]
+        public IEnumerator DirectSource_KeptAfterDispose_DoesNotWarn()
+        {
+            yield return LoadImagePropertyRoutine();
+            RenderTextureImageSource image = CreateTrackRenderTextureImage();
+            m_imageProperty.SetFromRenderTextureImageSource(image);
+            yield return WaitForRenderedFrames(2);
+
+            RenderTexture source = image.Source;
+            image.Dispose();
+            Assert.AreEqual(1, RenderTextureImageManager.Instance.WatchCountForTests,
+                "A plain Dispose of a direct source should watch it until Rive lets go.");
+            for (int i = 0; i < 120 && RenderTextureImageManager.Instance.WatchCountForTests > 0; i++)
+            {
+                yield return null;
+            }
+            Assert.AreEqual(0, RenderTextureImageManager.Instance.WatchCountForTests,
+                "The watch should end once Rive has let go.");
+
+            // Freeing it once Rive let go is fine.
+            source.Release();
+            yield return WaitForRenderedFrames(2);
+
+            Assert.AreEqual(0, m_mockLogger.LoggedWarnings.Count);
+        }
+
         private RenderTexture CreateMarkerSource(int size = 64)
         {
             var content = new Texture2D(size, size, TextureFormat.RGBA32, false);

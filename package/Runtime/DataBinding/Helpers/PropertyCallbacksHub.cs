@@ -29,6 +29,18 @@ namespace Rive
 
         private readonly Dictionary<long, WeakReference<ViewModelInstancePrimitiveProperty>> m_subscribedProperties =
             new Dictionary<long, WeakReference<ViewModelInstancePrimitiveProperty>>();
+
+        /// Tests. How many plain properties have change callbacks.
+        internal int SubscribedPropertyCountForTests
+        {
+            get
+            {
+                lock (m_lock)
+                {
+                    return m_subscribedProperties.Count;
+                }
+            }
+        }
         private readonly List<long> m_deadKeysScratch = new List<long>();
         // Held strongly while subscribed. Unsubscribing or disposing the
         // instance drops them.
@@ -79,6 +91,15 @@ namespace Rive
             lock (m_lock)
             {
                 m_subscribedProperties.Remove(property.CallbackKey);
+            }
+        }
+
+        /// Tests. Whether a handle is in the captures.
+        internal bool HasHandleForTests(ViewModelPropertyHandle handle)
+        {
+            lock (m_lock)
+            {
+                return m_subscribedHandles.Contains(handle);
             }
         }
 

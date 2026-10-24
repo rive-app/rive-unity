@@ -51,7 +51,7 @@ namespace Rive
         internal RiveException Error => m_resolution.Error;
 
         /// <summary>
-        /// Waits for Rive to look the artboard up. You don't need to before using the handle.
+        /// Waits for Rive to look the artboard up. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the artboard.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found what it refers to. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if it's disposed first. Each call gives its own operation.</returns>
         public Future<BindableArtboardHandle> ResolveAsync() => m_resolution.Wait(this);

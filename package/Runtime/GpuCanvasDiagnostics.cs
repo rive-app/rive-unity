@@ -127,6 +127,40 @@ namespace Rive
             return false;
         }
 
+        /// <summary>
+        /// Replays that left an Ore error behind, like a script pipeline that
+        /// doesn't fit its pass. Always counted, so tests can check it. Zero
+        /// when the plugin has no export for it.
+        /// </summary>
+        internal static uint OreErrorCount
+        {
+            get
+            {
+                if (!s_hasOreErrorCount || !NativeUsageGuard.IsNativeAvailable)
+                {
+                    return 0;
+                }
+                try
+                {
+                    return riveCanvasOreErrorCount();
+                }
+                catch (EntryPointNotFoundException)
+                {
+                    s_hasOreErrorCount = false;
+                }
+                catch (DllNotFoundException)
+                {
+                    s_hasOreErrorCount = false;
+                }
+                return 0;
+            }
+        }
+
+        private static bool s_hasOreErrorCount = true;
+
+        [DllImport(NativeLibrary.name)]
+        private static extern uint riveCanvasOreErrorCount();
+
         [DllImport(NativeLibrary.name)]
         [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool riveCanvasDiagnosticsEnabled();

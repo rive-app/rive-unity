@@ -543,8 +543,9 @@ namespace Rive
 
                 if (m_renderer == null)
                 {
+                    // Draws to the bound target on Metal, so it doesn't use the public constructor.
                     var rq = new RenderQueue(
-                        SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal ? null : rt
+                        SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal ? null : rt, true, null
                     );
                     m_renderer = rq.Renderer();
                     if (m_renderer == null)

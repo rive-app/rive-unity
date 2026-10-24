@@ -69,12 +69,29 @@ namespace Rive
         internal RiveException Error => m_resolution.Error;
 
         /// <summary>
-        /// Waits for Rive to look the instance up. You don't need to before using the handle.
+        /// Waits for Rive to look the instance up. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the instance.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found what it refers to. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if it's disposed first. Each call gives its own operation.</returns>
         public Future<ViewModelInstanceHandle> ResolveAsync() => m_resolution.Wait(this);
 
         internal FileContents Contents => m_contents;
+
+        /// The path this handle was reached by, like "person/name", for the value
+        /// tracker. Null for an instance not reached through a parent.
+        internal string TrackedPath { get; private set; }
+
+        // For the value tracker only. The view model this instance most likely
+        // is when its own isn't known until Rive looks, like the instance a
+        // state machine has bound, which is normally its artboard's.
+        private int m_likelyViewModelIndex = -1;
+
+        /// The instance's view model, or the likely one when it isn't known yet. -1 if neither.
+        internal int TrackedViewModelIndex => m_viewModelIndex >= 0 ? m_viewModelIndex : m_likelyViewModelIndex;
+
+        internal void SetLikelyViewModel(int viewModelIndex)
+        {
+            m_likelyViewModelIndex = viewModelIndex;
+        }
 
         internal int ViewModelIndex => m_viewModelIndex;
 
@@ -183,8 +200,13 @@ namespace Rive
             int nested = m_contents != null ? m_contents.ViewModelAt(m_viewModelIndex, path) : -1;
             var handle = new ViewModelInstanceHandle(slot, HandleResolution.Pending(), m_contents, nested, owned: true)
             {
-                ErrorSink = ErrorSink
+                ErrorSink = ErrorSink,
+                TrackedPath = string.IsNullOrEmpty(TrackedPath) ? path : TrackedPath + "/" + path,
             };
+            if (nested < 0 && m_contents != null && TrackedViewModelIndex >= 0)
+            {
+                handle.SetLikelyViewModel(m_contents.ViewModelAt(TrackedViewModelIndex, path));
+            }
             ViewModelInstanceNative.GetViewModelLater(this, path, handle, HandleErrors.CaptureCallSite());
             return handle;
         }

@@ -214,6 +214,9 @@ namespace Rive.Components
             m_renderer.SetRecordsAsynchronously(
                 RecordThreadingMode(panel) == ThreadingMode.BackgroundThread);
             m_renderer.SetArtboardDirtCheckEnabled(panel.DrawOptimization == DrawOptimizationOptions.DrawWhenChanged);
+#if RIVE_USING_EXPERIMENTAL
+            m_renderer.SetInkbleed(UsesInkbleed(panel));
+#endif
 
             bool wasRefreshed = RefreshRenderTexture(panel);
             m_renderer.Clear();

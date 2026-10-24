@@ -251,17 +251,29 @@ namespace Rive.Tests
             return pixels;
         }
 
-        /// Samples the texture into a temporary one and reads that, which never
-        /// binds the texture itself.
+        /// Reads the texture without binding it. Where it can, straight from the
+        /// GPU, without a Blit or RenderTexture.active, which on Vulkan with
+        /// graphics jobs could read back another test's picture. Otherwise by
+        /// sampling it into a new texture.
         private static Color32[] ReadBySampling(RenderTexture texture)
         {
-            RenderTexture copy = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32);
+            if (SystemInfo.supportsAsyncGPUReadback)
+            {
+                var request = UnityEngine.Rendering.AsyncGPUReadback.Request(texture, 0, TextureFormat.RGBA32);
+                request.WaitForCompletion();
+                if (!request.hasError)
+                {
+                    return request.GetData<Color32>().ToArray();
+                }
+            }
+            var copy = new RenderTexture(texture.width, texture.height, 0, RenderTextureFormat.ARGB32);
             Graphics.Blit(texture, copy);
             RenderTexture previous = RenderTexture.active;
             RenderTexture.active = copy;
             Color32[] pixels = ReadActive(texture.width, texture.height);
             RenderTexture.active = previous;
-            RenderTexture.ReleaseTemporary(copy);
+            copy.Release();
+            Object.Destroy(copy);
             return pixels;
         }
 

@@ -71,6 +71,18 @@ namespace Rive
             return ViewModelNative.Read(InstanceHandle, m_name, PropertyType, read, fallback);
         }
 
+#if UNITY_EDITOR
+        /// Editor only. Tells the value tracker about a set, if it's tracking
+        /// this view model and property.
+        private protected void TrackSet(string value)
+        {
+            if (ValueTracker.Active)
+            {
+                ValueTracker.Record(m_instance?.ViewModelName, m_name, m_name, value);
+            }
+        }
+#endif
+
         /// Held, and sent in order ahead of the next thing that's sent.
         private protected void WriteNative(float number, int integer, string text)
         {

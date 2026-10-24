@@ -13,7 +13,7 @@ namespace Rive
     public sealed class ListPropertyHandle : ViewModelPropertyHandle, IPropertyValueOf<int>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't need to before using the handle.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<ListPropertyHandle> ResolveAsync() => Resolve(this);

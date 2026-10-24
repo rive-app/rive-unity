@@ -46,6 +46,22 @@ namespace Rive.Tests
             CommandTransport.IsDone(ref ticket);
         }
 
+        /// Parks the server behind everything sent so far and lets it go from
+        /// another thread after milliseconds, without the main thread waiting.
+        /// Join the thread before the test ends.
+        internal static Thread HoldFor(int milliseconds)
+        {
+            CommandTransport.Send(id => HostNative.riveHostHold(id), (batch, message) => { }, keep: false);
+            var release = new Thread(() =>
+            {
+                Thread.Sleep(milliseconds);
+                HostNative.riveHostRelease();
+            })
+            { IsBackground = true };
+            release.Start();
+            return release;
+        }
+
         // One release per hold, oldest first, the order the server parks in.
         private static void ReleaseOpenGates()
         {

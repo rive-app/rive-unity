@@ -18,6 +18,8 @@ namespace Rive
             internal bool DirtCheckEnabled;
             internal bool ForceRenderNext;
             internal uint Frame;
+            // A newer one sent before this starts takes its place.
+            internal bool Replaceable;
         }
 
         internal sealed class Recorded
@@ -67,10 +69,6 @@ namespace Rive
 
         private static void SendRecord(Record record, ulong requestId)
         {
-            if (PacingCounters.Enabled)
-            {
-                PacingCounters.RecordsSent++;
-            }
             CanvasNative.RecordDrawList(
                 requestId,
                 record.Queue,
@@ -79,7 +77,8 @@ namespace Rive
                 record.Generation,
                 record.DirtCheckEnabled,
                 record.ForceRenderNext,
-                record.Frame);
+                record.Frame,
+                record.Replaceable);
         }
 
         // Keeps the ops array so the next record reuses it.
@@ -91,6 +90,7 @@ namespace Rive
             record.DirtCheckEnabled = false;
             record.ForceRenderNext = false;
             record.Frame = 0;
+            record.Replaceable = false;
         }
     }
 }

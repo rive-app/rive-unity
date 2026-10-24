@@ -408,6 +408,14 @@ namespace Rive.Components.Utilities
         }
 
 
+        /// A load still being prepared lands cancelled, as if a newer one came
+        /// in. For when the caller lets go of its file before the newer load
+        /// gets here.
+        internal void CancelPendingLoad()
+        {
+            m_loadNumber++;
+        }
+
         private void CleanUpBeforeLoad()
         {
             // This helper can be reused for another artboard or file. Dropping

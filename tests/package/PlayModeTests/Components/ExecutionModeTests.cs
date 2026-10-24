@@ -374,30 +374,39 @@ namespace Rive.Tests
                 Assert.Ignore("Nothing is queued when work runs on the calling thread.");
             }
 
-            var queue = new RenderQueue();
+            var texture = new RenderTexture(TextureHelper.Descriptor(64, 64));
+            texture.Create();
+            var queue = new RenderQueue(texture);
             Renderer renderer = queue.Renderer();
             renderer.SetRecordsAsynchronously(true);
-
-            var started = new ManualResetEventSlim(false);
-            var gate = new ManualResetEventSlim(false);
-            ServerGate.Hold(started, gate);
-            Assert.IsTrue(started.Wait(2000), "The producer should have picked the job up.");
-
+            HostNative.riveServerTimingEnable(true);
+            Thread release = ServerGate.HoldFor(200);
             try
             {
-                long jobsBefore = CommandTransport.RequestsForTests;
+                // While the server is parked: three background records, a
+                // one-off submit between them, then a synchronous record.
                 renderer.RecordForGpuCanvas();
                 renderer.RecordForGpuCanvas();
+                renderer.Submit();
                 renderer.RecordForGpuCanvas();
+                renderer.SetRecordsAsynchronously(false);
+                // Waits for the server, so this returning is its completion.
+                renderer.RecordForGpuCanvas();
+                renderer.SetRecordsAsynchronously(true);
+                renderer.SettleRecordsForTests();
 
-                Assert.AreEqual(1, CommandTransport.RequestsForTests - jobsBefore,
-                    "Only the newest waiting record should stay queued.");
+                var counts = new uint[7];
+                HostNative.riveCanvasPacingTake(counts, (uint)counts.Length);
+                Assert.AreEqual(2u, counts[6],
+                    "Only the newest waiting background record should run. The submit and the synchronous record never give way.");
             }
             finally
             {
-                gate.Set();
-                CommandTransport.Barrier();
+                release.Join();
+                HostNative.riveServerTimingEnable(false);
                 queue.Dispose();
+                texture.Release();
+                Object.Destroy(texture);
             }
 
             yield return null;

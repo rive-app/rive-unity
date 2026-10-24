@@ -475,6 +475,9 @@ namespace Rive.Components
         /// </summary>
         public Asset Asset { get => m_asset; }
 
+        // False when the loaded file was passed in directly, so it may not match Asset.
+        internal bool IsFileLoadedFromAsset => m_fileLoadedFromAsset != null && ReferenceEquals(m_fileLoadedFromAsset, m_asset);
+
 
 
         internal ArtboardRenderObject RenderObjectWithArtboard => Controller?.RenderObject;
@@ -1684,6 +1687,9 @@ return;
         {
             if (LoadedFile != null && m_fileLoadedFromAsset)
             {
+                // A load still preparing from this file shouldn't land on it once
+                // it's gone.
+                m_controller?.CancelPendingLoad();
                 LoadedFile.Dispose();
                 m_fileLoadedFromAsset = null;
             }

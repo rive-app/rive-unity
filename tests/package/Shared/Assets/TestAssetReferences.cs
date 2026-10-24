@@ -8,7 +8,13 @@ namespace Rive.Tests.Utils
                 public const string riv_sophiaHud = "Packages/app.rive.rive-unity.tests/Shared/Assets/sophia-iii-hud.riv";
                 public const string riv_roboDude = "Packages/app.rive.rive-unity.tests/Shared/Assets/robo_dude.riv";
 
+                // A static sheet of hairlines, caps, joins, thin fills and curves, made to show
+                // how inkbleed antialiases.
+                public const string riv_inkbleedFixture = "Packages/app.rive.rive-unity.tests/Shared/Assets/inkbleed_fixture.riv";
+
                 public const string riv_ore = "Packages/app.rive.rive-unity.tests/Shared/Assets/ore.riv";
+
+                public const string riv_oreViewChurn = "Packages/app.rive.rive-unity.tests/Shared/Assets/ore_view_churn.riv";
 
                 public const string riv_canvasContent = "Packages/app.rive.rive-unity.tests/Shared/Assets/canvas_content.riv";
 

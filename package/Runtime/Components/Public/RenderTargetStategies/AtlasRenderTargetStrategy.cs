@@ -209,9 +209,17 @@ namespace Rive.Components
             // Atlas uses a single render queue for multiple panels. If any panel requests AlwaysDraw,
             // we should disable dirt-checking and render every frame.
             bool shouldDisableArtboardDirtCheck = false;
+            // One texture, so it draws with inkbleed if any panel on it asks for it.
+            bool inkbleed = false;
             ThreadingMode recordMode = ThreadingMode.BackgroundThread;
             foreach (var panel in m_rivePanelData.Keys)
             {
+#if RIVE_USING_EXPERIMENTAL
+                if (UsesInkbleed(panel))
+                {
+                    inkbleed = true;
+                }
+#endif
                 if (RecordThreadingMode(panel) == ThreadingMode.MainThread)
                 {
                     recordMode = ThreadingMode.MainThread;
@@ -224,6 +232,7 @@ namespace Rive.Components
             m_renderer.SetRecordsAsynchronously(
                 recordMode == ThreadingMode.BackgroundThread);
             m_renderer.SetArtboardDirtCheckEnabled(!shouldDisableArtboardDirtCheck);
+            m_renderer.SetInkbleed(inkbleed);
             using var noWait = CommandTransport.NoWaitIf(
                 recordMode == ThreadingMode.BackgroundThread, "async panel draw");
 

@@ -28,6 +28,9 @@ namespace Rive
             set
             {
                 ThrowIfOwnerDisposed();
+#if UNITY_EDITOR
+                TrackSet(value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+#endif
                 WriteNative(value, 0, null);
             }
         }

@@ -61,6 +61,9 @@ namespace Rive
                     return;
                 }
 
+#if UNITY_EDITOR
+                TrackSet($"\"{value}\"");
+#endif
                 WriteNative(0f, index, null);
             }
         }
@@ -92,6 +95,9 @@ namespace Rive
                     return;
                 }
 
+#if UNITY_EDITOR
+                TrackSet($"\"{m_enumValues[value]}\"");
+#endif
                 WriteNative(0f, value, null);
             }
         }

@@ -77,6 +77,18 @@ namespace Rive
         internal bool RecordsAsynchronously =>
             m_recordsAsynchronously;
 
+        /// Draws with inkbleed from the next frame. Callers check it's supported.
+        internal void SetInkbleed(bool enabled)
+        {
+            if (m_inkbleed != enabled)
+            {
+                m_inkbleed = enabled;
+                m_renderQueue.SetInkbleed(enabled);
+            }
+        }
+
+        private bool m_inkbleed;
+
         internal void SetRecordsAsynchronously(bool enabled)
         {
             m_recordsAsynchronously = enabled;
@@ -95,7 +107,7 @@ namespace Rive
 
         internal void InvalidateTarget()
         {
-            m_renderQueue.AdvanceGeneration();
+            m_renderQueue.InvalidateTarget();
         }
 
         /// <summary>
@@ -210,6 +222,7 @@ namespace Rive
 
         public void Submit()
         {
+            m_renderQueue.WarnIfNoTarget();
             IssueSubmit();
         }
 
@@ -222,7 +235,8 @@ namespace Rive
             }
 
             m_renderQueue.UpdateDelayedRenderTexture();
-            RecordForGpuCanvas();
+            // A one-off submit has no later event to show a held back frame.
+            RecordForGpuCanvas(showRightAway: true);
 
             commandBuffer.IssuePluginEventAndData(
                 getRenderCommandBufferCallback(),
@@ -241,6 +255,16 @@ namespace Rive
 
         public void AddToCommandBuffer(CommandBuffer commandBuffer)
         {
+            AddToCommandBuffer(commandBuffer, recordNow: true);
+        }
+
+        /// recordNow false builds the buffer without recording, for a buffer
+        /// whose owner records it every frame anyway, like Built-in's. A new
+        /// renderer records synchronously until its panel says otherwise, so
+        /// recording here could wait on Rive being busy.
+        internal void AddToCommandBuffer(CommandBuffer commandBuffer, bool recordNow)
+        {
+            m_renderQueue.WarnIfNoTarget();
             if (
                 UnityEngine.SystemInfo.graphicsDeviceType
                 == UnityEngine.Rendering.GraphicsDeviceType.Metal
@@ -257,7 +281,10 @@ namespace Rive
             }
 
             m_renderQueue.UpdateDelayedRenderTexture();
-            RecordForGpuCanvas();
+            if (recordNow)
+            {
+                RecordForGpuCanvas(showRightAway: false);
+            }
             TrackReplayed();
 
             commandBuffer.IssuePluginEventAndData(
@@ -272,6 +299,7 @@ namespace Rive
 
         public void AddToCommandBuffer(UnsafeCommandBuffer commandBuffer)
         {
+            m_renderQueue.WarnIfNoTarget();
             if (
                 UnityEngine.SystemInfo.graphicsDeviceType
                 == UnityEngine.Rendering.GraphicsDeviceType.Metal
@@ -285,7 +313,7 @@ namespace Rive
             }
 
             m_renderQueue.UpdateDelayedRenderTexture();
-            RecordForGpuCanvas();
+            RecordForGpuCanvas(showRightAway: false);
             TrackReplayed();
 
             commandBuffer.IssuePluginEventAndData(
@@ -313,10 +341,21 @@ namespace Rive
             m_opArtboards.Add(artboard);
         }
 
+        /// For a buffer built earlier, like a camera's, which replays with the
+        /// bound it was built with. The frame loop and Built-in record this way.
         internal void RecordForGpuCanvas()
         {
+            RecordForGpuCanvas(showRightAway: false, forEarlierBuffer: true);
+        }
+
+        /// showRightAway tags the record 0, which any render event may replay.
+        /// Otherwise it waits for the frame after this one. forEarlierBuffer
+        /// tells the render event to use this record's bound, not its own.
+        internal void RecordForGpuCanvas(bool showRightAway, bool forEarlierBuffer = false)
+        {
+            m_renderQueue.CheckTextureStillThere();
             m_recordedAtStep = s_lateStep;
-            CanvasNative.SetFrameBound(m_renderId, RenderLifetime.FrameBound());
+            CanvasNative.SetFrameBound(m_renderId, RenderLifetime.FrameBound(), forEarlierBuffer);
             int count = m_ops.Count;
             using var noWait = CommandTransport.NoWaitIf(
                 m_recordsAsynchronously, "async record");
@@ -332,16 +371,13 @@ namespace Rive
                 m_synchronousRecord.Generation = m_renderQueue.Generation;
                 m_synchronousRecord.DirtCheckEnabled = m_artboardDirtCheckEnabled;
                 m_synchronousRecord.ForceRenderNext = m_forceRenderNext;
-                m_synchronousRecord.Frame = (uint)Time.frameCount;
+                // Recorded before its event runs, so there's nothing to wait for.
+                m_synchronousRecord.Frame = 0;
                 RecordSynchronous();
                 m_forceRenderNext = false;
                 return;
             }
 
-            if (PacingCounters.Enabled)
-            {
-                PacingCounters.RecordsWanted++;
-            }
             RecordStaging.Record record = m_staging.Begin();
             if (record.Ops == null || record.Ops.Length < count)
             {
@@ -354,7 +390,9 @@ namespace Rive
             record.DirtCheckEnabled = m_artboardDirtCheckEnabled;
             // A record still waiting may carry a force the server hasn't seen.
             record.ForceRenderNext |= m_forceRenderNext;
-            record.Frame = (uint)Time.frameCount;
+            record.Frame = showRightAway ? 0u : (uint)Time.frameCount;
+            // A one-off submit has nothing after it to take its place.
+            record.Replaceable = !showRightAway;
             m_forceRenderNext = false;
             m_staging.Send(record);
         }
@@ -443,7 +481,8 @@ namespace Rive
                     batch.Generation,
                     batch.DirtCheckEnabled,
                     batch.ForceRenderNext,
-                    batch.Frame);
+                    batch.Frame,
+                    false);
             };
             RequestTicket ticket = CommandTransport.Send(m_sendSynchronousRecord);
             CommandTransport.Join(ref ticket);
@@ -492,9 +531,19 @@ namespace Rive
         // we hold onto it to try to re-acquire it prior to the next submission.
         private bool m_delayed = false;
 
+        // Set once CheckTextureStillThere told native the texture is gone.
+        private bool m_textureGone = false;
+
         public RenderTexture Texture { get; private set; }
 
         internal uint Generation => m_generation;
+
+        // Same texture, new layout, so replays drop frames for the old one.
+        internal void InvalidateTarget()
+        {
+            AdvanceGeneration();
+            CanvasNative.HandOverGeneration(m_renderId, m_generation);
+        }
 
         internal void AdvanceGeneration()
         {
@@ -566,8 +615,16 @@ namespace Rive
             RenderLifetime.Flush();
         }
 
+        /// <summary>
+        /// Creates a render queue that draws into <paramref name="texture"/>.
+        /// </summary>
+        /// <param name="texture">The texture to draw into. Drawing without one is deprecated: pass it here, or call <see cref="UpdateTexture"/> before drawing.</param>
+        /// <param name="clear">Whether each frame clears the texture first.</param>
         public RenderQueue(RenderTexture texture = null, bool clear = true)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            m_warnWithoutTarget = true;
+#endif
             Initialize(texture, clear);
         }
 
@@ -575,6 +632,33 @@ namespace Rive
         {
             CoroutineHelper = coroutineHelper;
             Initialize(texture, clear);
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // Made through the public constructor. Our own queues can draw
+        // without a target, like the Metal asset thumbnail.
+        private readonly bool m_warnWithoutTarget;
+        private static bool s_warnedWithoutTarget;
+
+        /// Tests. Lets the next draw without a target warn again.
+        internal static void ResetWarningForTests()
+        {
+            s_warnedWithoutTarget = false;
+        }
+#endif
+
+        /// Main thread, as a renderer draws. Development builds only.
+        internal void WarnIfNoTarget()
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // Dispose drops the texture, and drawing on a disposed queue does nothing.
+            if (Texture != null || IsDisposed || !m_warnWithoutTarget || s_warnedWithoutTarget)
+            {
+                return;
+            }
+            s_warnedWithoutTarget = true;
+            DebugLogger.Instance.LogWarning(ObsoleteMessages.DrawingWithoutTarget + " Logged once, in development builds only.");
+#endif
         }
 
         public Renderer Renderer()
@@ -698,6 +782,11 @@ namespace Rive
             return texture.GetNativeTexturePtr();
         }
 
+        internal void SetInkbleed(bool enabled)
+        {
+            CanvasNative.SetRenderQueueInkbleed(m_nativeRenderQueue, enabled);
+        }
+
         internal void UpdateDelayedRenderTexture()
         {
             if (!m_delayed || Texture == null)
@@ -715,11 +804,38 @@ namespace Rive
             AdvanceGeneration();
             CanvasNative.UpdateRenderTexture(
                 m_nativeRenderQueue,
+                m_renderId,
                 pointer,
                 (uint)Texture.width,
-                (uint)Texture.height
+                (uint)Texture.height,
+                m_generation
             );
             m_delayed = false;
+        }
+
+        // Main thread, before each record, so the replays after it never draw
+        // into a texture destroyed or released while we still use it. It
+        // comes back if the texture is created again.
+        internal void CheckTextureStillThere()
+        {
+            if (ReferenceEquals(Texture, null) || m_delayed)
+            {
+                return;
+            }
+            bool gone = Texture == null || !Texture.IsCreated();
+            if (gone == m_textureGone)
+            {
+                return;
+            }
+            if (gone)
+            {
+                m_textureGone = true;
+                CanvasNative.TextureGone(m_renderId, m_generation);
+            }
+            else
+            {
+                UpdateTexture(Texture);
+            }
         }
 
         /// <summary>
@@ -727,14 +843,17 @@ namespace Rive
         /// </summary>
         public void UpdateTexture(RenderTexture texture)
         {
+            m_textureGone = false;
             ValidateRenderTexture(texture);
             IntPtr pointer = GetNativeTexturePointer(texture);
             AdvanceGeneration();
             CanvasNative.UpdateRenderTexture(
                 m_nativeRenderQueue,
+                m_renderId,
                 pointer,
                 (uint)texture.width,
-                (uint)texture.height
+                (uint)texture.height,
+                m_generation
             );
             Texture = texture;
         }
@@ -761,6 +880,7 @@ namespace Rive
         [return: MarshalAs(UnmanagedType.U1)]
         private static extern bool supportsDrawingToScreen();
 
+        [Obsolete(ObsoleteMessages.DrawingWithoutTarget)]
         public static bool SupportsDrawingToScreen()
         {
             return supportsDrawingToScreen();

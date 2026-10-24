@@ -39,7 +39,109 @@ namespace Rive
             m_instance = instance;
             m_path = path;
             m_callSite = HandleErrors.CaptureCallSite();
+#if UNITY_EDITOR
+            if (ValueTracker.Active)
+            {
+                UpdateTrackerWatch();
+            }
+#endif
         }
+
+#if UNITY_EDITOR
+        // Editor only. Set while the value tracker watches this property for
+        // changes Rive makes. Separate from Subscribe callbacks.
+        private bool m_trackerWatching;
+
+        // Editor only. The frame the tracker last looked at a change.
+        private int m_trackerSeenFrame;
+
+        /// Editor only. Whether the tracker can tell this type's changes from C#'s sets.
+        private protected virtual bool TracksRiveChanges => false;
+
+        private protected bool TrackerWatching => m_trackerWatching;
+
+        /// Editor only. Tells the value tracker about a set, if it's tracking
+        /// this view model and property. Callers check ValueTracker.Active.
+        private protected void TrackSet(string value)
+        {
+            if (!m_trackerWatching)
+            {
+                UpdateTrackerWatch();
+            }
+            TrackedTarget(out string owner, out string property, out string path);
+            ValueTracker.Record(owner, property, path, value);
+        }
+
+        /// Main thread. Watches for changes Rive makes while a rule matches.
+        internal void UpdateTrackerWatch()
+        {
+            bool watch = TracksRiveChanges && ValueTracker.Active && !m_instance.IsDisposed
+                && TrackedTarget(out string owner, out string property, out _)
+                && ValueTracker.Matches(owner, property);
+            if (watch == m_trackerWatching)
+            {
+                if (watch)
+                {
+                    ValueTracker.Watch(this);
+                }
+                return;
+            }
+            m_trackerWatching = watch;
+            m_trackerSeenFrame = UnityEngine.Time.frameCount;
+            if (watch)
+            {
+                ValueTracker.Watch(this);
+            }
+            UpdateSubscription(m_callbacks != null);
+        }
+
+        /// Main thread, as a change lands, before callbacks.
+        private protected void TrackChange(string value)
+        {
+            // Back one frame, for a set whose change landed in the frame after.
+            int since = m_trackerSeenFrame - 1;
+            m_trackerSeenFrame = UnityEngine.Time.frameCount;
+            if (ValueTracker.Active && TrackedTarget(out string owner, out string property, out string path))
+            {
+                ValueTracker.RecordChange(owner, property, path, value, since);
+            }
+        }
+
+        /// False when the view model the property is on isn't known.
+        private bool TrackedTarget(out string owner, out string property, out string path)
+        {
+            FileContents contents = m_instance.Contents;
+            int ownerIndex = m_instance.TrackedViewModelIndex;
+            property = m_path;
+            int slash = m_path.LastIndexOf('/');
+            if (slash >= 0)
+            {
+                property = m_path.Substring(slash + 1);
+                ownerIndex = contents != null && ownerIndex >= 0 ? contents.ViewModelAt(ownerIndex, m_path.Substring(0, slash)) : -1;
+            }
+            // Unknown, so nothing matches it rather than guessing.
+            owner = contents != null && ownerIndex >= 0 && ownerIndex < contents.ViewModels.Length
+                ? contents.ViewModels[ownerIndex].Name
+                : null;
+            string root = m_instance.TrackedPath;
+            path = string.IsNullOrEmpty(root) ? m_path : root + "/" + m_path;
+            return owner != null;
+        }
+
+        private protected static string TrackedText(object value)
+        {
+            if (value is UnityEngine.Color color)
+            {
+                return ValueTracker.ArgbText(ViewModelInstanceColorProperty.ColorToArgb(color));
+            }
+            return value is string text
+                ? $"\"{text}\""
+                : System.Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "null";
+        }
+#endif
+
+        /// Tests. Who made this handle, as warnings report it.
+        internal string CallSiteForTests => m_callSite;
 
         /// <summary>
         /// The property's path from <see cref="Instance"/>.
@@ -242,8 +344,18 @@ namespace Rive
             {
                 return PropertySubscription.Inactive(m_instance);
             }
+#if UNITY_EDITOR
+            // The tracker's watch may hold older changes, so the first callback starts fresh.
+            bool restart = m_callbacks == null && m_trackerWatching;
+#endif
             m_callbacks = Delegate.Combine(m_callbacks, callback);
             UpdateSubscription(true);
+#if UNITY_EDITOR
+            if (restart)
+            {
+                ViewModelInstanceNative.StartWatchingLater(this);
+            }
+#endif
             return new PropertySubscription(m_instance, () =>
             {
                 m_callbacks = Delegate.Remove(m_callbacks, callback);
@@ -254,6 +366,9 @@ namespace Rive
         /// Keeps the hub subscription in step with the callbacks.
         private void UpdateSubscription(bool hasCallbacks)
         {
+#if UNITY_EDITOR
+            hasCallbacks |= m_trackerWatching;
+#endif
             if (hasCallbacks && !m_instance.IsDisposed)
             {
                 if (PropertyCallbacksHub.Instance.RegisterHandle(this))
@@ -293,17 +408,14 @@ namespace Rive
         /// </summary>
         public void SetValue(T value)
         {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            CheckUnseen(value);
+#if UNITY_EDITOR
+            if (ValueTracker.Active)
+            {
+                TrackSet(TrackedText(value));
+            }
 #endif
             WriteLater(nameof(SetValue), instance => Write(value));
         }
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        private protected virtual void CheckUnseen(T value)
-        {
-        }
-#endif
 
         /// <summary>
         /// Gets the value.
@@ -317,9 +429,20 @@ namespace Rive
         /// Sent as a held write, where Root is filled.
         internal abstract void Write(T value);
 
+#if UNITY_EDITOR
+        private protected override bool TracksRiveChanges => true;
+#endif
+
         internal override void RaiseChanged(in PropertyValue value)
         {
-            (Callbacks as Action<T>)?.Invoke(FromValue(value));
+            T typed = FromValue(value);
+#if UNITY_EDITOR
+            if (TrackerWatching)
+            {
+                TrackChange(TrackedText(typed));
+            }
+#endif
+            (Callbacks as Action<T>)?.Invoke(typed);
         }
 
         /// This type's value, from what a read or capture replied with.
@@ -337,7 +460,7 @@ namespace Rive
     public sealed class NumberPropertyHandle : ViewModelPropertyHandle<float>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't need to before using the handle.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<NumberPropertyHandle> ResolveAsync() => Resolve(this);
@@ -365,7 +488,7 @@ namespace Rive
     public sealed class StringPropertyHandle : ViewModelPropertyHandle<string>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't need to before using the handle.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<StringPropertyHandle> ResolveAsync() => Resolve(this);
@@ -393,7 +516,7 @@ namespace Rive
     public sealed class BooleanPropertyHandle : ViewModelPropertyHandle<bool>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't need to before using the handle.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<BooleanPropertyHandle> ResolveAsync() => Resolve(this);
@@ -405,12 +528,6 @@ namespace Rive
         internal override ViewModelDataType Type => ViewModelDataType.Boolean;
 
         internal override bool FromValue(in PropertyValue value) => value.Bits != 0;
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        private UnseenBoolCheck m_unseen;
-
-        private protected override void CheckUnseen(bool value) => m_unseen.Write(value, Path);
-#endif
 
         internal override void Write(bool value)
         {
@@ -427,7 +544,7 @@ namespace Rive
     public sealed class ColorPropertyHandle : ViewModelPropertyHandle<UnityEngine.Color>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't need to before using the handle.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<ColorPropertyHandle> ResolveAsync() => Resolve(this);
@@ -456,7 +573,7 @@ namespace Rive
     public sealed class EnumPropertyHandle : ViewModelPropertyHandle<string>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't need to before using the handle.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<EnumPropertyHandle> ResolveAsync() => Resolve(this);
@@ -500,7 +617,7 @@ namespace Rive
     public sealed class TriggerPropertyHandle : ViewModelPropertyHandle
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't need to before using the handle.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<TriggerPropertyHandle> ResolveAsync() => Resolve(this);
@@ -525,6 +642,12 @@ namespace Rive
         /// </summary>
         public void Fire()
         {
+#if UNITY_EDITOR
+            if (ValueTracker.Active)
+            {
+                TrackSet("fired");
+            }
+#endif
             WriteLater(nameof(Fire), instance => ViewModelInstanceNative.Set(this, 0f, 0, null));
         }
 

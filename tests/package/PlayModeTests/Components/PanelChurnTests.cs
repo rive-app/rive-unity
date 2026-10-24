@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Rive.Components;
+using Rive.Host;
 using Rive.Tests.Utils;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -20,6 +21,11 @@ namespace Rive.Tests
         private const int Frames = 600;
         private const int ResizeEvery = 5;
         private const int ReplaceEvery = 30;
+        // The last replacement lands on the last frame, so one panel is new
+        // when the check starts.
+        private const int ShowWithin = 10;
+        // Only to report when a late panel does show.
+        private const int WatchFor = 300;
         private static readonly int[] s_sizes = { 256, 384, 512 };
 
         private TestAssetLoadingManager m_assets;
@@ -39,6 +45,7 @@ namespace Rive.Tests
         [TearDown]
         public void TearDown()
         {
+            HostNative.riveServerTimingEnable(false);
             foreach (GameObject go in m_objects)
             {
                 if (go != null)
@@ -88,15 +95,47 @@ namespace Rive.Tests
             {
                 yield return RivePanelTestUtils.WaitForLoaded(widget);
             }
-            for (int i = 0; i < 10; i++)
-            {
-                yield return null;
-            }
+
+            // Keeps watching past ShowWithin, so a failure says whether a
+            // panel was late or never showed.
+            // The counters only count while timing is on.
+            HostNative.riveServerTimingEnable(true);
+            HostNative.riveCanvasPacingTake(new uint[7], 7);
+            var shownAfter = new int[Panels];
             for (int i = 0; i < Panels; i++)
             {
-                RenderTexture texture = panels[i].RenderTexture;
-                Assert.IsNotNull(texture, $"Panel {i} should have a texture.");
-                Assert.Greater(VisiblePixels(texture), 0, $"Panel {i} should still be drawing.");
+                shownAfter[i] = -1;
+            }
+            for (int frame = 1; frame <= WatchFor; frame++)
+            {
+                yield return null;
+                bool allShown = true;
+                for (int i = 0; i < Panels; i++)
+                {
+                    if (shownAfter[i] < 0 && panels[i].RenderTexture != null &&
+                        VisiblePixels(panels[i].RenderTexture) > 0)
+                    {
+                        shownAfter[i] = frame;
+                    }
+                    allShown &= shownAfter[i] >= 0;
+                }
+                if (allShown && frame >= ShowWithin)
+                {
+                    break;
+                }
+            }
+            var counts = new uint[7];
+            HostNative.riveCanvasPacingTake(counts, (uint)counts.Length);
+            HostNative.riveServerTimingEnable(false);
+            string report = $"frames each panel took to show: {string.Join(", ", shownAfter)} (-1 is never in {WatchFor}); " +
+                $"records made {counts[0]}, behind {counts[2]}, superseded {counts[6]}; " +
+                $"replays {counts[3]}, nothing new {counts[4]}, caught up {counts[5]}";
+
+            for (int i = 0; i < Panels; i++)
+            {
+                Assert.IsNotNull(panels[i].RenderTexture, $"Panel {i} should have a texture.");
+                Assert.IsTrue(shownAfter[i] >= 0 && shownAfter[i] <= ShowWithin,
+                    $"Panel {i} should be drawing within {ShowWithin} frames. {report}");
             }
         }
 

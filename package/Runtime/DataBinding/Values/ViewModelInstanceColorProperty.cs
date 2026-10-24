@@ -63,6 +63,9 @@ namespace Rive
             set
             {
                 ThrowIfOwnerDisposed();
+#if UNITY_EDITOR
+                TrackSet(ValueTracker.ArgbText(ColorToArgb(value)));
+#endif
                 WriteNative(0f, ColorToArgb(value), null);
             }
         }
@@ -80,6 +83,9 @@ namespace Rive
             set
             {
                 ThrowIfOwnerDisposed();
+#if UNITY_EDITOR
+                TrackSet(ValueTracker.ArgbText(Color32ToArgb(value)));
+#endif
                 WriteNative(0f, Color32ToArgb(value), null);
             }
         }

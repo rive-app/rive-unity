@@ -39,6 +39,12 @@ namespace Rive.EditorTools
 
         private FileMetadata m_fileMetadata;
         private FileMetadata.ArtboardMetadata m_artboardMetadata;
+        // What the metadata was built against, so we can rebuild when the widget loads something else.
+        private File m_metadataFile;
+        private Artboard m_metadataArtboard;
+        // Metadata for files passed to RiveWidget.Load(File) rather than loaded from the widget's asset.
+        private File m_loadedFileMetadataSource;
+        private FileMetadata m_loadedFileMetadata;
         private double m_nextRefreshTime;
         private readonly Dictionary<string, ImageOutOfBandAsset> m_imageSelectionCache = new Dictionary<string, ImageOutOfBandAsset>();
         private readonly Dictionary<string, FontOutOfBandAsset> m_fontSelectionCache = new Dictionary<string, FontOutOfBandAsset>();
@@ -67,8 +73,8 @@ namespace Rive.EditorTools
             {
                 CustomViewModelInstance?.Dispose();
                 CustomViewModelInstance = null;
-                CustomBindings.Clear();
-                CustomListBindings.Clear();
+                DisposeBindings(CustomBindings);
+                DisposeBindings(CustomListBindings);
             }
 
             public void DisposeAll()
@@ -89,6 +95,8 @@ namespace Rive.EditorTools
             public string Path;
             public VisualElement Control;
             public Action<ViewModelInstance> Sync;
+            // Drops the row's change subscription, if it has one.
+            public Action Dispose;
         }
 
         private class ListPropertyBinding
@@ -96,6 +104,7 @@ namespace Rive.EditorTools
             public string Path;
             public VisualElement Control;
             public Action<ViewModelInstance> Sync;
+            public Action Dispose;
             public List<ViewModelInstance> LastItems = new List<ViewModelInstance>();
             public bool InitializedTypeSelection;
         }
@@ -382,15 +391,26 @@ namespace Rive.EditorTools
         {
             EditorApplication.update -= EditorUpdate;
             ClearTriggerBindings();
-            m_propertyBindings.Clear();
-            m_listBindings.Clear();
+            DisposeBindings(m_propertyBindings);
+            DisposeBindings(m_listBindings);
             m_widget = null;
+            m_metadataFile = null;
+            m_metadataArtboard = null;
+            m_loadedFileMetadataSource = null;
+            m_loadedFileMetadata = null;
+            ClearArtboardSelections();
+            m_viewModelExpansion.Clear();
+        }
+
+        // Rebuilt artboard rows apply their cached selection on first sync, so we clear it
+        // whenever the rows are built for a different instance.
+        private void ClearArtboardSelections()
+        {
             foreach (var selection in m_artboardSelectionCache.Values)
             {
                 selection.DisposeAll();
             }
             m_artboardSelectionCache.Clear();
-            m_viewModelExpansion.Clear();
         }
 
         private void EditorUpdate()
@@ -402,8 +422,49 @@ namespace Rive.EditorTools
             }
 
             m_nextRefreshTime = EditorApplication.timeSinceStartup + 0.25f;
+            RebuildIfWidgetReloaded();
             UpdateVisibility();
             RefreshValues();
+        }
+
+        // True when the rows were built for a file or artboard the widget no longer has loaded.
+        private bool WidgetReloadedSinceBuild()
+        {
+            return m_widget != null &&
+                (!ReferenceEquals(m_widget.LoadedFile, m_metadataFile) || !ReferenceEquals(m_widget.LoadedArtboard, m_metadataArtboard));
+        }
+
+        private void RebuildIfWidgetReloaded()
+        {
+            if (WidgetReloadedSinceBuild())
+            {
+                ClearArtboardSelections();
+                RefreshMetadata();
+                RebuildProperties();
+            }
+        }
+
+        /// Tests. Targets a widget, as picking it in the window does.
+        internal void SetTargetForTests(RiveWidget widget) => SetTarget(widget);
+
+        /// Tests. One refresh, as the editor update runs it.
+        internal void RefreshForTests()
+        {
+            RebuildIfWidgetReloaded();
+            RefreshValues();
+        }
+
+        /// Tests. The control of the row for a property path, or null.
+        internal VisualElement RowControlForTests(string path)
+        {
+            foreach (var binding in m_propertyBindings)
+            {
+                if (binding.Path == path)
+                {
+                    return binding.Control;
+                }
+            }
+            return null;
         }
 
         private void BuildLayout()
@@ -472,10 +533,24 @@ namespace Rive.EditorTools
             UpdateVisibility();
         }
 
+        /// Tests. How many items a list row last read, or -1 if there's no such row.
+        internal int ListItemCountForTests(string path)
+        {
+            foreach (var binding in m_listBindings)
+            {
+                if (binding.Path == path)
+                {
+                    return binding.LastItems.Count;
+                }
+            }
+            return -1;
+        }
+
         private void SetTarget(RiveWidget widget)
         {
             m_widget = widget;
             m_widgetField?.SetValueWithoutNotify(widget);
+            ClearArtboardSelections();
             RefreshMetadata();
             RebuildProperties();
             UpdateVisibility();
@@ -484,7 +559,9 @@ namespace Rive.EditorTools
 
         private void RefreshMetadata()
         {
-            m_fileMetadata = m_widget?.Asset?.EditorOnlyMetadata;
+            m_metadataFile = m_widget?.LoadedFile;
+            m_metadataArtboard = m_widget?.LoadedArtboard;
+            m_fileMetadata = GetWidgetFileMetadata();
             m_artboardMetadata = null;
 
             if (m_fileMetadata == null)
@@ -492,9 +569,14 @@ namespace Rive.EditorTools
                 return;
             }
 
-            var artboardName = !string.IsNullOrEmpty(m_widget?.ArtboardName)
-                ? m_widget.ArtboardName
-                : m_fileMetadata.GetArtboardNames().FirstOrDefault();
+            // The loaded artboard is the source of truth. ArtboardName is empty after Load(File).
+            var artboardName = m_metadataArtboard?.Name;
+            if (string.IsNullOrEmpty(artboardName))
+            {
+                artboardName = !string.IsNullOrEmpty(m_widget?.ArtboardName)
+                    ? m_widget.ArtboardName
+                    : m_fileMetadata.GetArtboardNames().FirstOrDefault();
+            }
 
             if (!string.IsNullOrEmpty(artboardName))
             {
@@ -502,11 +584,34 @@ namespace Rive.EditorTools
             }
         }
 
+        private FileMetadata GetWidgetFileMetadata()
+        {
+            if (m_widget == null)
+            {
+                return null;
+            }
+
+            var file = m_widget.LoadedFile;
+            if (file == null || m_widget.IsFileLoadedFromAsset)
+            {
+                return m_widget.Asset?.EditorOnlyMetadata;
+            }
+
+            // The user loaded this file themselves, so the asset (if any) may not match it.
+            if (!ReferenceEquals(file, m_loadedFileMetadataSource))
+            {
+                m_loadedFileMetadataSource = file;
+                m_loadedFileMetadata = FileMetadata.FromFile(file);
+            }
+
+            return m_loadedFileMetadata;
+        }
+
         private void RebuildProperties()
         {
             ClearTriggerBindings();
-            m_propertyBindings.Clear();
-            m_listBindings.Clear();
+            DisposeBindings(m_propertyBindings);
+            DisposeBindings(m_listBindings);
             m_viewModelExpansion.Clear();
             m_propertiesScroll.Clear();
 
@@ -665,21 +770,10 @@ namespace Rive.EditorTools
                 }
             });
 
-            bindingList.Add(new PropertyBinding
-            {
-                Path = cacheKey,
-                Control = field,
-                Sync = instance =>
-                {
-                    var current = instanceProvider();
-                    var prop = current?.GetStringProperty(path);
-                    field.SetEnabled(prop != null);
-                    if (prop != null)
-                    {
-                        field.SetValueWithoutNotify(prop.Value ?? string.Empty);
-                    }
-                }
-            });
+            var binding = new PropertyBinding { Path = cacheKey, Control = field };
+            WatchValue(binding, () => instanceProvider()?.GetStringProperty(path), field,
+                value => field.SetValueWithoutNotify(value ?? string.Empty));
+            bindingList.Add(binding);
 
             parent.Add(CreatePropertyCard(displayName, pathLabelOverride ?? path, "String", GetDocUrl(ViewModelDataType.String),
                 null, field));
@@ -702,21 +796,10 @@ namespace Rive.EditorTools
                 }
             });
 
-            bindingList.Add(new PropertyBinding
-            {
-                Path = cacheKey,
-                Control = field,
-                Sync = instance =>
-                {
-                    var current = instanceProvider();
-                    var prop = current?.GetNumberProperty(path);
-                    field.SetEnabled(prop != null);
-                    if (prop != null)
-                    {
-                        field.SetValueWithoutNotify(prop.Value);
-                    }
-                }
-            });
+            var binding = new PropertyBinding { Path = cacheKey, Control = field };
+            WatchValue(binding, () => instanceProvider()?.GetNumberProperty(path), field,
+                value => field.SetValueWithoutNotify(value));
+            bindingList.Add(binding);
 
             parent.Add(CreatePropertyCard(displayName, pathLabelOverride ?? path, "Number", GetDocUrl(ViewModelDataType.Number),
                 null, field));
@@ -739,21 +822,10 @@ namespace Rive.EditorTools
                 }
             });
 
-            bindingList.Add(new PropertyBinding
-            {
-                Path = cacheKey,
-                Control = toggle,
-                Sync = instance =>
-                {
-                    var current = instanceProvider();
-                    var prop = current?.GetBooleanProperty(path);
-                    toggle.SetEnabled(prop != null);
-                    if (prop != null)
-                    {
-                        toggle.SetValueWithoutNotify(prop.Value);
-                    }
-                }
-            });
+            var binding = new PropertyBinding { Path = cacheKey, Control = toggle };
+            WatchValue(binding, () => instanceProvider()?.GetBooleanProperty(path), toggle,
+                value => toggle.SetValueWithoutNotify(value));
+            bindingList.Add(binding);
 
             parent.Add(CreatePropertyCard(displayName, pathLabelOverride ?? path, "Boolean", GetDocUrl(ViewModelDataType.Boolean),
                 null, toggle));
@@ -776,21 +848,10 @@ namespace Rive.EditorTools
                 }
             });
 
-            bindingList.Add(new PropertyBinding
-            {
-                Path = cacheKey,
-                Control = field,
-                Sync = instance =>
-                {
-                    var current = instanceProvider();
-                    var prop = current?.GetColorProperty(path);
-                    field.SetEnabled(prop != null);
-                    if (prop != null)
-                    {
-                        field.SetValueWithoutNotify(prop.Value);
-                    }
-                }
-            });
+            var binding = new PropertyBinding { Path = cacheKey, Control = field };
+            WatchValue(binding, () => instanceProvider()?.GetColorProperty(path), field,
+                value => field.SetValueWithoutNotify(value));
+            bindingList.Add(binding);
 
             parent.Add(CreatePropertyCard(displayName, pathLabelOverride ?? path, "Color", GetDocUrl(ViewModelDataType.Color),
                 null, field));
@@ -940,40 +1001,27 @@ namespace Rive.EditorTools
                 }
             });
 
-            bindingList.Add(new PropertyBinding
+            var binding = new PropertyBinding { Path = cacheKey, Control = popup };
+            WatchValue(binding, () => instanceProvider()?.GetEnumProperty(path), popup, currentValue =>
             {
-                Path = cacheKey,
-                Control = popup,
-                Sync = instance =>
+                if (!options.Contains(currentValue))
                 {
-                    var currentInstance = instanceProvider();
-                    var prop = currentInstance?.GetEnumProperty(path);
-                    bool hasProp = prop != null;
-                    popup.SetEnabled(hasProp && popup.choices.Count > 0);
+                    var prop = instanceProvider()?.GetEnumProperty(path);
+                    options = prop?.EnumValues?.Where(v => !string.IsNullOrEmpty(v)).ToList() ?? options;
+                    popup.choices = options;
+                }
+                popup.SetEnabled(options.Count > 0);
 
-                    if (!hasProp)
-                    {
-                        return;
-                    }
-
-                    var currentValue = prop.Value;
-                    if (!options.Contains(currentValue))
-                    {
-                        options = prop.EnumValues?.Where(v => !string.IsNullOrEmpty(v)).ToList() ?? options;
-                        popup.choices = options;
-                        popup.SetEnabled(options.Count > 0);
-                    }
-
-                    if (!string.IsNullOrEmpty(currentValue) && options.Contains(currentValue))
-                    {
-                        popup.SetValueWithoutNotify(currentValue);
-                    }
-                    else if (options.Count > 0)
-                    {
-                        popup.SetValueWithoutNotify(options[0]);
-                    }
+                if (!string.IsNullOrEmpty(currentValue) && options.Contains(currentValue))
+                {
+                    popup.SetValueWithoutNotify(currentValue);
+                }
+                else if (options.Count > 0)
+                {
+                    popup.SetValueWithoutNotify(options[0]);
                 }
             });
+            bindingList.Add(binding);
 
             parent.Add(CreatePropertyCard(property.Name, pathLabelOverride ?? path, $"Enum ({property.EnumTypeName})", GetDocUrl(ViewModelDataType.Enum),
                 null, popup));
@@ -1101,8 +1149,8 @@ namespace Rive.EditorTools
 
             void RebuildCustomInstanceEditor()
             {
-                selection.CustomBindings.Clear();
-                selection.CustomListBindings.Clear();
+                DisposeBindings(selection.CustomBindings);
+                DisposeBindings(selection.CustomListBindings);
                 customVmContainer.Clear();
 
                 var defaultVmMeta = GetDefaultViewModelMetadata();
@@ -1468,6 +1516,76 @@ namespace Rive.EditorTools
                 null, triggerControlRow));
         }
 
+        private static void DisposeBindings(List<PropertyBinding> bindings)
+        {
+            foreach (var binding in bindings)
+            {
+                binding.Dispose?.Invoke();
+            }
+            bindings.Clear();
+        }
+
+        private static void DisposeBindings(List<ListPropertyBinding> bindings)
+        {
+            foreach (var binding in bindings)
+            {
+                binding.Dispose?.Invoke();
+            }
+            bindings.Clear();
+        }
+
+        private static void DisposeBindings(Dictionary<int, List<PropertyBinding>> bindings)
+        {
+            foreach (var list in bindings.Values)
+            {
+                DisposeBindings(list);
+            }
+            bindings.Clear();
+        }
+
+        /// <summary>
+        /// Keeps a row in step with its property through change callbacks rather than reading
+        /// the value on every refresh, which waits for Rive's thread in a BackgroundThread panel.
+        /// Reads once when the row first sees a property, or a different one after a rebind,
+        /// then follows the property's changes.
+        /// </summary>
+        private static void WatchValue<T>(
+            PropertyBinding binding,
+            Func<ViewModelInstancePrimitiveProperty<T>> find,
+            VisualElement control,
+            Action<T> show)
+        {
+            ViewModelInstancePrimitiveProperty<T> watched = null;
+            Action<T> onChanged = value => show(value);
+
+            void Unwatch()
+            {
+                if (watched != null)
+                {
+                    watched.OnValueChanged -= onChanged;
+                    watched = null;
+                }
+            }
+
+            binding.Dispose = Unwatch;
+            binding.Sync = _ =>
+            {
+                var prop = find();
+                control.SetEnabled(prop != null);
+                if (ReferenceEquals(prop, watched))
+                {
+                    return;
+                }
+                Unwatch();
+                watched = prop;
+                if (prop != null)
+                {
+                    prop.OnValueChanged += onChanged;
+                    show(prop.Value);
+                }
+            };
+        }
+
         private void ClearTriggerBindings()
         {
             foreach (var dispose in m_triggerBindingDisposers)
@@ -1567,6 +1685,10 @@ namespace Rive.EditorTools
             listView.bindItem = (element, index) =>
             {
                 element.Clear();
+                if (itemBindings.TryGetValue(index, out var previous))
+                {
+                    DisposeBindings(previous);
+                }
                 var bindings = new List<PropertyBinding>();
                 itemBindings[index] = bindings;
 
@@ -1605,6 +1727,27 @@ namespace Rive.EditorTools
                 Control = listContainer,
             };
 
+            // Reads the items only when the list says it changed, or when the row first sees it,
+            // since each read waits for Rive's thread in a BackgroundThread panel.
+            ViewModelInstanceListProperty watchedList = null;
+            bool itemsStale = true;
+            Action onListChanged = () => itemsStale = true;
+
+            void UnwatchList()
+            {
+                if (watchedList != null)
+                {
+                    watchedList.OnChanged -= onListChanged;
+                    watchedList = null;
+                }
+            }
+
+            listBinding.Dispose = () =>
+            {
+                UnwatchList();
+                DisposeBindings(itemBindings);
+            };
+
             listBinding.Sync = _ =>
             {
                 var listProp = instanceProvider()?.GetListProperty(path);
@@ -1614,7 +1757,9 @@ namespace Rive.EditorTools
 
                 if (!hasProp)
                 {
-                    itemBindings.Clear();
+                    UnwatchList();
+                    itemsStale = true;
+                    DisposeBindings(itemBindings);
                     listView.itemsSource = listAdapter;
                     listView.Rebuild();
                     listView.ClearSelection();
@@ -1623,45 +1768,55 @@ namespace Rive.EditorTools
                     return;
                 }
 
-                // Detect structural changes to avoid unnecessary rebuilds that steal focus
-                var currentItems = new List<ViewModelInstance>(listProp.Count);
-                for (int i = 0; i < listProp.Count; i++)
+                if (!ReferenceEquals(listProp, watchedList))
                 {
-                    currentItems.Add(listProp.GetInstanceAt(i));
+                    UnwatchList();
+                    watchedList = listProp;
+                    listProp.OnChanged += onListChanged;
+                    itemsStale = true;
                 }
 
-                bool structureChanged = currentItems.Count != listBinding.LastItems.Count;
-                if (!structureChanged)
+                if (itemsStale)
                 {
-                    for (int i = 0; i < currentItems.Count; i++)
+                    itemsStale = false;
+
+                    // Detect structural changes to avoid unnecessary rebuilds that steal focus
+                    int count = listProp.Count;
+                    var currentItems = new List<ViewModelInstance>(count);
+                    for (int i = 0; i < count; i++)
                     {
-                        if (!ReferenceEquals(currentItems[i], listBinding.LastItems[i]))
+                        currentItems.Add(listProp.GetInstanceAt(i));
+                    }
+
+                    bool structureChanged = currentItems.Count != listBinding.LastItems.Count;
+                    if (!structureChanged)
+                    {
+                        for (int i = 0; i < currentItems.Count; i++)
                         {
-                            structureChanged = true;
-                            break;
+                            if (!ReferenceEquals(currentItems[i], listBinding.LastItems[i]))
+                            {
+                                structureChanged = true;
+                                break;
+                            }
                         }
                     }
-                }
 
-                if (structureChanged)
-                {
-                    itemBindings.Clear();
-                    listView.itemsSource = listAdapter;
-                    listView.Rebuild();
-                    listView.ClearSelection();
                     listBinding.LastItems = currentItems;
-                }
-                else
-                {
-                    listBinding.LastItems = currentItems;
-                    if (listView.selectedIndex >= listProp.Count)
+                    if (structureChanged)
+                    {
+                        DisposeBindings(itemBindings);
+                        listView.itemsSource = listAdapter;
+                        listView.Rebuild();
+                        listView.ClearSelection();
+                    }
+                    else if (listView.selectedIndex >= currentItems.Count)
                     {
                         listView.ClearSelection();
                     }
                 }
 
-
-                string inferred = listProp.Count > 0 ? listProp.GetInstanceAt(0)?.ViewModelName : null;
+                var items = listBinding.LastItems;
+                string inferred = items.Count > 0 ? items[0]?.ViewModelName : null;
 
                 if (!listBinding.InitializedTypeSelection)
                 {
@@ -1688,12 +1843,12 @@ namespace Rive.EditorTools
                 foreach (var kvp in itemBindings)
                 {
                     var idx = kvp.Key;
-                    if (idx < 0 || idx >= listProp.Count)
+                    if (idx < 0 || idx >= items.Count)
                     {
                         continue;
                     }
 
-                    var instance = listProp.GetInstanceAt(idx);
+                    var instance = items[idx];
                     foreach (var binding in kvp.Value)
                     {
                         binding.Sync?.Invoke(instance);
@@ -1782,7 +1937,7 @@ namespace Rive.EditorTools
 
             if (m_fileMetadata == null)
             {
-                message = "Selected Rive file has no metadata yet. Reimport or select a Rive asset.";
+                message = "Selected Rive file has no metadata yet. Reimport the Rive asset or load a file into the widget.";
                 return PlaygroundState.NoFileMetadata;
             }
 
@@ -1824,7 +1979,28 @@ namespace Rive.EditorTools
             return PlaygroundState.Ready;
         }
 
-        private Button CreateMoreActionsButton(string path, string displayName)
+        // Property types the value tracker can follow.
+        private static readonly HashSet<string> s_trackableTypes = new HashSet<string>
+        {
+            "String", "Number", "Boolean", "Color", "Enum", "Trigger",
+        };
+
+        /// Whether a card offers Track This Value: it needs its view model, and a type the tracker follows.
+        /// typeLabel is the card's, like "Number" or "Enum (Country)".
+        internal static bool CanTrack(string viewModel, string typeLabel)
+        {
+            if (string.IsNullOrEmpty(viewModel) || string.IsNullOrEmpty(typeLabel))
+            {
+                return false;
+            }
+            int paren = typeLabel.IndexOf(" (", StringComparison.Ordinal);
+            return s_trackableTypes.Contains(paren > 0 ? typeLabel.Substring(0, paren) : typeLabel);
+        }
+
+        // The view model whose properties are being built, for their cards' track item.
+        private string m_cardViewModel;
+
+        private Button CreateMoreActionsButton(string path, string displayName, string viewModel = null, string typeLabel = null)
         {
             var button = new Button(() =>
             {
@@ -1849,6 +2025,17 @@ namespace Rive.EditorTools
                     EditorGUIUtility.systemCopyBuffer = nameOnly;
                 });
 
+                if (CanTrack(viewModel, typeLabel))
+                {
+                    // Tracks it if it isn't already, and shows the window. Untracking is done there.
+                    menu.AddSeparator(string.Empty);
+                    menu.AddItem(new GUIContent("Track This Value…"), false, () =>
+                    {
+                        ValueTrackerSession.SetTracked(viewModel, nameOnly, true);
+                        RiveValueTrackerWindow.Open();
+                    });
+                }
+
                 menu.ShowAsContext();
             })
             {
@@ -1858,52 +2045,26 @@ namespace Rive.EditorTools
             button.style.width = 26;
             button.style.marginLeft = 4;
             button.style.height = 20;
-            button.style.backgroundColor = new UnityEngine.Color(0, 0, 0, 0);
-            button.style.borderLeftWidth = 0;
-            button.style.borderRightWidth = 0;
-            button.style.borderTopWidth = 0;
-            button.style.borderBottomWidth = 0;
             button.style.fontSize = 14;
             button.style.unityFontStyleAndWeight = FontStyle.Bold;
-
-            button.RegisterCallback<MouseEnterEvent>(_ =>
-            {
-                button.style.backgroundColor = new UnityEngine.Color(0.345f, 0.345f, 0.345f, 0.6f);
-            });
-
-            button.RegisterCallback<MouseLeaveEvent>(_ =>
-            {
-                button.style.backgroundColor = new UnityEngine.Color(0, 0, 0, 0);
-            });
+            RiveEditorStyles.StyleIconButton(button);
 
             return button;
         }
 
         private void StyleLinkLabel(Label label, string url)
         {
-            label.style.fontSize = 11;
-            var linkColor = new UnityEngine.Color(0.55f, 0.78f, 1f, 1f);
-            label.style.color = linkColor;
-            label.style.marginLeft = 6;
-            // We keep the border width constant to avoid layout shift; toggle only the color.
-            label.style.borderBottomWidth = 1;
-            label.style.borderBottomColor = new StyleColor(new UnityEngine.Color(0, 0, 0, 0));
-
-            label.RegisterCallback<MouseEnterEvent>(_ =>
-            {
-                label.style.borderBottomColor = new StyleColor(linkColor);
-            });
-
-            label.RegisterCallback<MouseLeaveEvent>(_ =>
-            {
-                label.style.borderBottomColor = new StyleColor(new UnityEngine.Color(0, 0, 0, 0));
-            });
-
-            label.RegisterCallback<MouseUpEvent>(_ => Application.OpenURL(url));
+            RiveEditorStyles.StyleLinkLabel(label, url);
         }
 
         private ViewModelInstance GetCurrentInstance()
         {
+            // Rows can repaint before the next rebuild, and we shouldn't look up their paths on another file.
+            if (WidgetReloadedSinceBuild())
+            {
+                return null;
+            }
+
             return m_widget?.LoadedStateMachine?.ViewModelInstance;
         }
 
@@ -1914,7 +2075,7 @@ namespace Rive.EditorTools
         private ViewModelInstance GetGlobalInstance(string name)
         {
             var stateMachine = m_widget?.LoadedStateMachine;
-            if (stateMachine == null || stateMachine.IsDisposed)
+            if (stateMachine == null || stateMachine.IsDisposed || WidgetReloadedSinceBuild())
             {
                 return null;
             }
@@ -2023,6 +2184,8 @@ namespace Rive.EditorTools
 
             foreach (var property in viewModel.Properties)
             {
+                // Nested sections set their own as they build, so set it again each time.
+                m_cardViewModel = viewModel.Name;
                 string propertyAccessPath = string.IsNullOrEmpty(accessPathPrefix)
                     ? property.Name
                     : $"{accessPathPrefix}/{property.Name}";
@@ -2162,24 +2325,7 @@ namespace Rive.EditorTools
         private VisualElement CreatePropertyCard(string displayName, string path, string typeLabel, string docUrl, string description, VisualElement control, bool showTypePill = false)
         {
             var card = new VisualElement();
-            card.style.marginTop = 6;
-            card.style.paddingTop = 8;
-            card.style.paddingBottom = 8;
-            card.style.paddingLeft = 10;
-            card.style.paddingRight = 10;
-            card.style.borderTopLeftRadius = 6;
-            card.style.borderTopRightRadius = 6;
-            card.style.borderBottomLeftRadius = 6;
-            card.style.borderBottomRightRadius = 6;
-            card.style.borderBottomWidth = 1;
-            card.style.borderTopWidth = 1;
-            card.style.borderLeftWidth = 1;
-            card.style.borderRightWidth = 1;
-            card.style.borderBottomColor = new UnityEngine.Color(0.25f, 0.25f, 0.25f, 0.4f);
-            card.style.borderTopColor = new UnityEngine.Color(0.25f, 0.25f, 0.25f, 0.4f);
-            card.style.borderLeftColor = new UnityEngine.Color(0.25f, 0.25f, 0.25f, 0.4f);
-            card.style.borderRightColor = new UnityEngine.Color(0.25f, 0.25f, 0.25f, 0.4f);
-            card.style.backgroundColor = new UnityEngine.Color(0.12f, 0.12f, 0.12f, 0.45f);
+            RiveEditorStyles.StyleCard(card);
 
             var header = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };
             var nameLabel = new Label(displayName);
@@ -2188,23 +2334,11 @@ namespace Rive.EditorTools
 
             if (showTypePill && !string.IsNullOrEmpty(typeLabel))
             {
-                var typePill = new Label(typeLabel);
-                typePill.style.unityTextAlign = TextAnchor.MiddleCenter;
-                typePill.style.paddingLeft = 6;
-                typePill.style.paddingRight = 6;
-                typePill.style.paddingTop = 2;
-                typePill.style.paddingBottom = 2;
-                typePill.style.marginLeft = 4;
-                typePill.style.borderTopLeftRadius = 4;
-                typePill.style.borderTopRightRadius = 4;
-                typePill.style.borderBottomLeftRadius = 4;
-                typePill.style.borderBottomRightRadius = 4;
-                typePill.style.backgroundColor = new UnityEngine.Color(0.25f, 0.25f, 0.25f, 0.8f);
-                typePill.style.color = new UnityEngine.Color(0.85f, 0.85f, 0.85f, 1f);
+                var typePill = RiveEditorStyles.CreatePill(typeLabel, RiveEditorStyles.PillBackground);
                 header.Add(typePill);
             }
 
-            var menuButton = CreateMoreActionsButton(path, displayName);
+            var menuButton = CreateMoreActionsButton(path, displayName, m_cardViewModel, typeLabel);
 
             // Remove potential parenthesis text to account for enum values. E.g. "Enum (MyEnum)" should be "Enum"
             string strippedTypeLabel = typeLabel;

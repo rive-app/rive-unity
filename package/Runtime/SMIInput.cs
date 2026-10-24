@@ -9,6 +9,9 @@ namespace Rive
 
         internal const string HandleCallbacks =
             "HandleCallbacks will be removed in a future version. Widgets deliver OnValueChanged after each advance on their own.";
+
+        internal const string DrawingWithoutTarget =
+            "Drawing without a RenderTexture will be removed in a future version. Pass a RenderTexture to the RenderQueue, or call UpdateTexture before drawing, then blit or display it.";
     }
 
     /// <summary>

@@ -107,12 +107,13 @@ namespace Rive.Components
         [Tooltip("When Disabled, the panel collapses all input to a single pointer for legacy behavior. When Enabled, multiple pointers are tracked independently.")]
         [SerializeField] private MultiTouchSupport m_multiTouchSupport = MultiTouchSupport.Enabled;
 
-#if UNITY_EDITOR
-        [OnValueChanged(nameof(UpdatePacingOverlay))]
+#if RIVE_USING_EXPERIMENTAL
+        [InspectorField(RivePanelInspectorSections.Advanced, "Antialiasing (Experimental)")]
+        [Tooltip("How this panel antialiases what it draws.\n\n- Default: the renderer's usual antialiasing.\n- Inkbleed: antialiases strokes by bleeding them out half a pixel. Fills aren't antialiased, non-clockwise fills draw as clockwise, and layer masks are dropped. Not supported on Metal yet.")]
+        [OnValueChanged(nameof(OnAntialiasingModeChanged))]
+        [SerializeField] private AntialiasingMode m_antialiasingMode = AntialiasingMode.Default;
 #endif
-        [InspectorField(RivePanelInspectorSections.Advanced, "Pacing Overlay (temporary)")]
-        [Tooltip("Shows this panel's advance timing and Rive's render cost on screen in play mode and in builds, to diagnose stutter. Temporary, it may be removed in a future version.")]
-        [SerializeField] private bool m_showPacingOverlay = false;
+
 
 
         private List<IRiveWidget> m_sortedWidgets = new List<IRiveWidget>();
@@ -388,6 +389,40 @@ namespace Rive.Components
             }
         }
 
+#if RIVE_USING_EXPERIMENTAL
+        /// <summary>
+        /// Experimental. How this panel antialiases what it draws. Panels that share a render
+        /// texture draw it with inkbleed if any of them asks for it.
+        /// </summary>
+        public AntialiasingMode AntialiasingMode
+        {
+            get => m_antialiasingMode;
+            set
+            {
+                if (m_antialiasingMode == value)
+                {
+                    return;
+                }
+                m_antialiasingMode = value;
+                SetDirty();
+            }
+        }
+
+        /// <summary>
+        /// The antialiasing this panel actually draws with: <see cref="AntialiasingMode"/>, or
+        /// <see cref="AntialiasingMode.Default"/> where the graphics API doesn't support it.
+        /// </summary>
+        public AntialiasingMode EffectiveAntialiasingMode =>
+            m_antialiasingMode == AntialiasingMode.Inkbleed && TextureHelper.SupportsInkbleed()
+                ? AntialiasingMode.Inkbleed
+                : AntialiasingMode.Default;
+
+        private void OnAntialiasingModeChanged()
+        {
+            SetDirty();
+        }
+#endif
+
         public RenderTexture RenderTexture
         {
             get
@@ -515,32 +550,6 @@ namespace Rive.Components
 
 
             SubscribeToRenderTargetStrategyEvents();
-            UpdatePacingOverlay();
-        }
-
-        internal PanelAdvance AdvanceForPacing => m_advance;
-
-        /// Temporary. Same as the inspector toggle.
-        internal bool ShowPacingOverlay
-        {
-            get => m_showPacingOverlay;
-            set
-            {
-                m_showPacingOverlay = value;
-                UpdatePacingOverlay();
-            }
-        }
-
-        private void UpdatePacingOverlay()
-        {
-            if (m_showPacingOverlay && isActiveAndEnabled && Application.isPlaying)
-            {
-                RivePacingOverlay.Show(this);
-            }
-            else
-            {
-                RivePacingOverlay.Hide(this);
-            }
         }
 
         private void HandlePanelRegistrationStateChange(IRivePanel panel)
@@ -558,7 +567,6 @@ namespace Rive.Components
 
         void OnDisable()
         {
-            RivePacingOverlay.Hide(this);
             Orchestrator.Instance?.UnregisterPanel(this);
 
             // Nothing polls it once the panel stops ticking.
@@ -1171,10 +1179,6 @@ namespace Rive.Components
                 advanceBy = m_pendingDelta;
                 m_pendingDelta = 0f;
                 m_advance.Begin();
-            }
-            else if (m_advance.Pacing != null)
-            {
-                m_advance.Pacing.Skipped++;
             }
 
             bool widgetNeedsRedraw = false;

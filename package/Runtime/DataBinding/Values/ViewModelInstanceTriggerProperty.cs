@@ -35,6 +35,9 @@ namespace Rive
                 return;
             }
 
+#if UNITY_EDITOR
+            TrackSet("fired");
+#endif
             WriteNative(0f, 0, null);
         }
 

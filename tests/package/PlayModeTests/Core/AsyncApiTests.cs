@@ -369,6 +369,71 @@ namespace Rive.Tests
             UnityEngine.Object.Destroy(broken);
         }
 
+        // A step later, with another asset. The first asset's import has landed
+        // and its artboard is still being prepared when the second load comes
+        // in. The widget lets go of the first file while the second imports, so
+        // the preparation landing in between shouldn't attach from it, and the
+        // first load ends cancelled. Binding to the released file can also log
+        // 1003, but only when its view model names aren't cached yet, so this
+        // checks what got attached rather than the log.
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator WidgetLoad_AssetWhileAnotherPrepares_DoesNotAttachTheReleasedFile()
+        {
+            Asset car = null;
+            Asset form = null;
+            yield return LoadAsset(TestAssetReferences.riv_cleanTheCar, a => car = a);
+            yield return LoadAsset(TestAssetReferences.riv_asset_databinding_test, a => form = a);
+            RiveWidget widget = CreateWidgetInPanel();
+            yield return null;
+
+            Future first = widget.LoadAsync(car, "Car", "Motion");
+            // Held behind the import, so the preparation it sends waits here.
+            ManualResetEventSlim gate = HoldProducer();
+            bool secondHeld = false;
+            File carFile = null;
+            try
+            {
+                float deadline = Time.realtimeSinceStartup + 10f;
+                while (widget.LoadedFile == null)
+                {
+                    Assert.Less(Time.realtimeSinceStartup, deadline, "The asset's import didn't land.");
+                    yield return null;
+                }
+                Assert.AreEqual(WidgetStatus.Loading, widget.Status, "The preparation should still be held.");
+                carFile = widget.LoadedFile;
+
+                // Parks the server again after the preparation, so the second
+                // import lands well after it.
+                CommandTransport.Send(id => HostNative.riveHostHold(id), (batch, message) => { }, keep: false);
+                secondHeld = true;
+                widget.Load(form);
+                Assert.IsTrue(carFile.IsDisposed, "The widget should let go of the file it imported.");
+
+                gate.Set();
+                for (int i = 0; i < 10; i++)
+                {
+                    yield return null;
+                    Assert.IsNull(widget.LoadedArtboard,
+                        "The first asset's preparation attached after the widget let go of its file.");
+                }
+            }
+            finally
+            {
+                gate.Set();
+                if (secondHeld)
+                {
+                    HostNative.riveHostRelease();
+                }
+            }
+            yield return Frames(30);
+
+            Assert.AreEqual(FutureStatus.Canceled, first.Status, "The first load should end cancelled.");
+            Assert.AreEqual(WidgetStatus.Loaded, widget.Status);
+            Assert.IsNotNull(widget.LoadedArtboard);
+            Assert.AreNotSame(carFile, widget.LoadedFile);
+        }
+
         public enum StaleEnding
         {
             Fails = 0,

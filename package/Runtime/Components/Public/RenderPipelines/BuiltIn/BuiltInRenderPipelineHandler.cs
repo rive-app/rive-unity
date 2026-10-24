@@ -292,7 +292,16 @@ namespace Rive.Components.BuiltIn
 
 
 
-            renderer.AddToCommandBuffer(commandBuffer);
+            // Built once and recorded before each camera render, so there's
+            // nothing to record yet.
+            if (renderer is Renderer riveRenderer)
+            {
+                riveRenderer.AddToCommandBuffer(commandBuffer, recordNow: false);
+            }
+            else
+            {
+                renderer.AddToCommandBuffer(commandBuffer);
+            }
 
 
 

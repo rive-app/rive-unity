@@ -58,33 +58,116 @@ namespace Rive
             }
         }
 
+#if UNITY_EDITOR
+        /// Whether new handles note who called them, for warnings. On by
+        /// default. Set from the editor's Rive preferences.
+        internal static bool CaptureCallSites = true;
+
+        // Far enough to get out of any Rive call chain. Past it, give up.
+        private const int MaxCallSiteDepth = 32;
+#endif
+
         /// Editor only: the first caller outside Rive, as "(at Assets/X.cs:12)"
         /// so the console links to it. Null in builds, where a stack walk per
         /// call would cost too much.
         internal static string CaptureCallSite()
         {
 #if UNITY_EDITOR
-            var trace = new System.Diagnostics.StackTrace(1, true);
-            for (int i = 0; i < trace.FrameCount; i++)
+            if (CaptureCallSites && TryFindCaller(out Caller caller))
             {
-                System.Diagnostics.StackFrame frame = trace.GetFrame(i);
-                Type type = frame.GetMethod()?.DeclaringType;
-                string file = frame.GetFileName();
-                if (type == null || string.IsNullOrEmpty(file) || IsRive(type))
-                {
-                    continue;
-                }
-                return $"(from {type.Name}.{frame.GetMethod().Name}, at {ProjectPath(file)}:{frame.GetFileLineNumber()})";
+                return $"(from {caller.TypeName}.{caller.MethodName}, at {caller.File}:{caller.Line})";
             }
 #endif
             return null;
         }
 
 #if UNITY_EDITOR
+        internal struct Caller
+        {
+            internal string TypeName;
+            internal string MethodName;
+            // Relative to the project when it's inside it.
+            internal string File;
+            internal int Line;
+        }
+
+        /// The first frame outside Rive that has a source file. One frame at a
+        /// time from the caller, since a whole StackTrace walks every frame
+        /// down to Unity's, which is many times slower in the editor.
+        internal static bool TryFindCaller(out Caller caller)
+        {
+            for (int depth = 1; depth <= MaxCallSiteDepth; depth++)
+            {
+                var frame = new System.Diagnostics.StackFrame(depth, true);
+                System.Reflection.MethodBase method = frame.GetMethod();
+                if (method == null)
+                {
+                    break;
+                }
+                Type type = method.DeclaringType;
+                string file = frame.GetFileName();
+                if (type == null || IsRive(type) || string.IsNullOrEmpty(file))
+                {
+                    continue;
+                }
+                string methodName = method.Name;
+                // Coroutines and lambdas run in compiler made types and
+                // methods, like <Setup>d__4.MoveNext or <>c.<Setup>b__4_0.
+                // Name the method they came from.
+                while (type.Name.StartsWith("<") && type.DeclaringType != null)
+                {
+                    string inner = InsideAngles(type.Name);
+                    if (!string.IsNullOrEmpty(inner))
+                    {
+                        methodName = inner;
+                    }
+                    type = type.DeclaringType;
+                }
+                string fromMethod = InsideAngles(methodName);
+                if (!string.IsNullOrEmpty(fromMethod))
+                {
+                    methodName = fromMethod;
+                }
+                caller = new Caller
+                {
+                    TypeName = type.Name,
+                    MethodName = methodName,
+                    File = ProjectPath(file),
+                    Line = frame.GetFileLineNumber(),
+                };
+                return true;
+            }
+            caller = default;
+            return false;
+        }
+#endif
+
+#if UNITY_EDITOR
+        // "Setup" from "<Setup>d__4" or "<Setup>b__4_0", or null.
+        private static string InsideAngles(string name)
+        {
+            if (name.Length < 3 || name[0] != '<')
+            {
+                return null;
+            }
+            int close = name.IndexOf('>');
+            return close > 1 ? name.Substring(1, close - 1) : null;
+        }
+
+        // GetName allocates, so each assembly is checked once.
+        private static readonly System.Collections.Generic.Dictionary<System.Reflection.Assembly, bool> s_isRive =
+            new System.Collections.Generic.Dictionary<System.Reflection.Assembly, bool>();
+
         private static bool IsRive(Type type)
         {
-            string assembly = type.Assembly.GetName().Name;
-            return assembly == "Rive.Runtime" || assembly == "Rive.Runtime.Components";
+            System.Reflection.Assembly assembly = type.Assembly;
+            if (!s_isRive.TryGetValue(assembly, out bool isRive))
+            {
+                string name = assembly.GetName().Name;
+                isRive = name == "Rive.Runtime" || name == "Rive.Runtime.Components";
+                s_isRive[assembly] = isRive;
+            }
+            return isRive;
         }
 
         private static string ProjectPath(string file)

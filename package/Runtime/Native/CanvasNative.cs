@@ -1,6 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
 using Rive.Host;
+using Rive.Producer;
+using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Rive
 {
@@ -27,18 +30,24 @@ namespace Rive
             uint generation,
             [MarshalAs(UnmanagedType.U1)] bool dirtCheckEnabled,
             [MarshalAs(UnmanagedType.U1)] bool forceRenderNext,
-            uint frame);
+            uint frame,
+            [MarshalAs(UnmanagedType.U1)] bool replaceable);
 
         [DllImport(NativeLibrary.name)]
         private static extern void unrefRenderQueue(ulong renderQueue);
 
         [DllImport(NativeLibrary.name)]
-        private static extern void riveRenderQueueFrameBound(uint renderId, uint bound);
+        private static extern void riveRenderQueueFrameBound(
+            uint renderId,
+            uint bound,
+            [MarshalAs(UnmanagedType.U1)] bool ignoreEventBound);
 
-        /// For render events whose data carries no bound, like a buffer added to a camera once.
-        internal static void SetFrameBound(uint renderId, uint bound)
+        /// For render events whose data carries no bound, or an old one, like
+        /// a buffer added to a camera once. ignoreEventBound says the record is
+        /// for a buffer built earlier.
+        internal static void SetFrameBound(uint renderId, uint bound, bool ignoreEventBound)
         {
-            riveRenderQueueFrameBound(renderId, bound);
+            riveRenderQueueFrameBound(renderId, bound, ignoreEventBound);
         }
 
         [DllImport(NativeLibrary.name)]
@@ -80,7 +89,9 @@ namespace Rive
         }
 
         /// For a channel that hands out its own request id. The ops are
-        /// copied, so the array can be reused straight away.
+        /// copied, so the array can be reused straight away. A replaceable
+        /// record is skipped if a newer replaceable one for the same queue is
+        /// sent before Rive starts it. Its reply still comes.
         internal static void RecordDrawList(
             ulong requestId,
             NativeRenderQueueHandle renderQueue,
@@ -89,10 +100,11 @@ namespace Rive
             uint generation,
             bool dirtCheckEnabled,
             bool forceRenderNext,
-            uint frame)
+            uint frame,
+            bool replaceable)
         {
             riveRecordDrawList(
-                requestId, renderQueue.Value, ops, count, generation, dirtCheckEnabled, forceRenderNext, frame);
+                requestId, renderQueue.Value, ops, count, generation, dirtCheckEnabled, forceRenderNext, frame, replaceable);
         }
 
         internal static void UnrefRenderQueue(NativeRenderQueueHandle renderQueue)
@@ -122,11 +134,87 @@ namespace Rive
             renderLive = render;
         }
 
+        [DllImport(NativeLibrary.name)]
+        private static extern uint renderQueueHandOverTexture(
+            uint renderId,
+            IntPtr texture,
+            uint width,
+            uint height,
+            uint generation,
+            HandOverKind kind);
+
+        // Matches HandOverKind in render_queue.cpp. Each one also carries
+        // the generation replays switch to.
+        private enum HandOverKind : uint
+        {
+            // A new texture to draw into, from UpdateTexture.
+            Texture = 0,
+            // The texture was destroyed or released, so skip replays until a new one.
+            Gone = 1,
+            // Same texture, new layout, from InvalidateTarget.
+            Generation = 2,
+        }
+
+        [DllImport(NativeLibrary.name)]
+        private static extern IntPtr getHandOverTexturesCallback();
+
+        private static CommandBuffer s_handOverBuffer;
+
+        /// Main thread. Records only need the size, so that goes through the
+        /// server. Replays get the texture in render thread order, the order
+        /// Unity frees textures in, so they never draw into a freed one.
         internal static void UpdateRenderTexture(
-            NativeRenderQueueHandle renderQueue, IntPtr texture, uint width, uint height)
+            NativeRenderQueueHandle renderQueue, uint renderId, IntPtr texture, uint width, uint height,
+            uint generation)
         {
             CommandTransport.SendNoReply(
                 () => renderQueueUpdateRenderTexture(renderQueue.Value, texture, width, height));
+            HandOver(renderId, texture, width, height, generation, HandOverKind.Texture);
+        }
+
+        /// Main thread. The queue's texture was destroyed or released with
+        /// nothing in its place, so replays skip it.
+        internal static void TextureGone(uint renderId, uint generation)
+        {
+            HandOver(renderId, IntPtr.Zero, 0, 0, generation, HandOverKind.Gone);
+        }
+
+        /// Main thread. A new generation with the same texture, so replays
+        /// drop frames recorded for the old one.
+        internal static void HandOverGeneration(uint renderId, uint generation)
+        {
+            HandOver(renderId, IntPtr.Zero, 0, 0, generation, HandOverKind.Generation);
+        }
+
+        private static void HandOver(
+            uint renderId, IntPtr texture, uint width, uint height, uint generation, HandOverKind kind)
+        {
+            if (renderId == 0)
+            {
+                return;
+            }
+            uint serial = renderQueueHandOverTexture(renderId, texture, width, height, generation, kind);
+            if (s_handOverBuffer == null)
+            {
+                s_handOverBuffer = new CommandBuffer { name = "Rive.HandOverTexture" };
+            }
+            else
+            {
+                s_handOverBuffer.Clear();
+            }
+            s_handOverBuffer.IssuePluginEventAndData(
+                getHandOverTexturesCallback(), 0, RenderLifetime.EventData(serial));
+            Graphics.ExecuteCommandBuffer(s_handOverBuffer);
+        }
+
+        [DllImport(NativeLibrary.name)]
+        private static extern void renderQueueSetInkbleed(
+            ulong renderQueue,
+            [MarshalAs(UnmanagedType.U1)] bool enabled);
+
+        internal static void SetRenderQueueInkbleed(NativeRenderQueueHandle renderQueue, bool enabled)
+        {
+            CommandTransport.SendNoReply(() => renderQueueSetInkbleed(renderQueue.Value, enabled));
         }
 
         internal static void SetRenderQueueGeneration(NativeRenderQueueHandle renderQueue, uint generation)

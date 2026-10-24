@@ -285,10 +285,6 @@ namespace Rive
                     m_builtHeight = frame.Height;
                 }
                 ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.BuildQueued, m_handle, discreteTrigger);
-                if (PacingCounters.Enabled)
-                {
-                    PacingCounters.ImageBuilds++;
-                }
                 queue.EnqueueBuild(
                     m_handle, frame.Handle, frame.Width, frame.Height, frame.IsSRGB, properties);
             }
@@ -377,6 +373,17 @@ namespace Rive
             // Empty the properties first, so nothing recorded after this draws
             // it. Dropping the binding queues the native image's destroy.
             RenderTextureImageManager.Instance.DetachEverywhere(this);
+            // Plain Dispose doesn't wait, but with None frames already recorded
+            // can still draw the source. Watch it until Rive lets go, to warn if
+            // it's freed first. DisposeAsync waits instead.
+            if (DrawsSourceDirectly && !m_disposedAsync && m_builtTexture != IntPtr.Zero)
+            {
+                RenderTextureImageManager.Instance.WatchUntilReleased(
+                    m_textureProvider.Source,
+                    m_builtWidth,
+                    m_builtHeight,
+                    RenderImageCommandQueue.ReleaseAsync(m_handle));
+            }
             // Frees the source's GPU resources.
             m_textureProvider?.Dispose();
         }
@@ -440,6 +447,19 @@ namespace Rive
         }
 
         private readonly List<Binding> m_bindings = new List<Binding>();
+
+        // Sources drawn directly whose image was disposed without waiting, until
+        // Rive has let go of them.
+        private struct Watch
+        {
+            public RenderTexture Source;
+            public int Width;
+            public int Height;
+            public Future Released;
+        }
+        private readonly List<Watch> m_watches = new List<Watch>();
+
+        internal int WatchCountForTests => m_watches.Count;
 
         /// <summary>
         /// True when at least one render-texture image is currently bound. Lets
@@ -540,8 +560,49 @@ namespace Rive
             }
         }
 
+        internal void WatchUntilReleased(RenderTexture source, int width, int height, Future released)
+        {
+            if (source != null && !released.IsDone)
+            {
+                m_watches.Add(new Watch { Source = source, Width = width, Height = height, Released = released });
+            }
+        }
+
+        // Warns once if a watched source is freed or resized before Rive let go.
+        private void CheckWatches()
+        {
+            for (int i = m_watches.Count - 1; i >= 0; i--)
+            {
+                Watch watch = m_watches[i];
+                if (watch.Released.IsDone)
+                {
+                    m_watches.RemoveAt(i);
+                    continue;
+                }
+                string change = watch.Source == null || !watch.Source.IsCreated()
+                    ? "released or destroyed"
+                    : watch.Source.width != watch.Width || watch.Source.height != watch.Height
+                        ? "resized"
+                        : null;
+                if (change == null)
+                {
+                    continue;
+                }
+                m_watches.RemoveAt(i);
+                DebugLogger.Instance.LogWarning(
+                    $"RenderTextureImageSource: the source RenderTexture was {change} right after Dispose(), " +
+                    "while Rive could still draw it. With TextureProcessingMode.None Rive draws it directly, " +
+                    "so it may have drawn a freed texture. Await DisposeAsync() instead before releasing, " +
+                    "destroying or resizing it.");
+            }
+        }
+
         internal void Tick()
         {
+            if (m_watches.Count > 0)
+            {
+                CheckWatches();
+            }
             if (m_bindings.Count > 0)
             {
                 RenderImageCommandQueue queue = RenderImageCommandQueue.Instance;
@@ -583,6 +644,8 @@ namespace Rive
             // Resets the global native queue, which releases any intermediate
             // still waiting.
             RenderImageCommandQueue.Shutdown();
+            // The reset let go of every texture, including watched ones.
+            m_watches.Clear();
         }
 
         // Frees an intermediate once nothing Rive made from it is left. Queued

@@ -381,21 +381,21 @@ namespace Rive.Tests
             }
         }
 
-        /// After a change. A BackgroundThread panel sends it with the next tick and
-        /// draws it once that advance lands. Its record goes to the server
+        /// After a change. Either kind of panel records on the server
         /// asynchronously, so a fixed frame count only works if the server wins
-        /// the race with the render thread. Graphics jobs often lose it, so this
-        /// waits for the records, after which the next render event shows them.
+        /// the race with the render thread. A busy server or graphics jobs often
+        /// lose it, so this waits for the records, after which the next render
+        /// event shows them. A BackgroundThread panel also sends the change with
+        /// its next tick, so it waits for that advance first.
         private static IEnumerator WaitForChangesToLand(RivePanel panel)
         {
-            if (panel.ThreadingMode == ThreadingMode.MainThread)
+            if (panel.ThreadingMode == ThreadingMode.BackgroundThread)
             {
-                yield break;
-            }
-            for (int i = 0; i < 2; i++)
-            {
-                yield return null;
-                panel.JoinAdvance();
+                for (int i = 0; i < 2; i++)
+                {
+                    yield return null;
+                    panel.JoinAdvance();
+                }
             }
             // The late pass after the last advance has recorded it by now.
             yield return null;
@@ -426,12 +426,23 @@ namespace Rive.Tests
             return false;
         }
 
-        /// Reads the panel's texture by sampling it into a temporary one. Binding
-        /// the panel's texture as the render target to read it directly can wipe
-        /// what Rive drew into it on WebGL.
+        /// Reads the panel's texture, rows from the bottom like ReadPixels. Where
+        /// it can, straight from the GPU, without a Blit or RenderTexture.active,
+        /// which on Vulkan with graphics jobs could read back another test's
+        /// picture. Otherwise by sampling it into a new texture, since binding the
+        /// panel's texture to read it directly can wipe what Rive drew on WebGL.
         private static Color32[] ReadBySampling(RenderTexture texture)
         {
-            RenderTexture copy = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32);
+            if (SystemInfo.supportsAsyncGPUReadback)
+            {
+                var request = UnityEngine.Rendering.AsyncGPUReadback.Request(texture, 0, TextureFormat.RGBA32);
+                request.WaitForCompletion();
+                if (!request.hasError)
+                {
+                    return request.GetData<Color32>().ToArray();
+                }
+            }
+            var copy = new RenderTexture(texture.width, texture.height, 0, RenderTextureFormat.ARGB32);
             Graphics.Blit(texture, copy);
             RenderTexture previous = RenderTexture.active;
             RenderTexture.active = copy;
@@ -439,7 +450,8 @@ namespace Rive.Tests
             read.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0);
             read.Apply(false);
             RenderTexture.active = previous;
-            RenderTexture.ReleaseTemporary(copy);
+            copy.Release();
+            UnityEngine.Object.Destroy(copy);
             Color32[] pixels = read.GetPixels32();
             UnityEngine.Object.Destroy(read);
             return pixels;
@@ -583,11 +595,14 @@ namespace Rive.Tests
             var widget = panel.GetComponentInChildren<RiveWidget>();
             Assert.IsNotNull(widget, "Expected a RiveWidget in the single-widget panel prefab.");
             widget.Fit = Fit.Contain;
+            uint oreErrors = GpuCanvasDiagnostics.OreErrorCount;
             widget.Load(riveAsset);
 
             // The canvas replays on the render thread, so give it a second
             // frame rather than reading back whatever the first one had.
             yield return WaitForPanelRenderSettled(panel, frames: 2);
+            Assert.AreEqual(oreErrors, GpuCanvasDiagnostics.OreErrorCount,
+                "The script's GPU work should replay without Ore refusing any of it. The player log names what it refused.");
 
             yield return m_goldenHelper.AssertWithRenderTexture(
                 "RivePanelWithGpuCanvasContent",
@@ -624,9 +639,12 @@ namespace Rive.Tests
 
             var widget = panel.GetComponentInChildren<RiveWidget>();
             widget.Fit = Fit.Fill;
+            uint oreErrors = GpuCanvasDiagnostics.OreErrorCount;
             widget.Load(riveAsset);
             yield return RivePanelTestUtils.WaitForLoaded(widget);
             yield return WaitForPanelRenderSettled(panel, frames: 5);
+            Assert.AreEqual(oreErrors, GpuCanvasDiagnostics.OreErrorCount,
+                "The script's GPU work should replay without Ore refusing any of it. The player log names what it refused.");
 
             RenderTexture texture = panel.RenderTexture;
             Color32[] pixels = ReadBySampling(texture);
@@ -635,6 +653,58 @@ namespace Rive.Tests
             // The script draws an orange square into the canvas over a dark blue clear.
             Assert.IsTrue(square.r > 180 && square.b < 120, $"The canvas's square should show in the middle. Got {square}.");
             Assert.IsTrue(background.b > background.r && background.a > 200, $"The canvas's clear color should show at the edge. Got {background}.");
+
+            DestroyObj(panel.gameObject);
+        }
+
+        // A script that makes a new texture, view and bind group every frame,
+        // plus a depth texture and view, like content that rebuilds its GPU
+        // resources. Old ones wait on Luau's GC, so hundreds can be alive at
+        // once. Backends with fixed view slots run out, and the draw drops to
+        // the blue clear or Ore reports the refused view.
+        [UnityTest]
+        public IEnumerator Panel_KeepsRenderingGpuContentThatMakesViewsEveryFrame()
+        {
+            RivePanel panel = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<GameObject>(
+                TestPrefabReferences.RivePanelWithSingleWidget,
+                prefab =>
+                {
+                    var panelObj = UnityEngine.Object.Instantiate(prefab);
+                    panel = panelObj.GetComponent<RivePanel>();
+                    panel.SetDimensions(new Vector2(64, 64));
+                },
+                () => Assert.Fail($"Failed to load panel prefab at {TestPrefabReferences.RivePanelWithSingleWidget}")
+            );
+
+            Rive.Asset riveAsset = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                TestAssetReferences.riv_oreViewChurn,
+                asset => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_oreViewChurn}")
+            );
+
+            var widget = panel.GetComponentInChildren<RiveWidget>();
+            widget.Fit = Fit.Fill;
+            uint oreErrors = GpuCanvasDiagnostics.OreErrorCount;
+            widget.Load(riveAsset);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+
+            // Comfortably past the 1024 view slots D3D12 starts with.
+            const int frames = 1500;
+            for (int i = 0; i < frames; i++)
+            {
+                yield return null;
+            }
+            yield return WaitForPanelRenderSettled(panel, frames: 2);
+
+            RenderTexture texture = panel.RenderTexture;
+            Color32[] pixels = ReadBySampling(texture);
+            Color32 middle = pixels[(texture.height / 2) * texture.width + texture.width / 2];
+            Assert.IsTrue(middle.r > 180 && middle.b < 120,
+                $"After {frames} frames the script's orange texture should still draw over the blue clear. Got {middle}.");
+            Assert.AreEqual(oreErrors, GpuCanvasDiagnostics.OreErrorCount,
+                "The script's GPU work should replay without Ore refusing any of it. The player log names what it refused.");
 
             DestroyObj(panel.gameObject);
         }
@@ -1286,7 +1356,7 @@ namespace Rive.Tests
                 widget.Load(firstFile);
 
                 yield return RivePanelTestUtils.WaitForLoaded(widget);
-                yield return WaitForPanelRenderSettled(panel, frames: 1);
+                yield return WaitForChangesToLand(panel);
 
                 Assert.IsNotNull(panel.RenderTexture, "RenderTexture should exist after loading file A");
                 bool hasContentBeforeSwitch = CheckRenderTextureHasContent(panel.RenderTexture);
@@ -1322,7 +1392,7 @@ namespace Rive.Tests
                 widget.Load(secondFile);
 
                 yield return RivePanelTestUtils.WaitForLoaded(widget);
-                yield return WaitForPanelRenderSettled(panel, frames: 2);
+                yield return WaitForChangesToLand(panel);
 
                 Assert.IsNotNull(panel.RenderTexture, "RenderTexture should still exist after camera switch and file swap");
                 bool hasContentAfterSwitch = CheckRenderTextureHasContent(panel.RenderTexture);
@@ -1399,7 +1469,8 @@ namespace Rive.Tests
 
             widget.Load(riveAsset);
 
-            yield return new WaitForEndOfFrame();
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+            yield return WaitForChangesToLand(panel);
 
             // Check that the texture has non-transparent content. When nothing is loaded in the widget, the texture is transparent.
             bool hasInitialContent = CheckRenderTextureHasContent(panel.RenderTexture);
@@ -1409,8 +1480,7 @@ namespace Rive.Tests
 
             // Remove the widget from panel
             widget.transform.SetParent(null);
-            yield return null;
-            yield return new WaitForEndOfFrame();
+            yield return WaitForChangesToLand(panel);
 
             Assert.IsFalse(panel.ContainsWidget(widget), "Widget should be unregistered after removal");
 
@@ -1420,8 +1490,7 @@ namespace Rive.Tests
 
             // Add the widget back to the panel
             widget.transform.SetParent(panel.transform);
-            yield return null;
-            yield return new WaitForEndOfFrame();
+            yield return WaitForChangesToLand(panel);
 
             Assert.IsTrue(panel.ContainsWidget(widget), "Widget should be automatically re-registered when added back to panel");
 
@@ -1465,14 +1534,15 @@ namespace Rive.Tests
 
             widget.Load(riveAsset);
 
-            yield return WaitForPanelRenderSettled(panel, frames: 1);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+            yield return WaitForChangesToLand(panel);
 
             bool hasInitialContent = CheckRenderTextureHasContent(panel.RenderTexture);
             Assert.IsTrue(hasInitialContent, "Initial render texture should have visible content");
 
             // Remove the widget from panel.
             widget.transform.SetParent(null);
-            yield return WaitForPanelRenderSettled(panel, frames: 1);
+            yield return WaitForChangesToLand(panel);
 
             Assert.IsFalse(panel.ContainsWidget(widget), "Widget should be unregistered after removal");
 
@@ -1481,7 +1551,7 @@ namespace Rive.Tests
 
             // Add the widget back to the panel.
             widget.transform.SetParent(panel.transform);
-            yield return WaitForPanelRenderSettled(panel, frames: 1);
+            yield return WaitForChangesToLand(panel);
 
             Assert.IsTrue(panel.ContainsWidget(widget), "Widget should be automatically re-registered when added back to panel");
 
@@ -4263,6 +4333,62 @@ namespace Rive.Tests
             }
         }
 #endif // RIVE_USING_EXPERIMENTAL
+
+#if RIVE_USING_EXPERIMENTAL
+        /// <summary>
+        /// A sheet of hairlines, caps, joins, thin fills and curves made to show how strokes
+        /// antialias, captured with inkbleed off and then on. Each has its own reference,
+        /// and on is only checked where inkbleed is supported.
+        /// </summary>
+        // Inkbleed's whole effect on the fixture measures about 0.0054 with ImageAssert's
+        // metric, under the usual 0.0154, while backends differ by about 0.0008 with it off.
+        private static readonly ImageComparisonSettings s_inkbleedFixtureComparison =
+            new ImageComparisonSettings { AverageCorrectnessThreshold = 0.0025f };
+
+        [UnityTest]
+        public IEnumerator Inkbleed_Fixture_MatchesGoldens([Values] ThreadingMode mode)
+        {
+            Rive.Asset fixture = null;
+            yield return m_testAssetLoadingManager.LoadAssetCoroutine<Rive.Asset>(
+                TestAssetReferences.riv_inkbleedFixture,
+                a => fixture = a,
+                () => Assert.Fail("Failed to load the inkbleed fixture"));
+
+            RivePanel panel = RivePanelTestUtils.CreatePanel("InkbleedFixturePanel");
+            panel.ThreadingMode = mode;
+            // The size it was authored at, so stroke widths and pixel phases stay as drawn.
+            panel.SetDimensions(new Vector2(512, 512));
+            RiveWidget widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            widget.transform.SetParent(panel.WidgetContainer, false);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            widget.Speed = 0f;
+            widget.Load(fixture);
+            yield return RivePanelTestUtils.WaitForLoaded(widget);
+            yield return WaitForPanelRenderSettled(panel, frames: 2);
+            if (mode == ThreadingMode.BackgroundThread)
+            {
+                yield return WaitForFirstFrame(panel, new[] { widget });
+                yield return WaitForChangesToLand(panel);
+                yield return WaitForPanelRenderSettled(panel, frames: 1);
+            }
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "Inkbleed_Fixture_Off", panel.RenderTexture, s_inkbleedFixtureComparison);
+
+            if (!TextureHelper.SupportsInkbleed())
+            {
+                Assert.Ignore($"{SystemInfo.graphicsDeviceType} doesn't support inkbleed, so only off was checked.");
+            }
+            panel.AntialiasingMode = AntialiasingMode.Inkbleed;
+            yield return WaitForPanelRenderSettled(panel, frames: 2);
+            if (mode == ThreadingMode.BackgroundThread)
+            {
+                yield return WaitForChangesToLand(panel);
+                yield return WaitForPanelRenderSettled(panel, frames: 1);
+            }
+            yield return m_goldenHelper.AssertWithRenderTexture(
+                "Inkbleed_Fixture_On", panel.RenderTexture, s_inkbleedFixtureComparison);
+        }
+#endif
 
         private void DestroyObj(UnityEngine.Object obj)
         {

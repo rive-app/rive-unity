@@ -25,6 +25,9 @@ namespace Rive
             set
             {
                 ThrowIfOwnerDisposed();
+#if UNITY_EDITOR
+                TrackSet($"\"{value}\"");
+#endif
                 WriteNative(0f, 0, value ?? string.Empty);
             }
         }

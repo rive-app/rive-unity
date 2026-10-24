@@ -421,6 +421,25 @@ namespace Rive.Components
             return texture;
         }
 
+        /// <summary>
+        /// Releases a render texture made by this strategy.
+        /// </summary>
+        /// <remarks>
+        /// Unregister any renderer still drawing into the texture first, or
+        /// replace its texture with <see cref="IRenderPipelineHandler.SetRendererTexture"/>.
+        /// Do both from Update or LateUpdate, not from a render callback, so
+        /// no camera replays the renderer into the released texture.
+        /// </remarks>
+        /// <param name="renderTexture">The texture to release.</param>
+#if RIVE_USING_EXPERIMENTAL
+        // Only a RivePanel has the setting; other panels draw with the default.
+        internal static bool UsesInkbleed(IRivePanel panel)
+        {
+            return panel is RivePanel rivePanel &&
+                rivePanel.EffectiveAntialiasingMode == AntialiasingMode.Inkbleed;
+        }
+#endif
+
         protected void ReleaseRenderTexture(RenderTexture renderTexture)
         {
             RenderPipelineHandler.ReleaseRenderTexture(renderTexture);

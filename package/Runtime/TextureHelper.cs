@@ -91,6 +91,24 @@ namespace Rive
             }
         }
 
+        // Where core supports inkbleed and Unity's panels can use it. Metal's shader library
+        // doesn't have inkbleed's stroke passes yet and the first frame fails. OpenGL makes
+        // its own depth and stencil buffer for panel textures.
+        internal static bool SupportsInkbleed()
+        {
+            switch (SystemInfo.graphicsDeviceType)
+            {
+                case GraphicsDeviceType.Direct3D11:
+                case GraphicsDeviceType.Direct3D12:
+                case GraphicsDeviceType.Vulkan:
+                case GraphicsDeviceType.OpenGLCore:
+                case GraphicsDeviceType.OpenGLES3:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         internal static bool SupportsRenderTextureImageSource()
         {
             return SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal ||
