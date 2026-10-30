@@ -9,7 +9,7 @@ namespace Rive
     /// where immediate, non-blocking access is required.
     /// </summary>
     /// <remarks>
-    /// Returned immediately by <see cref="ViewModelHandle.Instantiate()"/>, <see cref="StateMachineHandle.GetViewModelInstance"/>, <see cref="ListPropertyHandle.GetInstanceAt(int)"/> and <see cref="GetViewModelInstanceProperty(string)"/>. Rive looks the instance up afterwards, and you can use it straight away: what you queue on it runs after the lookup.
+    /// Returned immediately by <see cref="ViewModelHandle.Instantiate()"/>, <see cref="StateMachineHandle.GetViewModelInstance"/>, <see cref="ListPropertyHandle.GetInstanceAt(int)"/> and <see cref="GetViewModelInstanceProperty(string)"/>. Rive looks the instance up afterwards, and you can use it straight away. What you queue on it runs after the lookup.
     /// </remarks>
     public sealed class ViewModelInstanceHandle : IDisposable
     {
@@ -69,7 +69,7 @@ namespace Rive
         internal RiveException Error => m_resolution.Error;
 
         /// <summary>
-        /// Waits for Rive to look the instance up. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the instance.
+        /// Waits for Rive to look the instance up. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the instance.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found what it refers to. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if it's disposed first. Each call gives its own operation.</returns>
         public Future<ViewModelInstanceHandle> ResolveAsync() => m_resolution.Wait(this);
@@ -189,7 +189,7 @@ namespace Rive
         /// Gets a nested view model instance.
         /// </summary>
         /// <param name="path">The property's name, or a path through nested view models.</param>
-        /// <returns>The handle, straight away, before Rive has looked it up. It refers to the instance at the path when Rive gets to it, and keeps referring to that one if the property is replaced later. If there's none, it refers to nothing: work queued on it is skipped, and that's reported once.</returns>
+        /// <returns>The handle, straight away, before Rive has looked it up. It refers to the instance at the path when Rive gets to it, and keeps referring to that one if the property is replaced later. If there's none, it refers to nothing. Work queued on it is skipped, and that's reported once.</returns>
         public ViewModelInstanceHandle GetViewModelInstanceProperty(string path)
         {
             if (!CheckUsable(nameof(GetViewModelInstanceProperty)) || !CheckPath(path))

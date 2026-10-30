@@ -340,7 +340,6 @@ namespace Rive.Tests
             var canvasRenderer = m_panel.gameObject.AddComponent<RiveCanvasRenderer>();
             canvasRenderer.MatchCanvasResolution = true;
 
-            // Ensure Simple strategy is active
             m_strategy.UnregisterPanel(m_panel);
             m_panel.RenderTargetStrategy = m_strategy;
 

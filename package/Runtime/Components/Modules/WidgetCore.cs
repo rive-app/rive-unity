@@ -10,8 +10,8 @@ using Rive.Host;
 namespace Rive.Components
 {
     /// <summary>
-    /// A loaded widget's state machine: advancing it, pointer input and
-    /// reported event collection. Its advances go out as tick entries, and
+    /// A loaded widget's state machine. Advances it, sends pointer input and
+    /// collects reported events. Its advances go out as tick entries, and
     /// the events they report queue here until the main thread takes them.
     ///
     /// A load makes a new one, so work still out for the old state machine
@@ -67,6 +67,7 @@ namespace Rive.Components
         /// Main thread, for the synchronous paths. Waits for the advance.
         internal void AdvanceAndWait(float deltaTime, float speed, bool collectEvents)
         {
+            ThreadCheck.Main();
             RequestTicket ticket = SendAdvance(deltaTime, speed, collectEvents, keep: true);
             CommandTransport.Join(ref ticket);
         }
@@ -192,6 +193,7 @@ namespace Rive.Components
         /// Returns the HitResult as a number.
         internal uint PointerAndWait(in RiveWidget.PointerEventWork work)
         {
+            ThreadCheck.Main();
             PointerWait wait = m_pointerWait ?? new PointerWait(this);
             // Out while in use, so a call made while this one waits gets its own.
             m_pointerWait = null;
@@ -241,6 +243,7 @@ namespace Rive.Components
         /// Main thread.
         internal bool TryTakeEvent(out ReportedEventData data)
         {
+            ThreadCheck.Main();
             return m_events.TryDequeue(out data);
         }
 

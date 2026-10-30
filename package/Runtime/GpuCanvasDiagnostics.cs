@@ -38,8 +38,8 @@ namespace Rive
         public uint LiveFiles;
 
         /// <summary>
-        /// Live objects across every table. Usually what you want to
-        /// assert on, it hits zero when nothing is loaded.
+        /// Live objects across every table. It hits zero when nothing is
+        /// loaded, so it's usually the one to assert on.
         /// </summary>
         public uint TotalObjects =>
             Images + Buffers + Paths + Paints + Shaders

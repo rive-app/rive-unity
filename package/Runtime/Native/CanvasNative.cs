@@ -167,6 +167,7 @@ namespace Rive
             NativeRenderQueueHandle renderQueue, uint renderId, IntPtr texture, uint width, uint height,
             uint generation)
         {
+            ThreadCheck.Main();
             CommandTransport.SendNoReply(
                 () => renderQueueUpdateRenderTexture(renderQueue.Value, texture, width, height));
             HandOver(renderId, texture, width, height, generation, HandOverKind.Texture);
@@ -176,6 +177,7 @@ namespace Rive
         /// nothing in its place, so replays skip it.
         internal static void TextureGone(uint renderId, uint generation)
         {
+            ThreadCheck.Main();
             HandOver(renderId, IntPtr.Zero, 0, 0, generation, HandOverKind.Gone);
         }
 
@@ -183,6 +185,7 @@ namespace Rive
         /// drop frames recorded for the old one.
         internal static void HandOverGeneration(uint renderId, uint generation)
         {
+            ThreadCheck.Main();
             HandOver(renderId, IntPtr.Zero, 0, 0, generation, HandOverKind.Generation);
         }
 

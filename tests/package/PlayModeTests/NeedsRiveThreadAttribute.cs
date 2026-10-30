@@ -7,7 +7,7 @@ using Rive.Host;
 namespace Rive.Tests
 {
     /// <summary>
-    /// For tests that need Rive's own thread: they hold it, race it, or check
+    /// For tests that need Rive's own thread, because they hold it, race it, or check
     /// that work is still pending. WebGL without Native C/C++ Multithreading
     /// runs Rive's work inline, so these are skipped there.
     /// </summary>

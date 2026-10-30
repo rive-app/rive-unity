@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 namespace Rive.EditorTools
 {
     /// <summary>
-    /// The look the Rive editor windows share: cards, pills, link labels and icon buttons.
+    /// The look the Rive editor windows share, like cards, pills, link labels and icon buttons.
     /// </summary>
     internal static class RiveEditorStyles
     {

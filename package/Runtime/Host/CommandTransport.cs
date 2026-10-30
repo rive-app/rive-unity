@@ -811,6 +811,7 @@ namespace Rive.Host
         /// Main thread only, once a frame. Also runs parked finalizer work.
         internal static void DrainMainThread()
         {
+            ThreadCheck.Main();
             DrainPosted();
             // Anything a continuation posts waits for the next drain, so a
             // chain of them can't hold the frame.

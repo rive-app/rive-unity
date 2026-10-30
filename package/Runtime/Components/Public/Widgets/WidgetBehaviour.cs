@@ -323,6 +323,7 @@ namespace Rive.Components
         /// </summary>
         internal virtual void PrepareAdvance(WidgetAdvance slot)
         {
+            ThreadCheck.Main();
         }
 
         /// <summary>
@@ -338,6 +339,7 @@ namespace Rive.Components
         /// </summary>
         internal virtual void ApplyAdvance(WidgetAdvance slot)
         {
+            ThreadCheck.Main();
             Advance(slot.Delta);
         }
 

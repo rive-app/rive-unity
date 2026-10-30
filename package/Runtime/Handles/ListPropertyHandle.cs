@@ -13,7 +13,7 @@ namespace Rive
     public sealed class ListPropertyHandle : ViewModelPropertyHandle, IPropertyValueOf<int>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<ListPropertyHandle> ResolveAsync() => Resolve(this);
@@ -104,7 +104,7 @@ namespace Rive
         /// <summary>
         /// Gets the instance at an index.
         /// </summary>
-        /// <returns>The handle, straight away, before Rive has looked it up. It refers to the instance at the index when Rive gets to it, after the changes queued before it, and keeps referring to that instance when the list changes later. If nothing is there, the handle refers to nothing: work queued on it is skipped, and <see cref="RiveErrorCode.IndexOutOfRange"/> is reported once.</returns>
+        /// <returns>The handle, straight away, before Rive has looked it up. It refers to the instance at the index when Rive gets to it, after the changes queued before it, and keeps referring to that instance when the list changes later. If nothing is there, the handle refers to nothing. Work queued on it is skipped, and <see cref="RiveErrorCode.IndexOutOfRange"/> is reported once.</returns>
         public ViewModelInstanceHandle GetInstanceAt(int index)
         {
             if (!CheckUsable(nameof(GetInstanceAt)))

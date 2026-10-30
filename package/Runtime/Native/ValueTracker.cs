@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using Rive.Host;
 
 namespace Rive
 {
@@ -97,6 +98,7 @@ namespace Rive
         /// Main thread. Remembered so a rule change can stop it watching.
         internal static void Watch(ViewModelPropertyHandle handle)
         {
+            ThreadCheck.Main();
             s_watching.Add(new System.WeakReference<ViewModelPropertyHandle>(handle));
         }
 
@@ -163,6 +165,7 @@ namespace Rive
         /// Rive setting a value C# just set looks the same, so it's skipped.
         internal static void RecordChange(string viewModel, string property, string path, string value, int sinceFrame)
         {
+            ThreadCheck.Main();
             if (!Matches(viewModel, property))
             {
                 return;

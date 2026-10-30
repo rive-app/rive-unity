@@ -290,7 +290,7 @@ namespace Rive
         /// Reads the value without blocking the caller.
         /// </summary>
         /// <remarks>
-        /// The result comes back in order with <see cref="OnValueChanged"/>, so after <c>OnValueChanged += Show; Show(await GetValueAsync());</c> an older value never follows a newer one. A value can repeat: a read that lands between an advance and its capture returns the new value, then OnValueChanged reports the same value. Reading doesn't count as seeing the change, so OnValueChanged still fires. To read every frame, subscribe to OnValueChanged instead.
+        /// The result comes back in order with <see cref="OnValueChanged"/>, so after <c>OnValueChanged += Show; Show(await GetValueAsync());</c> an older value never follows a newer one. A value can repeat. A read that lands between an advance and its capture returns the new value, then OnValueChanged reports the same value. Reading doesn't count as seeing the change, so OnValueChanged still fires. To read every frame, subscribe to OnValueChanged instead.
         /// </remarks>
         /// <returns>A Future that finishes on the main thread with the value, or fails with ObjectDisposedException if the owning instance is disposed first.</returns>
         /// <exception cref="ObjectDisposedException">The owning ViewModelInstance has been disposed.</exception>

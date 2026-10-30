@@ -130,7 +130,7 @@ namespace Rive.Tests
             Assert.AreEqual(0, extra, "The frame loop recorded a panel the pipeline had already recorded.");
         }
 
-        // Two panels in a scene of their own: a data bound file and one without.
+        // Two panels in a scene of their own, one with a data bound file and one without.
         private IEnumerator Round(int round, ThreadingMode mode, System.Action<uint[]> whileLoaded)
         {
             Scene previous = SceneManager.GetActiveScene();

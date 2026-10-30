@@ -28,8 +28,8 @@ namespace Rive.Components
     }
 
     /// <summary>
-    /// The view model values channel: captures after the tick pass, and
-    /// delivering captures and reads in order.
+    /// The view model values channel. Captures after the tick pass, and
+    /// delivers captures and reads in order.
     /// </summary>
     internal sealed class PropertyCaptureFrameModule : FrameModule
     {
@@ -54,7 +54,7 @@ namespace Rive.Components
 
 #if RIVE_USING_EXPERIMENTAL
     /// <summary>
-    /// Render texture images: bound before panels tick so they show on the
+    /// Render texture images. Bound before panels tick so they show on the
     /// first frame, and flushed again late so a build goes out with this
     /// frame's render.
     /// </summary>

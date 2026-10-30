@@ -1985,7 +1985,7 @@ namespace Rive.EditorTools
             "String", "Number", "Boolean", "Color", "Enum", "Trigger",
         };
 
-        /// Whether a card offers Track This Value: it needs its view model, and a type the tracker follows.
+        /// Whether a card offers Track This Value. It needs its view model, and a type the tracker follows.
         /// typeLabel is the card's, like "Number" or "Enum (Country)".
         internal static bool CanTrack(string viewModel, string typeLabel)
         {

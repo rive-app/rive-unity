@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Rive.Host;
 using Rive.Producer;
 using Rive.Utils;
 using UnityEngine;
@@ -306,6 +307,7 @@ namespace Rive.Components.Utilities
         // Main thread. Nothing here talks to the runtime.
         private LoadResult Attach(File file, Prepared prepared, Alignment alignment, Fit fit, float scaleFactor)
         {
+            ThreadCheck.Main();
             m_file = file;
             m_contents = prepared.Contents;
             if (prepared.Artboard == null)

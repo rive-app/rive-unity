@@ -5,7 +5,7 @@ using UnityEditor;
 namespace Rive.Tests
 {
     /// <summary>
-    /// The value tracker window's rules: kept in SessionState and applied to the runtime.
+    /// The value tracker window's rules are kept in SessionState and applied to the runtime.
     /// </summary>
     public class ValueTrackerSessionTests
     {

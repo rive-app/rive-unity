@@ -13,8 +13,8 @@ namespace Rive.Tests
     /// Checks that destroying a panel releases the GPU resources its file was
     /// using.
     ///
-    /// These go through the normal panel/widget flow: load an asset into a
-    /// widget, let it render, destroy the GameObject.
+    /// These go through the normal panel/widget flow. They load an asset into a
+    /// widget, let it render, and destroy the GameObject.
     ///
     /// They assert on GpuCanvasDiagnostics rather than Unity's memory counters,
     /// which can't see Rive's GPU allocations at all.
@@ -331,7 +331,7 @@ namespace Rive.Tests
         }
 
         // Releasing resources can replay the session outside a panel's frame.
-        // The canvas has to survive that: it is recorded once and never again,
+        // The canvas has to survive that, since it is recorded once and never again,
         // so anything that drops it takes the content with it.
         [UnityTest]
         public IEnumerator GpuCanvasContent_SurvivesAFlush()

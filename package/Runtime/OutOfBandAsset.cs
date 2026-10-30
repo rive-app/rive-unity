@@ -114,7 +114,7 @@ namespace Rive
         /// Load the out-of-band asset. Call this before using the asset.
         /// </summary>
         /// <remarks>
-        /// Waits for the decode. Handle code, in a BackgroundThread panel, uses <see cref="LoadAsync"/>.
+        /// Waits for the decode. In a BackgroundThread panel, use <see cref="LoadAsync"/> instead.
         /// </remarks>
         public void Load()
         {

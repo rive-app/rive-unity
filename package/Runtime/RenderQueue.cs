@@ -618,7 +618,7 @@ namespace Rive
         /// <summary>
         /// Creates a render queue that draws into <paramref name="texture"/>.
         /// </summary>
-        /// <param name="texture">The texture to draw into. Drawing without one is deprecated: pass it here, or call <see cref="UpdateTexture"/> before drawing.</param>
+        /// <param name="texture">The texture to draw into. Drawing without one is deprecated, so pass it here or call <see cref="UpdateTexture"/> before drawing.</param>
         /// <param name="clear">Whether each frame clears the texture first.</param>
         public RenderQueue(RenderTexture texture = null, bool clear = true)
         {
@@ -650,6 +650,7 @@ namespace Rive
         /// Main thread, as a renderer draws. Development builds only.
         internal void WarnIfNoTarget()
         {
+            ThreadCheck.Main();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             // Dispose drops the texture, and drawing on a disposed queue does nothing.
             if (Texture != null || IsDisposed || !m_warnWithoutTarget || s_warnedWithoutTarget)
@@ -818,6 +819,7 @@ namespace Rive
         // comes back if the texture is created again.
         internal void CheckTextureStillThere()
         {
+            ThreadCheck.Main();
             if (ReferenceEquals(Texture, null) || m_delayed)
             {
                 return;

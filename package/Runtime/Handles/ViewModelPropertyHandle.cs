@@ -10,7 +10,7 @@ namespace Rive
     /// where immediate, non-blocking access is required.
     /// </summary>
     /// <remarks>
-    /// Returned immediately by the Get…Property methods on <see cref="ViewModelInstanceHandle"/>. Rive checks the path later. That happens the first time it's used, or when you call its ResolveAsync.
+    /// Returned immediately by the Get…Property methods on <see cref="ViewModelInstanceHandle"/>. Rive checks the path later. That happens the first time it's used, or when you call its ResolveAsync. Use it from the main thread.
     /// </remarks>
     public abstract class ViewModelPropertyHandle : IWatchedValue
     {
@@ -75,6 +75,7 @@ namespace Rive
         /// Main thread. Watches for changes Rive makes while a rule matches.
         internal void UpdateTrackerWatch()
         {
+            ThreadCheck.Main();
             bool watch = TracksRiveChanges && ValueTracker.Active && !m_instance.IsDisposed
                 && TrackedTarget(out string owner, out string property, out _)
                 && ValueTracker.Matches(owner, property);
@@ -98,6 +99,7 @@ namespace Rive
         /// Main thread, as a change lands, before callbacks.
         private protected void TrackChange(string value)
         {
+            ThreadCheck.Main();
             // Back one frame, for a set whose change landed in the frame after.
             int since = m_trackerSeenFrame - 1;
             m_trackerSeenFrame = UnityEngine.Time.frameCount;
@@ -166,6 +168,7 @@ namespace Rive
         /// Main thread. Checks the path now if nothing has yet.
         internal Future<THandle> Resolve<THandle>(THandle self) where THandle : ViewModelPropertyHandle
         {
+            ThreadCheck.Main();
             if (m_resolution.Status == HandleStatus.Pending)
             {
                 EnsureResolveSent();
@@ -176,6 +179,7 @@ namespace Rive
         /// Main thread, when the instance is disposed or unloaded.
         internal void MarkDisposed()
         {
+            ThreadCheck.Main();
             m_resolution.MarkDisposed($"The view model instance for '{m_path}'");
         }
 
@@ -186,6 +190,7 @@ namespace Rive
         /// that uses the property, so a missing one is reported once.
         internal void EnsureResolveSent()
         {
+            ThreadCheck.Main();
             if (m_resolveSent)
             {
                 return;
@@ -287,6 +292,7 @@ namespace Rive
         /// Main thread, as a watch starts. Changes from before don't count.
         internal void BeginWatching(ulong token)
         {
+            ThreadCheck.Main();
             m_seenChange = token;
         }
 
@@ -336,6 +342,7 @@ namespace Rive
         /// Main thread. Adds a callback until the subscription is disposed.
         internal PropertySubscription AddCallback(Delegate callback)
         {
+            ThreadCheck.Main();
             if (callback == null)
             {
                 throw new ArgumentNullException(nameof(callback));
@@ -460,7 +467,7 @@ namespace Rive
     public sealed class NumberPropertyHandle : ViewModelPropertyHandle<float>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<NumberPropertyHandle> ResolveAsync() => Resolve(this);
@@ -488,7 +495,7 @@ namespace Rive
     public sealed class StringPropertyHandle : ViewModelPropertyHandle<string>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<StringPropertyHandle> ResolveAsync() => Resolve(this);
@@ -516,7 +523,7 @@ namespace Rive
     public sealed class BooleanPropertyHandle : ViewModelPropertyHandle<bool>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<BooleanPropertyHandle> ResolveAsync() => Resolve(this);
@@ -544,7 +551,7 @@ namespace Rive
     public sealed class ColorPropertyHandle : ViewModelPropertyHandle<UnityEngine.Color>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<ColorPropertyHandle> ResolveAsync() => Resolve(this);
@@ -573,7 +580,7 @@ namespace Rive
     public sealed class EnumPropertyHandle : ViewModelPropertyHandle<string>
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<EnumPropertyHandle> ResolveAsync() => Resolve(this);
@@ -617,7 +624,7 @@ namespace Rive
     public sealed class TriggerPropertyHandle : ViewModelPropertyHandle
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<TriggerPropertyHandle> ResolveAsync() => Resolve(this);

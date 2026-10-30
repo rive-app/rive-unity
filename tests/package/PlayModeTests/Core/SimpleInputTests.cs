@@ -72,9 +72,8 @@ namespace Rive.Tests
         }
 
 
-        /// An input points into the state machine that made it. Disposing
-        /// the state machine used to leave the input pointing at freed
-        /// memory, and using it then was a crash or worse.
+        /// An input points into the state machine that made it, so using it
+        /// after the state machine is disposed should do nothing.
         [Test]
         public void Input_AfterItsStateMachineIsDisposed_IsInert()
         {

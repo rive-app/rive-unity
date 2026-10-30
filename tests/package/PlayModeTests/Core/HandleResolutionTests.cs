@@ -13,10 +13,9 @@ using Rive.Host;
 namespace Rive.Tests
 {
     /// <summary>
-    /// The resolution contract is that a handle returned before Rive has looked it
-    /// up is Pending, becomes Valid or Invalid once the lookup has run, keeps
-    /// what it found, and a failed lookup is reported once while work queued
-    /// on it is skipped.
+    /// A handle returned before Rive has looked it up is Pending, becomes
+    /// Valid or Invalid once the lookup has run, and keeps what it found. A
+    /// failed lookup is reported once and work queued on it is skipped.
     /// </summary>
     public class HandleResolutionTests
     {

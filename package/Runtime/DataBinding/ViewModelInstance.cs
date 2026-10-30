@@ -43,8 +43,8 @@ namespace Rive
         private static readonly Dictionary<NativeViewModelInstanceHandle, WeakReference<ViewModelInstance>> s_viewModelInstanceCache =
             new Dictionary<NativeViewModelInstanceHandle, WeakReference<ViewModelInstance>>();
 
-        // Guards the wrapper cache and the links between instances: parents,
-        // children, nested instances and subscribed properties. Never held
+        // Guards the wrapper cache and the links between instances, like
+        // parents, children, nested instances and subscribed properties. Never held
         // across a native call or a user callback.
         private static readonly object s_lock = new object();
 

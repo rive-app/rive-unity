@@ -11,8 +11,8 @@ using UnityEngine.TestTools;
 namespace Rive.Tests
 {
     /// <summary>
-    /// The editor's value tracker: values C# sets on tracked view model properties are
-    /// recorded by view model and property name, through handles and the
+    /// The editor's value tracker records values C# sets on tracked view model
+    /// properties by view model and property name, through handles and the
     /// older API, with the line that made them.
     /// </summary>
     public class ValueTrackerTests

@@ -7,7 +7,7 @@ using Rive.Host;
 namespace Rive.Tests
 {
     /// <summary>
-    /// Holds the command server the way a test used to hold the producer. The
+    /// Holds the command server so a test can queue work behind it. The
     /// server parks before Hold returns, so started is already set. Setting
     /// gate lets it go at the next drain, and so does five seconds passing.
     /// </summary>

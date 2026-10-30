@@ -16,7 +16,7 @@ namespace Rive.Components.BuiltIn
         private Dictionary<IRenderer, CommandBuffer> m_activeRenderCommandBuffers = new Dictionary<IRenderer, CommandBuffer>();
         // The camera runs its command buffers in the order they were added, and
         // GPU canvas records in this order, so the two agree. A Dictionary
-        // can't stand in for it: removing a renderer frees a slot that the next
+        // can't stand in for it. Removing a renderer frees a slot that the next
         // one reuses, and the enumeration order stops matching the camera's.
         // Out of order recording replays a draw before the frame that created
         // what it draws.

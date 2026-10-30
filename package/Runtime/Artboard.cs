@@ -397,7 +397,7 @@ namespace Rive
         /// <summary>
         /// Set the number input with the provided name at the given path with value.
         /// </summary>
-        /// <param name="inputName"The state machine input name</param>
+        /// <param name="inputName">The state machine input name.</param>
         /// <param name="value">The number value to set the input to.</param>
         /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>
         /// <remarks>If the input isn't found, the warning comes on a later frame.</remarks>
@@ -427,7 +427,7 @@ namespace Rive
 
 
         /// <summary>
-        /// Fire the trigger input with the provided name at the given path
+        /// Fire the trigger input with the provided name at the given path.
         /// </summary>
         /// <param name="inputName">The state machine input name</param>
         /// <param name="path">The location of the input at an artboard level, detailing nested locations if applicable.</param>

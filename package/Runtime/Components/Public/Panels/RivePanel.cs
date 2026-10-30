@@ -409,7 +409,7 @@ namespace Rive.Components
         }
 
         /// <summary>
-        /// The antialiasing this panel actually draws with: <see cref="AntialiasingMode"/>, or
+        /// The antialiasing this panel actually draws with. That's <see cref="AntialiasingMode"/>, or
         /// <see cref="AntialiasingMode.Default"/> where the graphics API doesn't support it.
         /// </summary>
         public AntialiasingMode EffectiveAntialiasingMode =>

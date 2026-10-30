@@ -14,7 +14,7 @@ namespace Rive.Tests
 {
     /// <summary>
     /// ViewModelHandle, ViewModelInstanceHandle and the path-based property
-    /// handles: nothing waits, reads and callbacks come back in order, and
+    /// handles. Nothing waits, reads and callbacks come back in order, and
     /// missing paths show up as warnings and failed reads.
     /// </summary>
     public class ViewModelInstanceHandleTests
@@ -485,8 +485,8 @@ namespace Rive.Tests
             PropertySubscription onHandle = handle.Subscribe(viaHandle.Add);
 
             handle.SetValue(55f);
-            // A plain property's first listener skips earlier changes. That
-            // used to clear the shared flag, so the handle lost this one.
+            // A plain property's first listener skips earlier changes. The
+            // handle shares the change flag, so it should still see this one.
             var plain = widget.LoadedStateMachine.ViewModelInstance.GetNumberProperty("age");
             plain.OnValueChanged += onPlain;
             yield return WaitUntil(() => viaHandle.Count > 0, "The handle's callback");
@@ -531,7 +531,7 @@ namespace Rive.Tests
 
             Assert.AreEqual("From a handle", names[names.Count - 1]);
 
-            // A lookup's handle is yours: disposing it lets go of your hold, not the binding.
+            // A lookup's handle is yours, so disposing it lets go of your hold, not the binding.
             person.Dispose();
             Assert.AreEqual(HandleStatus.Disposed, person.Status);
             ViewModelInstanceHandle again = widget.StateMachineHandle.GetViewModelInstance();

@@ -7,7 +7,7 @@ using Rive.Host;
 namespace Rive
 {
     /// <summary>
-    /// A property a capture looks at: a plain property or a handle.
+    /// A property a capture looks at, either a plain property or a handle.
     /// </summary>
     internal interface IWatchedValue
     {
@@ -25,7 +25,7 @@ namespace Rive
 
     /// <summary>
     /// Everything that produces a view model value goes through one Fifo
-    /// channel: the tick capture, the capture after each pointer job or
+    /// channel. That covers the tick capture, the capture after each pointer job or
     /// handle advance, and GetValueAsync reads, for both plain properties
     /// and property handles. Rive runs them in order and they're delivered
     /// in order, so a read and a change callback can't overtake each other.
@@ -147,6 +147,7 @@ namespace Rive
             // it done later and does nothing.
             public void CompleteDirect()
             {
+                ThreadCheck.Main();
                 try
                 {
                     if (m_property.RootInstance != null && m_property.RootInstance.IsDisposed)

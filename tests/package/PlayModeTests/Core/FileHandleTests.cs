@@ -13,8 +13,8 @@ using Rive.Host;
 namespace Rive.Tests
 {
     /// <summary>
-    /// FileHandle: loading without waiting, the names cached at load, and
-    /// sharing the loaded file with File.
+    /// FileHandle loads without waiting, caches the names at load, and shares
+    /// the loaded file with File.
     /// </summary>
     public class FileHandleTests
     {

@@ -28,6 +28,7 @@ namespace Rive
         /// Main thread.
         internal static void Report(RiveException error, Action<RiveException> sink, string callSite)
         {
+            ThreadCheck.Main();
             DebugLogger.Instance.LogWarning(callSite == null ? error.Message : $"{error.Message} {callSite}");
             Notify(error, sink);
         }
@@ -35,6 +36,7 @@ namespace Rive
         /// Main thread, for a problem found at the call. Logged as an error, like other misuse.
         internal static void ReportNow(RiveException error, Action<RiveException> sink)
         {
+            ThreadCheck.Main();
             DebugLogger.Instance.LogError(error.Message);
             Notify(error, sink);
         }
@@ -67,7 +69,7 @@ namespace Rive
         private const int MaxCallSiteDepth = 32;
 #endif
 
-        /// Editor only: the first caller outside Rive, as "(at Assets/X.cs:12)"
+        /// Editor only. The first caller outside Rive, as "(at Assets/X.cs:12)"
         /// so the console links to it. Null in builds, where a stack walk per
         /// call would cost too much.
         internal static string CaptureCallSite()

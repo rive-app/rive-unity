@@ -11,10 +11,8 @@ namespace Rive
     //
     // Not a pointer. Nothing to dereference, nothing to free through Marshal.
     //
-    // Released by the same free/unref binding as the pointer it replaced,
-    // from the owner's Dispose. Freeing works exactly as it did. What changes
-    // is after: a released handle resolves to null, and releasing twice does
-    // nothing.
+    // Released by the owner's Dispose through the native free/unref binding.
+    // A released handle resolves to null, and releasing twice does nothing.
 
     /// <summary>
     /// An artboard instanced from a file. Released on Dispose.

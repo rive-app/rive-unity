@@ -667,6 +667,7 @@ namespace Rive.Components
 
         internal override void PrepareAdvance(WidgetAdvance slot)
         {
+            ThreadCheck.Main();
             slot.Core = Core;
             slot.Active = slot.Core != null && Status == WidgetStatus.Loaded;
             if (!slot.Active)
@@ -695,6 +696,7 @@ namespace Rive.Components
 
         internal override void ApplyAdvance(WidgetAdvance slot)
         {
+            ThreadCheck.Main();
             // A local resize since it went out is newer than what it saw.
             if (!slot.HasSize || slot.SizeVersion != m_artboardSizeVersion)
             {
@@ -764,7 +766,7 @@ namespace Rive.Components
         }
 
         /// <summary>
-        /// Raised on the main thread when something goes wrong: a load that fails, or, in a <see cref="ThreadingMode.BackgroundThread"/> panel, a problem found after a handle call returned, like a property path that doesn't exist or a list index that's out of range.
+        /// Raised on the main thread when a load fails, or, in a <see cref="ThreadingMode.BackgroundThread"/> panel, when a problem is found after a handle call returned, like a property path that doesn't exist or a list index that's out of range.
         /// </summary>
         /// <remarks>
         /// Load failures also set <see cref="WidgetBehaviour.Status"/> to <see cref="WidgetStatus.Error"/>, after this is raised. Each error is logged as well.
@@ -1173,7 +1175,7 @@ namespace Rive.Components
         /// <summary>
         /// Loads a Rive file and specified artboard and state machine.
         /// </summary>
-        /// <param name="file"> The Rive file to load: a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>. Either works in either kind of panel.</param>
+        /// <param name="file"> The Rive file to load, either a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>. Either works in either kind of panel.</param>
         /// <param name="artboardName"> The name of the artboard to load.</param>
         /// <param name="stateMachineName"> The name of the state machine to load.</param>
         /// <remarks>In a <see cref="ThreadingMode.BackgroundThread"/> panel this returns before the load finishes. <see cref="WidgetBehaviour.OnWidgetStatusChanged"/> reports when it has.</remarks>
@@ -1187,7 +1189,7 @@ namespace Rive.Components
         /// <summary>
         /// Loads a Rive file using the default artboard and state machine.
         /// </summary>
-        /// <param name="file"> The Rive file to load: a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>. Either works in either kind of panel.</param>
+        /// <param name="file"> The Rive file to load, either a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>. Either works in either kind of panel.</param>
         /// <remarks>In a <see cref="ThreadingMode.BackgroundThread"/> panel this returns before the load finishes. <see cref="WidgetBehaviour.OnWidgetStatusChanged"/> reports when it has.</remarks>
         public void Load(ILoadedFile file)
         {
@@ -1198,7 +1200,7 @@ namespace Rive.Components
         /// <summary>
         /// Loads a Rive file and specified artboard and state machine, returning something to await.
         /// </summary>
-        /// <param name="file"> The Rive file to load: a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>.</param>
+        /// <param name="file"> The Rive file to load, either a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>.</param>
         /// <param name="artboardName"> The name of the artboard to load.</param>
         /// <param name="stateMachineName"> The name of the state machine to load.</param>
         /// <returns>An operation that finishes on the main thread once the widget has reached <see cref="WidgetStatus.Loaded"/> or <see cref="WidgetStatus.Error"/>. Already finished in a <see cref="ThreadingMode.MainThread"/> panel.</returns>
@@ -1212,7 +1214,7 @@ namespace Rive.Components
         /// <summary>
         /// Loads a Rive file using the default artboard and state machine, returning something to await.
         /// </summary>
-        /// <param name="file"> The Rive file to load: a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>.</param>
+        /// <param name="file"> The Rive file to load, either a <see cref="Rive.File"/> or a <see cref="Rive.FileHandle"/>.</param>
         /// <returns>An operation that finishes on the main thread once the widget has reached <see cref="WidgetStatus.Loaded"/> or <see cref="WidgetStatus.Error"/>. Already finished in a <see cref="ThreadingMode.MainThread"/> panel.</returns>
         public Future LoadAsync(ILoadedFile file)
         {
@@ -1367,6 +1369,7 @@ namespace Rive.Components
         // Main thread, once the import has finished.
         private void FinishLoadFromAsset(Future<File> landed, Asset asset, int version, FutureState<bool> state)
         {
+            ThreadCheck.Main();
             if (landed.Status == FutureStatus.Canceled)
             {
                 state.Cancel();
@@ -1808,7 +1811,7 @@ return;
         {
             // In play mode, reload the asset in the panel's family. The sync
             // path would switch a Background widget to plain objects. Not while
-            // a load is out: the inspector's bindings report a change when it's
+            // a load is out, because the inspector's bindings report a change when it's
             // rebuilt on entering play mode, and a second load would race it.
             if (Application.isPlaying && Status != WidgetStatus.Loaded && Status != WidgetStatus.Loading && m_asset != null)
             {

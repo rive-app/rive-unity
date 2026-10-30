@@ -11,7 +11,7 @@ using UnityEngine.Rendering;
 namespace Rive
 {
     /// <summary>
-    /// An image property a RenderTextureImageSource drives: a plain property
+    /// An image property a RenderTextureImageSource drives, either a plain property
     /// or a property handle.
     /// </summary>
     internal interface IRenderImageTarget
@@ -257,7 +257,7 @@ namespace Rive
             m_lastEnqueuedSerial++;
         }
 
-        // A clear is a build with no texture: the render thread nulls the bound
+        // A clear is a build with no texture. The render thread nulls the bound
         // properties and drops the image.
         public void EnqueueClear(uint handle, IReadOnlyList<IRenderImageTarget> properties)
         {

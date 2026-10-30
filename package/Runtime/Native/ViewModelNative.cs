@@ -35,7 +35,7 @@ namespace Rive
         /// What a capture sends for a property nobody has started watching.
         internal const ulong NotWatching = ulong.MaxValue;
 
-        /// A seen stamp with this bit set is a watch token: the watcher's
+        /// A seen stamp with this bit set is a watch token. The watcher's
         /// start is out, and native knows its stamp.
         internal const ulong WatchToken = 1UL << 63;
 

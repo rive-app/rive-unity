@@ -3,7 +3,7 @@ using System;
 namespace Rive
 {
     /// <summary>
-    /// A loaded Rive file: a <see cref="File"/> or a <see cref="FileHandle"/>.
+    /// A loaded Rive file, either a <see cref="File"/> or a <see cref="FileHandle"/>.
     /// </summary>
     public interface ILoadedFile : IDisposable
     {

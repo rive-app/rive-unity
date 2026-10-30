@@ -14,7 +14,7 @@ namespace Rive
 #endif
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<ImagePropertyHandle> ResolveAsync() => Resolve(this);
@@ -37,7 +37,7 @@ namespace Rive
         /// <summary>
         /// Sets the image. Queued, so it applies before the next advance.
         /// </summary>
-        /// <param name="image">The image, or null to clear it. It doesn't need loading first: the write decodes it if <see cref="OutOfBandAsset.LoadAsync"/> hasn't, and keeps it alive until the write has run. Load it ahead of time to keep the decode off the first frame that uses it.</param>
+        /// <param name="image">The image, or null to clear it. It doesn't need loading first. The write decodes it if <see cref="OutOfBandAsset.LoadAsync"/> hasn't, and keeps it alive until the write has run. Load it ahead of time to keep the decode off the first frame that uses it.</param>
         public void SetValue(ImageOutOfBandAsset image)
         {
 #if RIVE_USING_EXPERIMENTAL
@@ -107,7 +107,7 @@ namespace Rive
     public sealed class FontPropertyHandle : ViewModelPropertyHandle
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<FontPropertyHandle> ResolveAsync() => Resolve(this);
@@ -130,7 +130,7 @@ namespace Rive
         /// <summary>
         /// Sets the font. Queued, so it applies before the next advance.
         /// </summary>
-        /// <param name="font">The font, or null to clear it. It doesn't need loading first: the write decodes it if <see cref="OutOfBandAsset.LoadAsync"/> hasn't, and keeps it alive until the write has run.</param>
+        /// <param name="font">The font, or null to clear it. It doesn't need loading first. The write decodes it if <see cref="OutOfBandAsset.LoadAsync"/> hasn't, and keeps it alive until the write has run.</param>
         public void SetValue(FontOutOfBandAsset font)
         {
             SetAsset(nameof(SetValue), font, isImage: false);
@@ -152,7 +152,7 @@ namespace Rive
     public sealed class ArtboardPropertyHandle : ViewModelPropertyHandle
     {
         /// <summary>
-        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
+        /// Waits for Rive to check the path, queuing the check if nothing has yet. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has found the property. Await it to find out whether the path exists.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found the property. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if its instance is disposed first. Each call gives its own operation.</returns>
         public Future<ArtboardPropertyHandle> ResolveAsync() => Resolve(this);

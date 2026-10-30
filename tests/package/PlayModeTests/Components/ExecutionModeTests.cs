@@ -383,7 +383,7 @@ namespace Rive.Tests
             Thread release = ServerGate.HoldFor(200);
             try
             {
-                // While the server is parked: three background records, a
+                // While the server is parked, do three background records, a
                 // one-off submit between them, then a synchronous record.
                 renderer.RecordForGpuCanvas();
                 renderer.RecordForGpuCanvas();

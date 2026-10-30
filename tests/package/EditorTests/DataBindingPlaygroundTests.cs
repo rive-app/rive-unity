@@ -13,7 +13,7 @@ namespace Rive.Tests
 {
     /// <summary>
     /// The data binding playground window, in Play Mode, against MainThread and
-    /// BackgroundThread panels: rows follow changes made elsewhere, refreshes
+    /// BackgroundThread panels. Rows follow changes made elsewhere, refreshes
     /// never read from Rive, edits reach Rive, and closing the window drops its
     /// subscriptions. Also a widget whose file was loaded with Load(File)
     /// rather than from its assigned asset.

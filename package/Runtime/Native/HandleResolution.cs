@@ -99,6 +99,7 @@ namespace Rive
         /// Main thread. Pending waiters fail with ResourceDisposed.
         internal void MarkDisposed(string what)
         {
+            ThreadCheck.Main();
             if (m_status == HandleStatus.Disposed)
             {
                 return;
@@ -111,6 +112,7 @@ namespace Rive
         /// Main thread. A new waiter per call, so each caller gets its own Future.
         internal Future<T> Wait<T>(T handle)
         {
+            ThreadCheck.Main();
             var state = new FutureState<T>();
             if (m_status == HandleStatus.Pending)
             {

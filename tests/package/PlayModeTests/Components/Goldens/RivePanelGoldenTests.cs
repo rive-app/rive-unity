@@ -520,7 +520,7 @@ namespace Rive.Tests
                 yield return WaitForPanelRenderSettled(panel, frames: 1);
                 if (mode == ThreadingMode.BackgroundThread)
                 {
-                    // Like MainThread's settle frame: these check fit and layout, and a
+                    // Like MainThread's settle frame. These check fit and layout, and a
                     // file that's already cached can land before the layout has.
                     yield return WaitForFirstFrame(panel, panel.GetComponentsInChildren<RiveWidget>());
                     yield return WaitForChangesToLand(panel);
@@ -4401,7 +4401,7 @@ namespace Rive.Tests
 
     /// <summary>
     /// Data binding calls through whichever API the widget's panel gives, so a golden runs the same
-    /// steps in both threading modes: plain objects in a MainThread panel, handles in a Background one.
+    /// steps in both threading modes, plain objects in a MainThread panel and handles in a Background one.
     /// </summary>
     internal static class BoundValues
     {

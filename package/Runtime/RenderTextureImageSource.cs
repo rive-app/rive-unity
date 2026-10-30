@@ -14,7 +14,7 @@ namespace Rive
     /// GPU content).
     /// </summary>
     /// <remarks>
-    /// Supported: Metal, D3D11, D3D12, Vulkan. OpenGL safe-fails.
+    /// Supported: Metal, D3D11, D3D12, Vulkan. On OpenGL it logs once and draws nothing.
     ///
     /// Requirements:
     ///   - The source must be a stable user-allocated RenderTexture asset.
@@ -34,7 +34,7 @@ namespace Rive
     /// Call <see cref="Dispose"/> when you're done. It stops updates, empties
     /// every property the image drives, and frees resources.
     ///
-    /// Source lifetime: every mode but <see cref="TextureProcessingMode.None"/>
+    /// Every mode but <see cref="TextureProcessingMode.None"/>
     /// draws a copy Rive owns, so the source can be released, destroyed, or
     /// resized at any time. With None, Rive draws the source itself, and frames
     /// already recorded can still draw it after this source is disposed. So with
@@ -50,10 +50,10 @@ namespace Rive
     public sealed class RenderTextureImageSource : IDisposable
     {
         /// <summary>
-        /// How much we process a source texture before Rive samples it. Some backends
+        /// How a source texture is processed before Rive samples it. Some backends
         /// store a Unity RenderTexture upside-down, and in Linear projects its colors are encoded
-        /// differently than Rive expects. These are opt-in flags; each still only kicks in when
-        /// it's actually needed. Every mode but None copies the source into a texture Rive owns.
+        /// differently than Rive expects. Each flag only applies when
+        /// it's needed. Every mode but None copies the source into a texture Rive owns.
         /// </summary>
         public enum TextureProcessingMode
         {

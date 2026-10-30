@@ -48,7 +48,7 @@ namespace Rive
         private void SetImage(ImageOutOfBandAsset imageAsset)
         {
 #if RIVE_USING_EXPERIMENTAL
-            // This prevents the image from being overridden by a previously set RenderTexture-backed image.
+            // Drop any RenderTexture image bound here, or its next frame replaces this one.
             if (RenderTextureImageManager.HasAnyBindings)
             {
                 RenderTextureImageManager.Instance.Unbind(this);

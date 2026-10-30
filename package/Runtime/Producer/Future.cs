@@ -573,17 +573,17 @@ namespace Rive
     ///
     /// A Future from a value read (GetValueAsync) is recycled once it's been awaited or waited on, so awaiting a read allocates nothing. Using it after that throws InvalidOperationException.
     ///
-    /// It always finishes on the main thread, at the same point in the frame. With no producer thread (edit mode, WebGL) it's already done when it's returned.
+    /// It always finishes on the main thread, at the same point in the frame. Without Rive's own thread (edit mode, WebGL) it's already done when it's returned.
     ///
     /// Awaited on the main thread, the code after the await runs on the main thread as soon as it finishes. Awaited anywhere else, it runs on that thread's SynchronizationContext, or the thread pool if there isn't one, never the main thread.
     ///
-    /// For values read every frame, don't await. Listen for changes instead, which carry the value: a property handle's Subscribe, or a plain property's OnValueChanged.
+    /// For values read every frame, don't await. Listen for changes instead, with a property handle's Subscribe or a plain property's OnValueChanged. They carry the value.
     /// </remarks>
     public readonly struct Future<T> : IEnumerator
     {
         private readonly FutureState<T> m_state;
         private readonly int m_version;
-        // The result when there's no state: a Future that finished when it was made.
+        // The result when there's no state, for a Future that finished when it was made.
         private readonly T m_value;
 
         internal Future(FutureState<T> state)
@@ -698,7 +698,7 @@ namespace Rive
         }
 
         /// <summary>
-        /// Blocks until it finishes and returns the result. Counts as the one use. Can't be called on the Rive producer thread.
+        /// Blocks until it finishes and returns the result. Counts as the one use. Can't be called on Rive's own thread.
         /// </summary>
         /// <remarks>
         /// On the main thread it delivers everything else that's finished while it waits, so other Futures' callbacks and continuations can run inside this call. On another thread it waits for the main thread to finish it, so don't call it from a thread the main thread is waiting on.
@@ -837,7 +837,7 @@ namespace Rive
         }
 
         /// <summary>
-        /// Blocks until it finishes. Counts as the one use. Can't be called on the Rive producer thread.
+        /// Blocks until it finishes. Counts as the one use. Can't be called on Rive's own thread.
         /// </summary>
         /// <remarks>
         /// On the main thread it delivers everything else that's finished while it waits, so other Futures' callbacks and continuations can run inside this call. On another thread it waits for the main thread to finish it, so don't call it from a thread the main thread is waiting on.

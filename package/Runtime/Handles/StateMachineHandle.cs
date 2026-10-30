@@ -9,7 +9,7 @@ namespace Rive
     /// where immediate, non-blocking access is required.
     /// </summary>
     /// <remarks>
-    /// Returned immediately by <see cref="ArtboardHandle.InstantiateStateMachine(string)"/>, before Rive has made it. Use it straight away: what you queue on it runs after that. A widget's state machine already exists.
+    /// Returned immediately by <see cref="ArtboardHandle.InstantiateStateMachine(string)"/>, before Rive has made it. You can use it straight away. What you queue on it runs after that. A widget's state machine already exists.
     /// </remarks>
     public sealed class StateMachineHandle : IDisposable
     {
@@ -61,7 +61,7 @@ namespace Rive
         internal RiveException Error => m_resolution.Error;
 
         /// <summary>
-        /// Waits for Rive to make the state machine. You don't have to wait for this before using the handle: anything you do with it is queued and runs once Rive has made it.
+        /// Waits for Rive to make the state machine. You don't have to wait for this before using the handle. Anything you do with it is queued and runs once Rive has made it.
         /// </summary>
         /// <returns>An operation that finishes on the main thread with this handle once Rive has found what it refers to. It fails with the lookup's <see cref="RiveException"/> if Rive found nothing, the same one reported when that happened, or with <see cref="RiveErrorCode.ResourceDisposed"/> if it's disposed first. Each call gives its own operation.</returns>
         public Future<StateMachineHandle> ResolveAsync() => m_resolution.Wait(this);
@@ -104,7 +104,7 @@ namespace Rive
         /// <summary>
         /// Gets the view model instance bound as the state machine's data context.
         /// </summary>
-        /// <returns>The handle, straight away, before Rive has looked it up. It refers to the instance bound when Rive gets to it, after the binds queued before it, and keeps referring to that one if another is bound later. If none is bound then, it refers to nothing: work queued on it is skipped, and that's reported once. Writes to it made in a widget's load callback land before the widget's first advance.</returns>
+        /// <returns>The handle, straight away, before Rive has looked it up. It refers to the instance bound when Rive gets to it, after the binds queued before it, and keeps referring to that one if another is bound later. If none is bound then, it refers to nothing. Work queued on it is skipped, and that's reported once. Writes to it made in a widget's load callback land before the widget's first advance.</returns>
         public ViewModelInstanceHandle GetViewModelInstance()
         {
             if (!CheckUsable(nameof(GetViewModelInstance)))
@@ -150,7 +150,7 @@ namespace Rive
         /// </remarks>
         /// <param name="main">The main instance, or null to keep the current one (or get a default one).</param>
         /// <param name="globals">Instances by global view model name, from <see cref="FileHandle.GetGlobalViewModelNamesAsync"/>.</param>
-        /// <returns>An operation that finishes on the main thread once Rive has done the bind. It fails with a <see cref="RiveException"/> if any entry wasn't assigned, even though the rest were: <see cref="RiveErrorCode.ViewModelNotFound"/> for a name that isn't a global in the file, <see cref="RiveErrorCode.ResourceDisposed"/> for a disposed instance, and <see cref="RiveErrorCode.ViewModelInstanceNotFound"/> for one that's null or refers to nothing when Rive gets to it. With more than one, the message lists them all and the code is the first one's. Each is also reported to a widget's <c>OnError</c>.</returns>
+        /// <returns>An operation that finishes on the main thread once Rive has done the bind. It fails with a <see cref="RiveException"/> if any entry wasn't assigned, even though the rest were. The code is <see cref="RiveErrorCode.ViewModelNotFound"/> for a name that isn't a global in the file, <see cref="RiveErrorCode.ResourceDisposed"/> for a disposed instance, and <see cref="RiveErrorCode.ViewModelInstanceNotFound"/> for one that's null or refers to nothing when Rive gets to it. With more than one, the message lists them all and the code is the first one's. Each is also reported to a widget's <c>OnError</c>.</returns>
         public Future BindViewModelInstanceAsync(
             ViewModelInstanceHandle main, IReadOnlyDictionary<string, ViewModelInstanceHandle> globals)
         {
@@ -221,7 +221,7 @@ namespace Rive
         /// Gets the global view model instance the state machine has bound under a name.
         /// </summary>
         /// <param name="name">The global view model's name, from <see cref="FileHandle.GetGlobalViewModelNamesAsync"/>.</param>
-        /// <returns>The handle, straight away, before Rive has looked it up. It refers to the instance bound when Rive gets to it, after the binds queued before it. If none is bound then, it refers to nothing: work queued on it is skipped, and that's reported once. Null, with a warning, if the file has no global by that name.</returns>
+        /// <returns>The handle, straight away, before Rive has looked it up. It refers to the instance bound when Rive gets to it, after the binds queued before it. If none is bound then, it refers to nothing. Work queued on it is skipped, and that's reported once. Null, with a warning, if the file has no global by that name.</returns>
         public ViewModelInstanceHandle GetGlobalViewModelInstance(string name)
         {
             if (!CheckUsable(nameof(GetGlobalViewModelInstance)))

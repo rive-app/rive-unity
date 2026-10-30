@@ -29,7 +29,7 @@ namespace Rive
 #if UNITY_EDITOR
         // SessionState is main thread only, and IsNativeAvailable gets called
         // from wherever a caller happens to be. Read it once on the main
-        // thread and keep the answer. Don't initialise it inline: a static
+        // thread and keep the answer. Don't initialise it inline, since a static
         // initialiser runs on whichever thread touches the class first.
         private static bool s_restartRequired;
 

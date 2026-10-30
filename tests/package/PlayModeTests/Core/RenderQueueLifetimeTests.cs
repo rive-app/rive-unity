@@ -372,7 +372,7 @@ namespace Rive.Tests
         // Unity frees a texture in render thread order, so the replay has to
         // see texture changes in that order too. Here the server is late with
         // a texture that was already replaced and freed, as with Built-in's in
-        // place resize. The replay used to draw into the freed one and crash.
+        // place resize. The replay shouldn't draw into the freed one.
         [UnityTest]
         public IEnumerator Texture_ReplacedAndFreedBeforeTheServerCatchesUp_IsNeverDrawnInto()
         {

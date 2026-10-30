@@ -9,8 +9,8 @@ using Rive.Host;
 namespace Rive
 {
     /// <summary>
-    /// Replays whatever a panel's next frame would have carried: destroys, and
-    /// any canvas content a script recorded.
+    /// Replays whatever a panel's next frame would have carried, which is
+    /// destroys and any canvas content a script recorded.
     ///
     /// Unloading a file queues its resources for destruction, but they only
     /// free when a later frame replays them. If the last panel was just
@@ -23,7 +23,7 @@ namespace Rive
         private static CommandBuffer s_commandBuffer;
         // A take's reply can land off the main thread.
         private static volatile bool s_available = true;
-        // A few frames rather than one, because teardown is spread out: a
+        // A few frames rather than one, because teardown is spread out. A
         // panel unregisters, its renderer is released at end of frame, and only
         // then do the artboards drop and queue their destroys. Flushing once
         // would keep missing whichever step came last.

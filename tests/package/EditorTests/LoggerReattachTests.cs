@@ -9,9 +9,9 @@ namespace Rive.Tests
 {
     /// <summary>
     /// A domain reload leaves the plugin loaded and the managed delegate
-    /// gone, which used to crash the editor on the next native log. The
-    /// reload itself would take this test with it, so it drives the same
-    /// drop and re-register directly.
+    /// gone, and the next native log shouldn't crash. The reload itself
+    /// would take this test with it, so it drives the same drop and
+    /// re-register directly.
     /// </summary>
     public class LoggerReattachTests
     {

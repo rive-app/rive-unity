@@ -5,7 +5,7 @@ namespace Rive
     /// </summary>
     internal enum HandleStatus
     {
-        /// <summary>Rive hasn't looked it up yet. You can still use it: work you queue on it runs after the lookup.</summary>
+        /// <summary>Rive hasn't looked it up yet. You can still use it. Work you queue on it runs after the lookup.</summary>
         Pending = 0,
         /// <summary>It refers to something.</summary>
         Valid = 1,

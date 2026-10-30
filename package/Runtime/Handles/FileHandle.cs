@@ -5,12 +5,10 @@ using Rive.Utils;
 namespace Rive
 {
     /// <summary>
-    /// Represents a loaded Rive file, giving fast, direct access to its data and artboard names.
-    /// Use this class if you need to work with Rive files immediately after loading, without waiting for background processing.
+    /// Represents a loaded Rive file for scenarios where immediate, non-blocking access is required.
     /// </summary>
     /// <remarks>
-    /// Remember to call <c>Dispose()</c> when you're done to free any resources.
-    /// When created from a Rive Asset, the loaded file is shared across all handles from that asset.
+    /// Returned by LoadAsync. Handles loaded from the same Rive Asset share one loaded file.
     /// </remarks>
     public sealed class FileHandle : ILoadedFile
     {

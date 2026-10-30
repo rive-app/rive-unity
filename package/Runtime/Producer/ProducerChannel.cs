@@ -390,6 +390,7 @@ namespace Rive.Producer
         /// Main thread. Sees what's in flight, in send order.
         internal void VisitInFlight(Action<TRequest, TResult> visit)
         {
+            ThreadCheck.Main();
             for (int i = 0; i < m_inFlight.Count; i++)
             {
                 visit(m_inFlight[i].Request, m_inFlight[i].Result);

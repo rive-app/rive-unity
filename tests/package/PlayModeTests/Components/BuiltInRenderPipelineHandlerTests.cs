@@ -264,7 +264,7 @@ namespace Rive.Tests
 
         // GPU canvas records in this order and the camera runs the command
         // buffers in it, so the two have to stay the same list. A dictionary
-        // won't do: unregistering frees a slot the next registration reuses,
+        // won't do. Unregistering frees a slot the next registration reuses,
         // and its enumeration order stops matching the camera's. Recording out
         // of order replays a draw before the frame that created what it draws.
         [Test]

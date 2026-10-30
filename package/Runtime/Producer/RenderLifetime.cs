@@ -66,6 +66,7 @@ namespace Rive.Producer
         /// Main thread. Issues whatever is waiting.
         internal static void Flush()
         {
+            ThreadCheck.Main();
             if (s_pending.IsEmpty || !CommandTransport.IsMainThread)
             {
                 return;
