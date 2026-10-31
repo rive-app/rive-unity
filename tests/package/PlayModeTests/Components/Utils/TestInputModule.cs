@@ -10,6 +10,12 @@ namespace Rive.Tests.Utils
     /// </summary>
     public class TestInputModule : StandaloneInputModule
     {
+        // Only the events a test sends. Reading the real mouse each frame adds
+        // a move whenever the cursor is over the player window.
+        public override void Process()
+        {
+        }
+
         public void PointerDownAt(Vector2 position)
         {
             float x = position.x;

@@ -23,12 +23,14 @@ namespace Rive.Components
         internal bool CollectEvents;
         internal bool LayoutFix;
         internal int SizeVersion;
+        internal int FocusVersion;
         // Whether it added a tick entry.
         internal bool HasEntry;
 
         // Outputs, read from the reply.
         internal bool HasSize;
         internal Vector2 ArtboardSize;
+        internal StateMachineNative.TickResult Result;
 
         /// For a widget no panel advances. Sends its entry on its own and
         /// waits for it.
@@ -57,6 +59,7 @@ namespace Rive.Components
             StateMachineNative.TickResult result = Core.ReadTick(ref reader);
             HasSize = result.Found;
             ArtboardSize = new Vector2(result.ArtboardSize.Width, result.ArtboardSize.Height);
+            Result = result;
         }
 
         internal void Clear()
@@ -69,9 +72,11 @@ namespace Rive.Components
             CollectEvents = false;
             LayoutFix = false;
             SizeVersion = 0;
+            FocusVersion = 0;
             HasEntry = false;
             HasSize = false;
             ArtboardSize = default;
+            Result = default;
         }
     }
 
@@ -89,6 +94,8 @@ namespace Rive.Components
                 new List<FutureState<bool>>();
             internal readonly PayloadWriter Entries = new PayloadWriter();
             internal int Count;
+            // Main thread, once its widgets have what it found.
+            internal System.Action Applied;
         }
 
         internal sealed class Landed
@@ -97,6 +104,8 @@ namespace Rive.Components
 
         private readonly ProducerChannel<Request, Landed> m_channel;
         private Request m_building;
+        /// Runs on the main thread after each advance lands.
+        internal System.Action Applied { get; set; }
 
         internal PanelAdvance()
         {
@@ -118,6 +127,7 @@ namespace Rive.Components
                 m_channel.Discard(m_building);
             }
             m_building = m_channel.Begin();
+            m_building.Applied = Applied;
         }
 
         internal void Add(WidgetBehaviour widget, float delta)
@@ -223,6 +233,7 @@ namespace Rive.Components
                     slot.Widget.ApplyAdvance(slot);
                 }
             }
+            request.Applied?.Invoke();
             FinishWaiters(request);
         }
 

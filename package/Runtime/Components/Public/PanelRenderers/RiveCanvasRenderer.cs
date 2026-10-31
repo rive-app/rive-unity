@@ -2,6 +2,7 @@ using Rive.EditorTools;
 using Rive.Utils;
 using Rive;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Rive.Components
 {
@@ -9,7 +10,7 @@ namespace Rive.Components
     [HelpURL(InspectorDocLinks.RiveCanvasRenderer)]
 #endif
     [AddComponentMenu("Rive/Rive Canvas Renderer")]
-    [HideComponents(hideFlags: HideFlags.HideInInspector, typeof(CanvasRendererRawImage), typeof(CanvasPanelInputProvider))]
+    [HideComponents(hideFlags: HideFlags.HideInInspector, typeof(CanvasRendererRawImage), typeof(CanvasPanelInputProvider), typeof(CanvasFocusInputProvider))]
     [RequireComponent(typeof(CanvasRendererRawImage), typeof(IRivePanel))]
     public class RiveCanvasRenderer : RivePanelRenderer
     {
@@ -37,11 +38,33 @@ namespace Rive.Components
         [HideInInspector]
         [SerializeField] private CanvasPanelInputProvider m_inputProvider;
 
+        [HideInInspector]
+        [SerializeField] private CanvasFocusInputProvider m_focusProvider;
+
+        [Tooltip("uGUI navigation settings that control how this Rive surface connects with nearby selectable elements. Explicit neighbors only change when you set them here.")]
+        [SerializeField] private Navigation m_navigation = Navigation.defaultNavigation;
+
         public Canvas Canvas => DisplayImage == null ? null : DisplayImage.canvas;
 
         public RectTransform RectTransform => DisplayImage == null ? null : DisplayImage.rectTransform;
 
         public override IRivePanel RivePanel { get => m_rivePanel; internal set => m_rivePanel = value; }
+
+        /// <summary>
+        /// uGUI navigation for this Rive surface, so Unity's UI navigation can move into and out of the panel.
+        /// </summary>
+        public Navigation Navigation
+        {
+            get => m_focusProvider != null ? m_focusProvider.navigation : m_navigation;
+            set
+            {
+                m_navigation = value;
+                if (m_focusProvider != null)
+                {
+                    m_focusProvider.navigation = value;
+                }
+            }
+        }
 
         /// <summary>
         /// The custom material to use when rendering the Rive graphic.
@@ -88,6 +111,9 @@ namespace Rive.Components
                 RivePanel.RegisterInputProvider(m_inputProvider);
 
             }
+
+            ApplyNavigationToFocusProvider();
+            m_focusProvider?.TryRegister();
         }
 
         protected override void OnDisable()
@@ -99,6 +125,8 @@ namespace Rive.Components
                 RivePanel.UnregisterInputProvider(m_inputProvider);
 
             }
+
+            m_focusProvider?.Unregister();
         }
 
         /// <summary>
@@ -209,6 +237,13 @@ namespace Rive.Components
                 m_inputProvider = gameObject.AddComponent<CanvasPanelInputProvider>();
             }
 
+            if (m_focusProvider == null && !TryGetComponent(out m_focusProvider))
+            {
+                m_focusProvider = gameObject.AddComponent<CanvasFocusInputProvider>();
+            }
+
+            ApplyNavigationToFocusProvider();
+
 
 
 
@@ -225,18 +260,20 @@ namespace Rive.Components
 
         private void LogInputErrorWarningsIfNeeded()
         {
-            if (PointerInputMode == PointerInputMode.DisablePointerInput)
+            bool wantsPointer = PointerInputMode != PointerInputMode.DisablePointerInput;
+            bool wantsFocus = FocusBehavior == FocusBehavior.EnableFocus;
+            if (!wantsPointer && !wantsFocus)
             {
                 return;
             }
             // If there's no event system in the scene, we log a warning.
             if (UnityEngine.EventSystems.EventSystem.current == null)
             {
-                DebugLogger.Instance.LogWarning($"No EventSystem found in the scene. Please add an EventSystem to the scene to receive pointer input events.  If you don't want to receive pointer input events, set the {nameof(PointerInputMode)} to {PointerInputMode.DisablePointerInput}.");
+                DebugLogger.Instance.LogWarning($"No EventSystem found in the scene. Please add an EventSystem to the scene to receive pointer and navigation events. If you don't want pointer input, set the {nameof(PointerInputMode)} to {PointerInputMode.DisablePointerInput}. If you don't want Unity's UI navigation to select the panel, set {nameof(FocusBehavior)} to {FocusBehavior.DisableFocus}.");
             }
 
             // If there's no GraphicRaycaster in the scene, we log a warning.
-            if (DisplayImage != null && !DisplayImage.canvas.TryGetComponent<UnityEngine.UI.GraphicRaycaster>(out _))
+            if (wantsPointer && DisplayImage != null && DisplayImage.canvas != null && !DisplayImage.canvas.TryGetComponent<UnityEngine.UI.GraphicRaycaster>(out _))
             {
                 DebugLogger.Instance.LogWarning($"No GraphicRaycaster found in the scene. Please add a GraphicRaycaster to the scene to receive pointer input events. If you don't want to receive pointer input events, set the {nameof(PointerInputMode)} to {PointerInputMode.DisablePointerInput}.");
             }
@@ -308,6 +345,39 @@ namespace Rive.Components
             if (m_inputProvider == null)
             {
                 m_inputProvider = GetComponent<CanvasPanelInputProvider>();
+            }
+
+            if (m_focusProvider == null)
+            {
+                m_focusProvider = GetComponent<CanvasFocusInputProvider>();
+            }
+
+            ApplyNavigationToFocusProvider();
+        }
+
+        private void ApplyNavigationToFocusProvider()
+        {
+            if (m_focusProvider != null)
+            {
+                m_focusProvider.navigation = m_navigation;
+            }
+        }
+
+        protected override void HandleFocusBehaviorChanged()
+        {
+            if (m_focusProvider == null)
+            {
+                return;
+            }
+
+            if (FocusBehavior == FocusBehavior.EnableFocus)
+            {
+                m_focusProvider.TryRegister();
+            }
+            else
+            {
+                m_focusProvider.Unregister();
+                m_focusProvider.interactable = false;
             }
         }
 

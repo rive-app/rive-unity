@@ -167,6 +167,21 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9ab55e5c977a4e3faf57725493fe125c
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/focus.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 549db173d8eab4a9cba509fa3bae28c0
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/focus_grid_test.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f5f19f65aef8493ab087fe9ca6dabaa6
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/gamepad_inputs_test.riv
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 551c8bb5071b04b0793926454d638d16
     m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/db_list_test.riv
     m_ReadOnly: 0
@@ -228,7 +243,12 @@ MonoBehaviour:
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 6629a5faf0c814dc88453d6a71e72567
-    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_URP.png
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_URP_Gamma.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d0941b08c32a4f6f9f3d2d442f1a5975
+    m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/Worldspace_RiveTextureRenderer_Lit_URP_Linear.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -434,6 +454,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: bc1b7c7c26c6b4f2fa9e997a93bf3d60
     m_Address: Packages/app.rive.rive-unity.tests/PlayModeTests/Components/Goldens/ReferenceImages/RiveCanvasRenderer_MatchCanvasResolution_True_360x780_sf3_25.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c0e6b4d6d49c4986898caf83d6e5cfd9
+    m_Address: Packages/app.rive.rive-unity.tests/Shared/Assets/hit_test_targets.riv
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

@@ -26,6 +26,8 @@ namespace Rive.Tests
             // Random writes only where the platform needs them; WebGL rejects them.
             m_texture = new RenderTexture(TextureHelper.Descriptor(Size, Size));
             m_texture.Create();
+            // Otherwise WebGL wipes what Rive drew the first time we read it.
+            TextureHelper.PrepareForNativeDrawing(m_texture);
         }
 
         [TearDown]

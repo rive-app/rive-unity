@@ -241,14 +241,27 @@ namespace Rive.Tests
         }
 
         [UnityTest]
-        public IEnumerator Start_WithoutEventSystemAndGraphicsRaycaster_LogsNoWarnings_IfPointerInputDisabled()
+        public IEnumerator Start_WithoutEventSystemAndGraphicsRaycaster_LogsNoWarnings_IfPointerAndFocusDisabled()
         {
             Setup(spawnEventSystem: false, spawnGraphicsRaycaster: false);
             m_renderer.PointerInputMode = PointerInputMode.DisablePointerInput;
+            m_renderer.FocusBehavior = FocusBehavior.DisableFocus;
             yield return null;
 
             Assert.AreEqual(0, m_mockLogger.LoggedWarnings.Count,
-                "No warnings should be logged when pointer input is disabled");
+                "No warnings should be logged when pointer input and focus are both disabled");
+        }
+
+        [UnityTest]
+        public IEnumerator Start_WithoutEventSystem_LogsWarning_WhenFocusEnabledEvenIfPointerDisabled()
+        {
+            Setup(spawnEventSystem: false, spawnGraphicsRaycaster: false);
+            m_renderer.PointerInputMode = PointerInputMode.DisablePointerInput;
+            m_renderer.FocusBehavior = FocusBehavior.EnableFocus;
+            yield return null;
+
+            Assert.IsTrue(m_mockLogger.LoggedWarningsContains(nameof(EventSystem)),
+                "Navigation still needs an EventSystem when pointer input is disabled");
         }
 
         [UnityTest]

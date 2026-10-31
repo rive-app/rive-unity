@@ -21,6 +21,22 @@ namespace Rive.Components
     }
 
     /// <summary>
+    /// Whether Unity's UI navigation can select a panel renderer when the panel has focusable Rive content.
+    /// </summary>
+    public enum FocusBehavior : byte
+    {
+        /// <summary>
+        /// Unity can select this renderer and send navigation into the panel.
+        /// </summary>
+        EnableFocus = 0,
+
+        /// <summary>
+        /// Unity's navigation skips this renderer. Pointer input is unaffected.
+        /// </summary>
+        DisableFocus = 1
+    }
+
+    /// <summary>
     /// Base class for components that display a <see cref="RivePanel"/> on a Unity target
     /// such as a Canvas or a Mesh.
     /// </summary>
@@ -33,6 +49,12 @@ namespace Rive.Components
 #endif
         [Tooltip("Determines whether the panel will receive pointer input events from this renderer.")]
         [SerializeField] private PointerInputMode m_pointerInputMode = PointerInputMode.EnablePointerInput;
+
+#if UNITY_EDITOR
+        [OnValueChanged(nameof(HandleFocusBehaviorChanged))]
+#endif
+        [Tooltip("If enabled, Unity's UI navigation can select this renderer when the panel has focusable Rive content.")]
+        [SerializeField] private FocusBehavior m_focusBehavior = FocusBehavior.EnableFocus;
 
 
 
@@ -53,6 +75,20 @@ namespace Rive.Components
             }
         }
 
+
+        /// <summary>
+        /// Whether Unity's UI navigation can select this renderer when the panel has focusable Rive content.
+        /// </summary>
+        public FocusBehavior FocusBehavior
+        {
+            get => m_focusBehavior;
+            set
+            {
+                if (m_focusBehavior == value) { return; }
+                m_focusBehavior = value;
+                HandleFocusBehaviorChanged();
+            }
+        }
 
         protected void SubscribeToPanelEvents()
         {
@@ -127,6 +163,13 @@ namespace Rive.Components
         protected virtual void HandlePointerInputModeChanged()
         {
 
+        }
+
+        /// <summary>
+        /// Called when FocusBehavior changes.
+        /// </summary>
+        protected virtual void HandleFocusBehaviorChanged()
+        {
         }
 
 

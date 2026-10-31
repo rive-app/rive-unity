@@ -16,7 +16,7 @@ namespace Rive.Components
     [AddComponentMenu("Rive/Rive Texture Renderer")]
 #if UNITY_EDITOR
     [InspectorSection(InspectorSections.RendererSettings, "Renderer Settings", startExpanded: true)]
-    [HideComponents(hideFlags: HideFlags.HideInInspector, typeof(TexturePanelInputProvider), typeof(PanelVisibilityOptimizer))]
+    [HideComponents(hideFlags: HideFlags.HideInInspector, typeof(TexturePanelInputProvider), typeof(TextureFocusInputProvider), typeof(PanelVisibilityOptimizer))]
 #endif
     public class RiveTextureRenderer : RivePanelRenderer
     {
@@ -63,6 +63,8 @@ namespace Rive.Components
         private PanelVisibilityOptimizer m_visibilityOptimizer;
 
         private TexturePanelInputProvider m_inputProvider;
+
+        private TextureFocusInputProvider m_focusProvider;
 
 
 
@@ -266,6 +268,7 @@ namespace Rive.Components
                 m_rivePanel.UnregisterInputProvider(m_inputProvider);
 
                 UnsubscribeFromPanelEvents();
+                m_focusProvider?.Unregister();
             }
             m_rivePanel = panel;
 
@@ -277,6 +280,8 @@ namespace Rive.Components
 
                 }
                 SubscribeToPanelEvents();
+                m_focusProvider?.BindRenderer(this);
+                m_focusProvider?.TryRegister();
             }
 
             UpdateVisualTarget();
@@ -293,6 +298,9 @@ namespace Rive.Components
             {
                 RivePanel.RegisterInputProvider(m_inputProvider);
             }
+
+            m_focusProvider?.BindRenderer(this);
+            m_focusProvider?.TryRegister();
         }
 
         protected override void OnDisable()
@@ -304,23 +312,26 @@ namespace Rive.Components
                 m_rivePanel.UnregisterInputProvider(m_inputProvider);
             }
 
+            m_focusProvider?.Unregister();
         }
 
         private void LogInputErrorWarningsIfNeeded()
         {
-            if (PointerInputMode == PointerInputMode.DisablePointerInput)
+            bool wantsPointer = PointerInputMode != PointerInputMode.DisablePointerInput;
+            bool wantsFocus = FocusBehavior == FocusBehavior.EnableFocus;
+            if (!wantsPointer && !wantsFocus)
             {
                 return;
             }
             // If there's no event system in the scene, we log a warning.
             if (UnityEngine.EventSystems.EventSystem.current == null)
             {
-                DebugLogger.Instance.LogWarning($"No EventSystem found in the scene. Please add an {nameof(UnityEngine.EventSystems.EventSystem)} to the scene to receive pointer input events.");
+                DebugLogger.Instance.LogWarning($"No EventSystem found in the scene. Please add an {nameof(UnityEngine.EventSystems.EventSystem)} to the scene to receive pointer and navigation events.");
             }
 
 #if UNITY_EDITOR
             var camera = Camera.main;
-            if (camera != null && camera.gameObject.GetComponent<UnityEngine.EventSystems.PhysicsRaycaster>() == null)
+            if (wantsPointer && camera != null && camera.gameObject.GetComponent<UnityEngine.EventSystems.PhysicsRaycaster>() == null)
             {
                 DebugLogger.Instance.LogWarning($"No {nameof(UnityEngine.EventSystems.PhysicsRaycaster)} found on the main camera. Please add a {nameof(UnityEngine.EventSystems.PhysicsRaycaster)} component to the main camera to receive pointer input events. Or set the {nameof(PointerInputMode)} to {nameof(PointerInputMode.DisablePointerInput)}.");
             }
@@ -454,6 +465,7 @@ namespace Rive.Components
             SpawnVisibilityOptimizerIfNeeded();
 
             SpawnInputProviderIfNeeded();
+            SpawnFocusProviderIfNeeded();
 
 
         }
@@ -478,6 +490,40 @@ namespace Rive.Components
                 m_inputProvider = m_objectRenderer.gameObject.AddComponent<TexturePanelInputProvider>();
             }
 
+        }
+
+        // On the object with the collider, next to the pointer input provider.
+        private void SpawnFocusProviderIfNeeded()
+        {
+            if (m_objectRenderer == null || m_focusProvider != null)
+            {
+                return;
+            }
+
+            if (!m_objectRenderer.gameObject.TryGetComponent(out m_focusProvider))
+            {
+                m_focusProvider = m_objectRenderer.gameObject.AddComponent<TextureFocusInputProvider>();
+            }
+
+            m_focusProvider.BindRenderer(this);
+        }
+
+        protected override void HandleFocusBehaviorChanged()
+        {
+            SpawnFocusProviderIfNeeded();
+            if (m_focusProvider == null)
+            {
+                return;
+            }
+
+            if (FocusBehavior == FocusBehavior.EnableFocus)
+            {
+                m_focusProvider.TryRegister();
+            }
+            else
+            {
+                m_focusProvider.Unregister();
+            }
         }
 
 

@@ -107,6 +107,14 @@ namespace Rive.Components
         [Tooltip("When Disabled, the panel collapses all input to a single pointer for legacy behavior. When Enabled, multiple pointers are tracked independently.")]
         [SerializeField] private MultiTouchSupport m_multiTouchSupport = MultiTouchSupport.Enabled;
 
+        [InspectorField(RivePanelInspectorSections.Advanced)]
+        [Tooltip("If enabled, Rive can take Unity's current selection when something in the file focuses itself. Off by default so Rive never steals focus from other UI.")]
+        [SerializeField] private bool m_allowFocusInterrupt = false;
+
+        [InspectorField(RivePanelInspectorSections.Advanced)]
+        [Tooltip("When the panel sends Unity's gamepads to its widgets. Needs the Input System.\n\n- Always: every frame, selected or not.\n- When Selected: only while Unity has the panel selected. Buttons release and sticks center when it loses the selection.\n- Disabled: never.")]
+        [SerializeField] private GamepadInputMode m_gamepadInput = GamepadInputMode.Always;
+
 #if RIVE_USING_EXPERIMENTAL
         [InspectorField(RivePanelInspectorSections.Advanced, "Antialiasing (Experimental)")]
         [Tooltip("How this panel antialiases what it draws.\n\n- Default: the renderer's usual antialiasing.\n- Inkbleed: antialiases strokes by bleeding them out half a pixel. Fills aren't antialiased, non-clockwise fills draw as clockwise, and layer masks are dropped. Not supported on Metal yet.")]
@@ -121,6 +129,8 @@ namespace Rive.Components
 
 
         private List<IPanelInputProvider> m_panelInputProviders = new List<IPanelInputProvider>();
+
+        private PanelFocusController m_focusController;
 
 
         private List<IRiveWidget> m_raycastResults = new List<IRiveWidget>();
@@ -468,6 +478,50 @@ namespace Rive.Components
             set => m_multiTouchSupport = value;
         }
 
+        /// <summary>
+        /// If enabled, Rive can take Unity's current selection when something in the file
+        /// focuses itself. Off by default so Rive never steals focus from other UI.
+        /// </summary>
+        public bool AllowFocusInterrupt
+        {
+            get => m_allowFocusInterrupt;
+            set => m_allowFocusInterrupt = value;
+        }
+
+        /// <summary>
+        /// When this panel sends Unity's gamepads to its widgets. Needs the Input System package and its input handling turned on.
+        /// </summary>
+        public GamepadInputMode GamepadInput
+        {
+            get => m_gamepadInput;
+            set => m_gamepadInput = value;
+        }
+
+        /// Main thread, before the panel ticks. Sends each loaded widget the
+        /// pads that changed, or releases them when the panel isn't listening.
+        internal void SyncGamepads(GamepadFrame frame)
+        {
+            bool live = m_gamepadInput == GamepadInputMode.Always ||
+                        (m_gamepadInput == GamepadInputMode.WhenSelected && FocusController.HostFocused);
+            for (int i = 0; i < m_sortedWidgets.Count; i++)
+            {
+                if (m_sortedWidgets[i] is RiveWidget widget)
+                {
+                    widget.SyncGamepads(frame, live);
+                }
+            }
+        }
+
+        internal PanelFocusController FocusController => m_focusController ??= new PanelFocusController(this);
+
+        /// <summary>
+        /// Clears Rive focus in every widget in this panel.
+        /// </summary>
+        internal void ClearFocus()
+        {
+            FocusController.ClearFocus();
+        }
+
         public event Action<IRiveWidget> OnWidgetAdded;
 
         public event Action<IRiveWidget> OnWidgetRemoved;
@@ -531,6 +585,9 @@ namespace Rive.Components
 
         void OnEnable()
         {
+            // Focus actions apply during advances, so Rive may have changed focus on its own.
+            m_advance.Applied ??= () => FocusController.PollFocus();
+
             Orchestrator.Instance?.RegisterPanel(this);
 
             InitializeDefaultRenderTargetStrategyIfNeeded();
@@ -567,6 +624,8 @@ namespace Rive.Components
 
         void OnDisable()
         {
+            FocusController.NotifyHostFocusLost();
+
             Orchestrator.Instance?.UnregisterPanel(this);
 
             // Nothing polls it once the panel stops ticking.
@@ -662,6 +721,7 @@ namespace Rive.Components
         private void HandleWidgetStatusChanged(WidgetBehaviour widget)
         {
             RedrawIfNeeded();
+            FocusController.HandleWidgetsChanged();
         }
 
         /// <summary>
@@ -696,6 +756,7 @@ namespace Rive.Components
                 SubscribeToWidgetEvents(widget);
 
                 OnWidgetAdded?.Invoke(widget);
+                FocusController.HandleWidgetsChanged();
             }
         }
 
@@ -717,6 +778,7 @@ namespace Rive.Components
             if (m_sortedWidgets.Contains(widget))
             {
                 m_sortedWidgets.Remove(widget);
+                FocusController.HandleWidgetRemoved(widget);
 
                 SortWidgetsIfNeeded();
                 RedrawIfNeeded();
@@ -1239,6 +1301,9 @@ namespace Rive.Components
                 RedrawIfNeeded();
             }
 
+            // Also covers widgets that sent nothing this pass.
+            FocusController.PollFocus();
+
             return advanceGoesOut;
         }
 
@@ -1313,6 +1378,7 @@ namespace Rive.Components
 
         private void HandlePointerUp(PanelPointerEvent evt)
         {
+            FocusController.Keyboard.SoftKeyboard.NotifyTap();
             ProcessPointerEvent(evt, m_pointerUpHandler, RiveWidget.PointerEventKind.Up);
         }
 
@@ -1376,6 +1442,9 @@ namespace Rive.Components
                 }
 
             }
+
+            // A press can focus a node, or blur a focused field by landing outside it.
+            FocusController.PollFocus();
         }
 
 

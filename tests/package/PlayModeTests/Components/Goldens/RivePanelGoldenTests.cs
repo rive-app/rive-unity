@@ -470,12 +470,25 @@ namespace Rive.Tests
 
         }
 
+        private readonly SceneLeakGuard m_leakGuard = new SceneLeakGuard();
+
         [SetUp]
         public void Setup()
         {
             m_camera = new GameObject("Camera").AddComponent<Camera>();
             m_camera.tag = "MainCamera";
+            m_leakGuard.Begin();
+        }
 
+        // A golden that fails skips its own cleanup, and a panel or camera it
+        // leaves behind breaks the tests after it.
+        [UnityTearDown]
+        public IEnumerator DestroyLeftovers()
+        {
+            if (m_leakGuard.End() > 0)
+            {
+                yield return null;
+            }
         }
 
         [TearDown]
@@ -3297,6 +3310,9 @@ namespace Rive.Tests
                     var go = UnityEngine.Object.Instantiate(prefab);
                     panel = go.GetComponent<RivePanel>();
                     panel.SetDimensions(panelDimensions ?? new Vector2(512, 512));
+                    // Frozen on its first frame, so the capture doesn't depend
+                    // on how long the first frames took.
+                    panel.GetComponentInChildren<RiveWidget>().Speed = 0f;
                 },
                 () => Assert.Fail($"Failed to load panel prefab at {panelPrefabPath}"));
 
@@ -3349,10 +3365,27 @@ namespace Rive.Tests
             var capture = MakeRT(512, 512);
             cam.targetTexture = capture;
 
-            yield return null;
-            yield return new WaitForEndOfFrame();
+            // The editor lights from the skybox, a test player with GI off
+            // doesn't, so only the light above counts in both.
+            AmbientMode ambientMode = RenderSettings.ambientMode;
+            UnityEngine.Color ambientLight = RenderSettings.ambientLight;
+            float reflectionIntensity = RenderSettings.reflectionIntensity;
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = UnityEngine.Color.black;
+            RenderSettings.reflectionIntensity = 0f;
+            try
+            {
+                yield return null;
+                yield return new WaitForEndOfFrame();
 
-            yield return m_goldenHelper.AssertWithRenderTexture(goldenId, capture, applyColorCorrection: false);
+                yield return m_goldenHelper.AssertWithRenderTexture(goldenId, capture, applyColorCorrection: false);
+            }
+            finally
+            {
+                RenderSettings.ambientMode = ambientMode;
+                RenderSettings.ambientLight = ambientLight;
+                RenderSettings.reflectionIntensity = reflectionIntensity;
+            }
 
             DestroyObj(quad);
             DestroyObj(cam.gameObject);
@@ -3376,7 +3409,7 @@ namespace Rive.Tests
 #if RIVE_USING_HDRP
             goldenId = $"Worldspace_RiveTextureRenderer_Lit_HDRP";
 #elif RIVE_USING_URP
-            goldenId = $"Worldspace_RiveTextureRenderer_Lit_URP";
+            goldenId = $"Worldspace_RiveTextureRenderer_Lit_URP_{ColorSpaceSuffix()}";
 #else
             // Built in RP seems to have stronger color differences between gamma and linear, so we do two different goldens here based on color space.
             goldenId = $"Worldspace_RiveTextureRenderer_Lit_BiRP_{ColorSpaceSuffix()}";

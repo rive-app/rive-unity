@@ -34,11 +34,21 @@ namespace Rive.Tests.Utils
 
                 public const string riv_layoutTest = "Packages/app.rive.rive-unity.tests/Shared/Assets/layout_test.riv";
 
+                public const string riv_hit_test_targets = "Packages/app.rive.rive-unity.tests/Shared/Assets/hit_test_targets.riv";
+
                 public const string riv_runtime_nested_text_runs = "Packages/app.rive.rive-unity.tests/Shared/Assets/runtime_nested_text_runs.riv";
 
                 public const string riv_nestedinputtest = "Packages/app.rive.rive-unity.tests/Shared/Assets/nestedinputtest.riv";
 
                 public const string riv_simple_input_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/simple_input_test.riv";
+
+                public const string riv_focus_grid_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/focus_grid_test.riv";
+
+                // Shared with the other runtimes' focus tests (trays/testing/focus).
+                public const string riv_focus = "Packages/app.rive.rive-unity.tests/Shared/Assets/focus.riv";
+
+                // From core's unit test assets. Right shoulder moves focus.
+                public const string riv_gamepad_inputs_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/gamepad_inputs_test.riv";
 
                 public const string riv_events_test = "Packages/app.rive.rive-unity.tests/Shared/Assets/events_test.riv";
 

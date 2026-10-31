@@ -198,7 +198,12 @@ namespace Rive.Tests.Utils
 
 
 
-            ImageAssert.AreEqual(rgba32Golden, rgba32Actual, saveFailedImage: true, settings: imageComparisonSettings);
+            ImageAssert.AreEqual(
+                rgba32Golden,
+                rgba32Actual,
+                saveFailedImage: true,
+                saveFailedImageToDisk: !Application.isEditor,
+                settings: imageComparisonSettings);
 
             // Cleanup temporary textures
             if (rgba32Golden != goldenImage)

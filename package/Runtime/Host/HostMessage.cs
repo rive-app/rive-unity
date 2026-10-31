@@ -40,6 +40,7 @@ namespace Rive.Host
         ViewModelCapture = 20,
         ViewModelBind = 21,
         Pointer = 22,
+        Focus = 23,
     }
 
     internal struct HostMessage

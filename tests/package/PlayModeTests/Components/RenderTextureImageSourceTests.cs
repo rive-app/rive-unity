@@ -975,7 +975,9 @@ namespace Rive.Tests
             RenderTextureImageSource image = CreateTrackRenderTextureImage();
             property.SetFromRenderTextureImageSource(image);
 
-            RenderTexture target = CreateTrackUnityRenderTexture();
+            // A queue's target needs Rive's descriptor, which D3D11 needs for
+            // random writes.
+            RenderTexture target = CreateTrackUnityRenderTexture(TextureHelper.Descriptor(64, 64));
             var queue = new RenderQueue(target);
             Renderer renderer = queue.Renderer();
             renderer.SetRecordsAsynchronously(true);

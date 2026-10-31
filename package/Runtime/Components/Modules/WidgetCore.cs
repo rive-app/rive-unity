@@ -29,10 +29,18 @@ namespace Rive.Components
             new ConcurrentQueue<ReportedEventData>();
         private readonly List<ReportedEventData> m_collectScratch = new List<ReportedEventData>();
 
+        // Main thread only. Counts focus commands sent, so a tick that went
+        // out before one doesn't overwrite what it found.
+        private FocusState m_focus;
+        private int m_focusVersion;
+        // Tick replies can be read on another thread, so focus has its own.
+        private readonly List<ReportedEventData> m_focusEventScratch = new List<ReportedEventData>();
+
         internal WidgetCore(Artboard artboard, StateMachine stateMachine)
         {
             m_artboard = artboard;
             m_stateMachine = stateMachine;
+            m_stateMachine.FocusChanged += OnStateMachineFocusChanged;
         }
 
         internal Artboard Artboard => m_artboard;
@@ -83,6 +91,7 @@ namespace Rive.Components
         // payload and reply are made once per widget rather than per advance.
         private StateMachineNative.TickSender m_advanceSender;
         private Action<HostMessageBatch, HostMessage> m_onAdvanceReply;
+        private int m_advanceFocusVersion;
 
         private RequestTicket SendAdvance(float deltaTime, float speed, bool collectEvents, bool keep)
         {
@@ -90,11 +99,184 @@ namespace Rive.Components
             m_onAdvanceReply ??= (batch, message) =>
             {
                 var reader = new PayloadReader(batch, message);
-                ReadTick(ref reader);
+                StateMachineNative.TickResult result = ReadTick(ref reader);
+                // Sent from the main thread, so it lands there.
+                ApplyFocus(result, m_advanceFocusVersion);
             };
+            m_advanceFocusVersion = m_focusVersion;
             m_advanceSender.Entries.Clear();
             WriteTick(m_advanceSender.Entries, deltaTime, speed, collectEvents, layoutFix: false);
             return m_advanceSender.Send(m_onAdvanceReply, keep);
+        }
+
+        /// Main thread. The focus as of the last advance or focus move.
+        internal FocusState Focus => m_focus;
+
+        /// Main thread. Taken before a tick goes out, for ApplyFocus.
+        internal int FocusVersion => m_focusVersion;
+
+        /// Main thread. Keeps what a tick found unless a focus command went
+        /// out after it.
+        internal void ApplyFocus(in StateMachineNative.TickResult result, int focusVersion)
+        {
+            if (result.Found && focusVersion == m_focusVersion)
+            {
+                m_focus = result.Focus;
+            }
+        }
+
+        /// Main thread. Moves or clears focus and waits, applying after a
+        /// change. Its events queue like an advance's.
+        internal StateMachineNative.FocusResult FocusAndWait(StateMachineNative.FocusOp op, bool collectEvents)
+        {
+            return InputAndWait(
+                (id, flags) => StateMachineNative.SendFocus(id, m_stateMachine.NativeStateMachine, op, flags),
+                collectEvents);
+        }
+
+        /// Main thread. Moves or clears focus without waiting, applying after
+        /// a change. landed runs on the main thread with the result.
+        internal void FocusLater(StateMachineNative.FocusOp op, bool collectEvents, Action<StateMachineNative.FocusResult> landed)
+        {
+            InputLater(
+                (id, flags) => StateMachineNative.SendFocus(id, m_stateMachine.NativeStateMachine, op, flags),
+                collectEvents,
+                landed);
+        }
+
+        /// Main thread. A key for the focused node, waiting for whether it was claimed.
+        /// selection is FocusReadSelection or FocusCutSelection, or 0.
+        internal StateMachineNative.FocusResult KeyAndWait(
+            RiveKey key, RiveKeyModifiers modifiers, bool pressed, bool repeat, uint selection, bool collectEvents)
+        {
+            return InputAndWait(
+                (id, flags) => StateMachineNative.SendKey(id, m_stateMachine.NativeStateMachine, key, modifiers, pressed, repeat, flags),
+                collectEvents,
+                selection);
+        }
+
+        /// Main thread. A key for the focused node without waiting.
+        internal void KeyLater(
+            RiveKey key, RiveKeyModifiers modifiers, bool pressed, bool repeat, uint selection, bool collectEvents, Action<StateMachineNative.FocusResult> landed)
+        {
+            InputLater(
+                (id, flags) => StateMachineNative.SendKey(id, m_stateMachine.NativeStateMachine, key, modifiers, pressed, repeat, flags),
+                collectEvents,
+                landed,
+                selection);
+        }
+
+        /// Main thread. Committed text for the focused node, waiting for whether it was claimed.
+        internal StateMachineNative.FocusResult TextAndWait(string text, bool collectEvents)
+        {
+            return InputAndWait(
+                (id, flags) => StateMachineNative.SendText(id, m_stateMachine.NativeStateMachine, text, flags),
+                collectEvents);
+        }
+
+        /// Main thread. Committed text for the focused node without waiting.
+        internal void TextLater(string text, bool collectEvents, Action<StateMachineNative.FocusResult> landed)
+        {
+            InputLater(
+                (id, flags) => StateMachineNative.SendText(id, m_stateMachine.NativeStateMachine, text, flags),
+                collectEvents,
+                landed);
+        }
+
+        /// Main thread. Sends the panel's pads that changed, or releases them
+        /// when it isn't listening, and forgets ones that went away. Doesn't
+        /// wait. True if anything went out.
+        internal bool SyncGamepads(GamepadFrame frame, bool live)
+        {
+            GamepadTracker gamepads = m_stateMachine.Gamepads;
+            bool sent = Send(gamepads.DisconnectFromPanelBut(frame.DeviceIds));
+            if (!live)
+            {
+                return Send(gamepads.ReleaseFromPanel()) || sent;
+            }
+            for (int i = 0; i < frame.Count; i++)
+            {
+                GamepadFrame.Pad pad = frame[i];
+                sent = Send(gamepads.SetFromPanel(pad.DeviceId, pad.Buttons, pad.Axes)) || sent;
+            }
+            return sent;
+        }
+
+        private bool Send(byte[] gamepadBatch)
+        {
+            StateMachineNative.SendGamepad(m_stateMachine.NativeStateMachine, gamepadBatch);
+            return gamepadBatch != null;
+        }
+
+        // Focus moves, keys and text all reply with the focus they left, and
+        // apply on Rive's thread after a change.
+        private StateMachineNative.FocusResult InputAndWait(Func<ulong, uint, bool> send, bool collectEvents, uint extraFlags = 0)
+        {
+            StateMachineNative.FocusResult result = default;
+            int version = ++m_focusVersion;
+            uint flags = InputFlags(collectEvents) | extraFlags;
+            RequestTicket ticket = CommandTransport.Send(
+                id => send(id, flags),
+                (batch, message) => result = ReadFocus(batch, message, version, flags));
+            CommandTransport.Join(ref ticket);
+            return result;
+        }
+
+        private void InputLater(
+            Func<ulong, uint, bool> send, bool collectEvents, Action<StateMachineNative.FocusResult> landed, uint extraFlags = 0)
+        {
+            int version = ++m_focusVersion;
+            uint flags = InputFlags(collectEvents) | extraFlags;
+            CommandTransport.Send(
+                id => send(id, flags),
+                (batch, message) =>
+                {
+                    StateMachineNative.FocusResult result = ReadFocus(batch, message, version, flags);
+                    landed?.Invoke(result);
+                },
+                keep: false);
+        }
+
+        private static uint InputFlags(bool collectEvents)
+        {
+            return StateMachineNative.FocusApply
+                   | (collectEvents ? StateMachineNative.FocusCollectEvents : 0);
+        }
+
+        /// Main thread. Raised when a script moved focus through the state
+        /// machine, outside the widget.
+        internal event Action FocusChangedOutside;
+
+        private void OnStateMachineFocusChanged(StateMachineNative.FocusResult result)
+        {
+            // Newer than any tick still out.
+            m_focusVersion++;
+            m_focus = result.State;
+            FocusChangedOutside?.Invoke();
+        }
+
+        /// Main thread. Clearing is never waited on, so this shows it
+        /// straight away.
+        internal void ForgetFocus()
+        {
+            m_focus = m_focus.WithoutFocus();
+        }
+
+        // Keeps the state only if no newer focus command went out since, like ApplyFocus.
+        private StateMachineNative.FocusResult ReadFocus(HostMessageBatch batch, HostMessage message, int version, uint flags)
+        {
+            var reader = new PayloadReader(batch, message);
+            StateMachineNative.FocusResult result = StateMachineNative.ReadFocus(ref reader, m_focusEventScratch, flags);
+            for (int i = 0; i < m_focusEventScratch.Count; i++)
+            {
+                m_events.Enqueue(m_focusEventScratch[i]);
+            }
+            m_focusEventScratch.Clear();
+            if (result.Found && version == m_focusVersion)
+            {
+                m_focus = result.State;
+            }
+            return result;
         }
 
         /// Sends the artboard, its state machine and a size check without

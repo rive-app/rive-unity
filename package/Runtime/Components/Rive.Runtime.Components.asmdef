@@ -32,6 +32,11 @@
             "name": "com.unity.ugui",
             "expression": "1.0.0",
             "define": "RIVE_USING_UGUI"
+        },
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "1.0.0",
+            "define": "RIVE_USING_INPUT_SYSTEM"
         }
     ],
     "noEngineReferences": false

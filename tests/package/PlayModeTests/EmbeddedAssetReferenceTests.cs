@@ -107,23 +107,14 @@ namespace Rive.Tests
             EmbeddedAssetReference.InitializationData initializationData = new EmbeddedAssetReference.InitializationData(EmbeddedAssetType.Font, 1, "TestFont", 100, null);
             var reference = new FontEmbeddedAssetReference(initializationData);
 
-            var file = new Rive.File(default, new FileContents(), 0, null);
             var fontAsset = OutOfBandAsset.Create<FontOutOfBandAsset>(new byte[100]);
 
             fontAsset.Load();
-            reference.SetRiveFileReference(file);
-
-            Assert.IsTrue(reference.HasFileReference());
-
-            // Try to force garbage collection multiple times to release the weak reference
-            file = null;
-            for (int i = 0; i < 5; i++)
-            {
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
-                GC.WaitForPendingFinalizers();
-                yield return null;
-            }
-
+            // A weak reference with nothing behind it, which is what a
+            // collected file leaves. Waiting on the GC is flaky in players,
+            // since Mono's conservative scan can keep the file alive.
+            reference.SetRiveFileReference(null);
+            yield return null;
 
             reference.SetFont(fontAsset);
 

@@ -144,6 +144,7 @@ namespace Rive
             internal bool Found;
             internal bool KeepGoing;
             internal Size ArtboardSize;
+            internal FocusState Focus;
         }
 
         /// Reads the next entry of a tick reply. Events go into events when
@@ -156,6 +157,7 @@ namespace Rive
                 KeepGoing = reader.Bool(),
                 ArtboardSize = new Size(reader.F32(), reader.F32()),
             };
+            result.Focus = ReadFocusState(ref reader);
             ReadEvents(ref reader, events);
             return result;
         }
@@ -313,7 +315,200 @@ namespace Rive
 
         // Pointer input
 
-        /// Mirrored in native as PointerKind.
+        /// Mirrored in native as FocusOp.
+        internal enum FocusOp : uint
+        {
+            Next = 0,
+            Previous = 1,
+            Left = 2,
+            Right = 3,
+            Up = 4,
+            Down = 5,
+            Clear = 6,
+            // Changes nothing, only reports the state.
+            Query = 7,
+        }
+
+        private const uint FocusHas = 1 << 0;
+        private const uint FocusExpectsKeyboard = 1 << 1;
+        private const uint FocusHasNodes = 1 << 2;
+        private const uint FocusHasBounds = 1 << 3;
+
+        /// Advances by 0 after a change, so what focus listeners set applies
+        /// before the next frame's advance, like a pointer press does.
+        internal const uint FocusApply = 1 << 1;
+        internal const uint FocusCollectEvents = 1 << 2;
+        /// Reads the focused selection before the input, for the clipboard.
+        internal const uint FocusReadSelection = 1 << 3;
+        /// Also deletes that selection when the focused node takes text.
+        internal const uint FocusCutSelection = 1 << 4;
+
+        /// What a focus move, key or text did, and the focus it left.
+        internal struct FocusResult
+        {
+            internal bool Found;
+            // Whether focus moved, or for a key or text, whether something claimed it.
+            internal bool Moved;
+            internal FocusState State;
+            // What was selected before the input, when it asked to read it.
+            internal string SelectedText;
+
+            internal bool Claimed => Moved;
+        }
+
+        [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private static extern bool riveSmFocus(ulong requestId, ulong stateMachine, uint op, uint flags);
+
+        internal static bool SendFocus(ulong requestId, NativeStateMachineHandle stateMachine, FocusOp op, uint flags)
+        {
+            return riveSmFocus(requestId, stateMachine.Value, (uint)op, flags);
+        }
+
+        [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private static extern bool riveSmKey(
+            ulong requestId,
+            ulong stateMachine,
+            uint key,
+            uint modifiers,
+            [MarshalAs(UnmanagedType.U1)] bool pressed,
+            [MarshalAs(UnmanagedType.U1)] bool repeat,
+            uint flags);
+
+        [DllImport(NativeLibrary.name)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private static extern bool riveSmText(
+            ulong requestId,
+            ulong stateMachine,
+            [MarshalAs(NativeText.Encoding)] string text,
+            uint flags);
+
+        /// A key for the focused node and its ancestors. The reply is read
+        /// with ReadFocus, Claimed saying whether one took it.
+        internal static bool SendKey(
+            ulong requestId, NativeStateMachineHandle stateMachine, RiveKey key, RiveKeyModifiers modifiers, bool pressed, bool repeat, uint flags)
+        {
+            return riveSmKey(requestId, stateMachine.Value, (uint)key, (uint)modifiers, pressed, repeat, flags);
+        }
+
+        /// Committed text for the focused node and its ancestors. The reply is
+        /// read with ReadFocus, Claimed saying whether one took it.
+        internal static bool SendText(ulong requestId, NativeStateMachineHandle stateMachine, string text, uint flags)
+        {
+            return riveSmText(requestId, stateMachine.Value, text, flags);
+        }
+
+        [DllImport(NativeLibrary.name)]
+        private static extern void riveSmGamepad(ulong stateMachine, byte[] data, uint length);
+
+        /// A batch from GamepadTracker. Doesn't wait, and shows on the next advance.
+        internal static void SendGamepad(NativeStateMachineHandle stateMachine, byte[] batch)
+        {
+            if (batch == null)
+            {
+                return;
+            }
+            CommandTransport.Write(() => riveSmGamepad(stateMachine.Value, batch, (uint)batch.Length));
+        }
+
+        /// Events go into events when it collected them. flags are the ones it was sent with.
+        internal static FocusResult ReadFocus(ref PayloadReader reader, List<ReportedEventData> events, uint flags = 0)
+        {
+            var result = new FocusResult { Found = reader.Ok() };
+            if (!result.Found)
+            {
+                return result;
+            }
+            result.Moved = reader.Bool();
+            result.State = ReadFocusState(ref reader);
+            ReadEvents(ref reader, events);
+            if ((flags & (FocusReadSelection | FocusCutSelection)) != 0)
+            {
+                result.SelectedText = reader.String();
+            }
+            return result;
+        }
+
+        private static FocusState ReadFocusState(ref PayloadReader reader)
+        {
+            uint flags = reader.U32();
+            var state = new FocusState(
+                (flags & FocusHas) != 0,
+                (flags & FocusExpectsKeyboard) != 0,
+                (flags & FocusHasNodes) != 0);
+            if ((flags & FocusHasBounds) != 0)
+            {
+                state = state.WithBounds(new AABB(reader.F32(), reader.F32(), reader.F32(), reader.F32()));
+            }
+            return state;
+        }
+
+        /// Main thread or any thread allowed to wait. Doesn't apply, so the
+        /// caller advances if it moved.
+        internal static FocusResult FocusAndWait(NativeStateMachineHandle stateMachine, FocusOp op, uint flags = 0)
+        {
+            return InputAndWait(id => SendFocus(id, stateMachine, op, flags), flags);
+        }
+
+        /// Like FocusAndWait, for a key.
+        internal static FocusResult KeyAndWait(
+            NativeStateMachineHandle stateMachine, RiveKey key, RiveKeyModifiers modifiers, bool pressed, bool repeat)
+        {
+            return InputAndWait(id => SendKey(id, stateMachine, key, modifiers, pressed, repeat, 0), 0);
+        }
+
+        /// Like FocusAndWait, for committed text.
+        internal static FocusResult TextAndWait(NativeStateMachineHandle stateMachine, string text)
+        {
+            return InputAndWait(id => SendText(id, stateMachine, text, 0), 0);
+        }
+
+        /// Doesn't wait. Applies after a change, and finishes with what pick
+        /// takes from the result.
+        internal static Future<T> FocusAsync<T>(NativeStateMachineHandle stateMachine, FocusOp op, Func<FocusResult, T> pick, uint flags = 0)
+        {
+            return InputAsync(id => SendFocus(id, stateMachine, op, flags | FocusApply), flags, pick);
+        }
+
+        /// Like FocusAsync, for a key.
+        internal static Future<T> KeyAsync<T>(
+            NativeStateMachineHandle stateMachine, RiveKey key, RiveKeyModifiers modifiers, bool pressed, bool repeat, Func<FocusResult, T> pick)
+        {
+            return InputAsync(id => SendKey(id, stateMachine, key, modifiers, pressed, repeat, FocusApply), 0, pick);
+        }
+
+        /// Like FocusAsync, for committed text.
+        internal static Future<T> TextAsync<T>(NativeStateMachineHandle stateMachine, string text, Func<FocusResult, T> pick)
+        {
+            return InputAsync(id => SendText(id, stateMachine, text, FocusApply), 0, pick);
+        }
+
+        private static FocusResult InputAndWait(Action<ulong> send, uint flags)
+        {
+            FocusResult result = default;
+            RequestTicket ticket = CommandTransport.Send(
+                send,
+                (batch, message) =>
+                {
+                    var reader = new PayloadReader(batch, message);
+                    result = ReadFocus(ref reader, null, flags);
+                });
+            CommandTransport.Join(ref ticket);
+            return result;
+        }
+
+        private static Future<T> InputAsync<T>(Action<ulong> send, uint flags, Func<FocusResult, T> pick)
+        {
+            return CommandTransport.SendFuture(
+                send,
+                (batch, message) =>
+                {
+                    var reader = new PayloadReader(batch, message);
+                    return pick(ReadFocus(ref reader, null, flags));
+                });
+        }
+
         internal enum PointerKind : uint
         {
             Down = 0,

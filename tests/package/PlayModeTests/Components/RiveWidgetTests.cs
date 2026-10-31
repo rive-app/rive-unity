@@ -223,67 +223,6 @@ namespace Rive.Tests
                         }
                     }
                 },
-                 new TestAssetData
-                {
-                    addressableAssetPath = TestAssetReferences.riv_layoutTest,
-                    defaultArtboardName = "Artboard",
-                    defaultStateMachineName = "State Machine 1",
-                    hitTestScenarios = new HitTestScenario[]
-                    {
-                         // EXPECTED VALID POINTS
-                       
-                       // ScalingMode: ReferenceArtboardSize: Landscape
-
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.94f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.81f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 2
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.70f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 3
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.59f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 4
-                         new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.53f, 0.48f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 5
-                       
-                       // Test different scale factor values
-                        new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.49f, 0.86f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize, layoutScaleFactor: 2f), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.50f, 0.96f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize, layoutScaleFactor: 0.5f), // Button 1
-
-
-                       // ScalingMode: ReferenceArtboardSize: Portrait
-
-                        new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.50f, 0.94f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.50f, 0.81f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 2
-                        new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.50f, 0.70f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 3
-                        new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.50f, 0.59f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 4
-                        new HitTestScenario(panelSize: new Vector2Int(1080, 1920), hitTestPoint: new Vector2(0.50f, 0.48f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ReferenceArtboardSize), // Button 5
-
-
-                        // ScalingMode: ConstantPixelSize 
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.50f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.50f, 0.75f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 5
-
-                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.50f, 0.97f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.50f, 0.81f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 5
-
-                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.50f, 0.93f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.50f, 0.56f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPixelSize), // Button 5
-
-
-                         // ScalingMode: ConstantPhysicalSize 
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.50f, 0.94f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.50f, 0.84f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 5
-
-                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.50f, 0.98f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(2560, 1440), hitTestPoint: new Vector2(0.50f, 0.88f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 5
-
-                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.50f, 0.89f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 1
-                        new HitTestScenario(panelSize: new Vector2Int(960, 600), hitTestPoint: new Vector2(0.50f, 0.25f), expectedResult: true, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown, layoutScalingMode: LayoutScalingMode.ConstantPhysicalSize), // Button 5
-
-                        // EXPECTED INVALID POINTS
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.58f, 0.43f), expectedResult: false, fitMode: Fit.Layout, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerDown),
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.99f, 0.25f), expectedResult: false, fitMode: Fit.Contain, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerMove),
-                        new HitTestScenario(panelSize: new Vector2Int(1920, 1080), hitTestPoint: new Vector2(0.31f, 0.19f), expectedResult: false, fitMode: Fit.Contain, alignment: Alignment.Center, pointerEvent: HitTestScenario.PointerEventType.PointerUp)
-
-                    },
-
-                },
-
             };
         }
 
@@ -731,6 +670,133 @@ namespace Rive.Tests
             }
         }
 
+        /// <summary>
+        /// Test that clicking on target areas sets the correct "Down" flags in the ViewModel.
+
+        /// </summary>
+        [UnityTest]
+        public IEnumerator HitTestTargets_PointerDown_SetsExpectedDownFlags()
+        {
+            const string CenterDown = "Center/Down";
+            const string TopDown = "Top/Down";
+            const string BottomDown = "Bottom/Down";
+            string[] allDownPaths = { CenterDown, TopDown, BottomDown };
+
+            Asset riveAsset = null;
+            yield return testAssetLoadingManager.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_hit_test_targets,
+                (asset) => riveAsset = asset,
+                () => Assert.Fail("Failed to load hit_test_targets asset"));
+
+            bool IsDown(ViewModelInstance vmi, string path)
+            {
+                var property = vmi.GetProperty<ViewModelInstanceBooleanProperty>(path);
+                Assert.IsNotNull(property, $"Expected ViewModel boolean at '{path}'");
+                return property.Value;
+            }
+
+            void AssertOnlyExpectedDown(ViewModelInstance vmi, string expectedDownPath)
+            {
+                bool centerDown = IsDown(vmi, CenterDown);
+                bool topDown = IsDown(vmi, TopDown);
+                bool bottomDown = IsDown(vmi, BottomDown);
+                string actual = $"Center/Down={centerDown}, Top/Down={topDown}, Bottom/Down={bottomDown}";
+
+                foreach (string path in allDownPaths)
+                {
+                    bool shouldBeDown = expectedDownPath != null && path == expectedDownPath;
+                    bool actualDown = path == CenterDown ? centerDown : path == TopDown ? topDown : bottomDown;
+                    Assert.AreEqual(shouldBeDown, actualDown,
+                        $"Expected '{path}' Down == {shouldBeDown} (expected target: {expectedDownPath ?? "miss"}). Actual: {actual}");
+                }
+            }
+
+            var scenarios = new[]
+            {
+                // Fixed artboard with absolute geometry, Contain fill of square panel
+                new { Artboard = "Fixed", Fit = Fit.Contain, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(1000, 1000), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Fixed", Fit = Fit.Contain, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(1000, 1000), Point = new Vector2(0.50f, 0.90f), ExpectedDown = TopDown, ExpectHit = (bool?)true },
+                new { Artboard = "Fixed", Fit = Fit.Contain, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(1000, 1000), Point = new Vector2(0.50f, 0.10f), ExpectedDown = BottomDown, ExpectHit = (bool?)true },
+                // MissZone should not trigger any Down flags; makes sure Down remains false.
+        
+                new { Artboard = "Fixed", Fit = Fit.Contain, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(1000, 1000), Point = new Vector2(0.05f, 0.95f), ExpectedDown = (string)null, ExpectHit = (bool?)null },
+
+                // Layout artboard : Fit.Layout + ReferenceArtboardSize
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(400, 800), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(400, 800), Point = new Vector2(0.50f, 0.88f), ExpectedDown = TopDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(400, 800), Point = new Vector2(0.50f, 0.12f), ExpectedDown = BottomDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(400, 800), Point = new Vector2(0.05f, 0.95f), ExpectedDown = (string)null, ExpectHit = (bool?)null },
+
+                // Test the Layout artboard using multiple panel sizes and scaling settings.
+                // Even with these changes, the center "hit zones" should remain in the middle.
+    
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 2f, Panel = new Vector2Int(1080, 1920), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPixelSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPhysicalSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+            };
+
+            string loadedArtboard = null;
+            foreach (var scenario in scenarios)
+            {
+                if (loadedArtboard != scenario.Artboard)
+                {
+                    m_widget.Fit = scenario.Fit;
+                    m_widget.Alignment = Alignment.Center;
+                    m_widget.BindingMode = RiveWidget.DataBindingMode.AutoBindDefault;
+                    m_widget.Load(riveAsset, artboardName: scenario.Artboard, stateMachineName: null);
+                    yield return RivePanelTestUtils.WaitForLoaded(m_widget);
+                    RivePanelTestUtils.MakeWidgetFillPanel(m_widget);
+                    loadedArtboard = scenario.Artboard;
+                    yield return null;
+                }
+
+                m_widget.Fit = scenario.Fit;
+                m_widget.Alignment = Alignment.Center;
+                m_widget.ScalingMode = scenario.Scaling;
+                m_widget.ScaleFactor = scenario.Scale;
+
+                if (scenario.Scaling == LayoutScalingMode.ConstantPhysicalSize)
+                {
+                    m_widget.ReferenceDPI = 150f;
+                    m_widget.FallbackDPI = 255f;
+                    m_widget.UseFallbackDPI = true;
+                }
+
+                m_panel.SetDimensions(scenario.Panel);
+                yield return null;
+
+                var viewModelInstance = m_widget.StateMachine.ViewModelInstance;
+                Assert.IsNotNull(viewModelInstance, $"ViewModel should be bound for artboard {scenario.Artboard}");
+
+                // Reset all Down flags from previous tests before checking the current scenario
+
+                foreach (string path in allDownPaths)
+                {
+                    var property = viewModelInstance.GetProperty<ViewModelInstanceBooleanProperty>(path);
+                    if (property != null)
+                    {
+                        property.Value = false;
+                    }
+                }
+
+                bool hit = m_widget.OnPointerDown(scenario.Point, 0);
+                yield return null;
+
+                if (scenario.ExpectHit.HasValue)
+                {
+                    Assert.AreEqual(scenario.ExpectHit.Value, hit,
+                        $"OnPointerDown hit mismatch for {scenario.Artboard} point {scenario.Point} fit={scenario.Fit} scaling={scenario.Scaling} scale={scenario.Scale} panel={scenario.Panel}");
+                }
+
+                AssertOnlyExpectedDown(viewModelInstance, scenario.ExpectedDown);
+
+                m_widget.OnPointerUp(scenario.Point, 0);
+                yield return null;
+                AssertOnlyExpectedDown(viewModelInstance, null);
+            }
+        }
+
         [UnityTest]
         public IEnumerator Events_WhenTriggered_AreReported()
         {
@@ -1083,8 +1149,13 @@ namespace Rive.Tests
         public IEnumerator OnWidgetStatusChanged_SubscribedInOnEnable_IsTriggered()
         {
 
+            // Inactive until it knows the widget, so OnEnable subscribes to this
+            // test's widget rather than whichever one FindAny returns.
             var subscriberObject = new GameObject("EventSubscriber");
+            subscriberObject.SetActive(false);
             var subscriber = subscriberObject.AddComponent<TestWidgetStatusChangeSubscriber>();
+            subscriber.Widget = m_widget;
+            subscriberObject.SetActive(true);
 
             Assert.IsFalse(subscriber.StatusChangedTriggered, "Status change should not be triggered yet");
 
@@ -1097,8 +1168,10 @@ namespace Rive.Tests
 
             m_widget.Load(riveAsset);
 
-            // Wait for potential Start and first Update
-            yield return null;
+            for (int frame = 0; frame < 60 && !subscriber.StatusChangedTriggered; frame++)
+            {
+                yield return null;
+            }
 
             Assert.IsTrue(subscriber.StatusChangedTriggered,
                 "OnWidgetStatusChanged should be triggered even when subscribed in OnEnable");
@@ -1343,16 +1416,14 @@ namespace Rive.Tests
 
         private class TestWidgetStatusChangeSubscriber : MonoBehaviour
         {
-            private RiveWidget m_widget;
+            public RiveWidget Widget { get; set; }
             public bool StatusChangedTriggered { get; private set; }
 
             private void OnEnable()
             {
-                m_widget = ObjectHelper.FindAny<RiveWidget>();
-
-                if (m_widget != null)
+                if (Widget != null)
                 {
-                    m_widget.OnWidgetStatusChanged += HandleWidgetStatusChanged;
+                    Widget.OnWidgetStatusChanged += HandleWidgetStatusChanged;
                 }
             }
 
@@ -1364,9 +1435,9 @@ namespace Rive.Tests
 
             private void OnDisable()
             {
-                if (m_widget != null)
+                if (Widget != null)
                 {
-                    m_widget.OnWidgetStatusChanged -= HandleWidgetStatusChanged;
+                    Widget.OnWidgetStatusChanged -= HandleWidgetStatusChanged;
                 }
             }
         }

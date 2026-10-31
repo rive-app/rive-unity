@@ -25,7 +25,7 @@ namespace Rive.Components
     [InspectorSection(WidgetInspectorSections.Data, "Data")]
 #endif
     [AddComponentMenu("Rive/Rive Widget")]
-    public sealed class RiveWidget : WidgetBehaviour, ISerializationCallbackReceiver
+    public sealed class RiveWidget : WidgetBehaviour, ISerializationCallbackReceiver, IRiveFocusWidget
     {
         /// <summary>
         /// Determines whether ReportedEvents are pooled or not.
@@ -366,7 +366,7 @@ namespace Rive.Components
                 m_stateMachineHandle = new StateMachineHandle(
                     new NativeSlot<NativeStateMachineHandle>(Controller.StateMachine.NativeStateMachine),
                     HandleResolution.Known(), m_artboardHandle, stateMachineName, owned: false,
-                    Controller.StateMachine.Lifetime);
+                    Controller.StateMachine.Lifetime, Controller.StateMachine.Gamepads);
                 m_stateMachineHandle.ErrorSink = RaiseError;
             }
         }
@@ -680,6 +680,7 @@ namespace Rive.Components
             slot.LayoutFix = m_needsLayoutRecalculationFix;
             m_needsLayoutRecalculationFix = false;
             slot.SizeVersion = m_artboardSizeVersion;
+            slot.FocusVersion = slot.Core.FocusVersion;
         }
 
         internal override bool WriteAdvance(WidgetAdvance slot, PayloadWriter entries)
@@ -697,6 +698,10 @@ namespace Rive.Components
         internal override void ApplyAdvance(WidgetAdvance slot)
         {
             ThreadCheck.Main();
+            if (slot.Core != null && ReferenceEquals(Core, slot.Core))
+            {
+                slot.Core.ApplyFocus(slot.Result, slot.FocusVersion);
+            }
             // A local resize since it went out is newer than what it saw.
             if (!slot.HasSize || slot.SizeVersion != m_artboardSizeVersion)
             {
@@ -1633,6 +1638,7 @@ return;
 
         protected override void HandleLoadComplete()
         {
+            WatchFocusChangesOutside();
             ResizeArtboardForLayoutIfNeeded();
             TriggerWidgetLoadedEvent();
 
@@ -1938,6 +1944,196 @@ return;
 
 
 #endif
+
+        bool IRiveFocusWidget.IsEligibleForFocus =>
+            Enabled && Status == WidgetStatus.Loaded && Core != null && Core.Focus.HasFocusNodes;
+
+        FocusState IRiveFocusWidget.FocusState => Core != null ? Core.Focus : default;
+
+        void IRiveFocusWidget.MoveFocus(FocusNavigationDirection direction, Action<StateMachineNative.FocusResult> done)
+        {
+            Focus(ToFocusOp(direction), done);
+        }
+
+        void IRiveFocusWidget.SeedFocus(FocusNavigationDirection direction, Action<StateMachineNative.FocusResult> done)
+        {
+            // Directional moves need something focused to start from.
+            Focus(FocusSpatialNavigator.IsForwardSeed(direction)
+                ? StateMachineNative.FocusOp.Next
+                : StateMachineNative.FocusOp.Previous, done);
+        }
+
+        void IRiveFocusWidget.ClearFocus()
+        {
+            WidgetCore core = Core;
+            if (core == null)
+            {
+                return;
+            }
+            core.ForgetFocus();
+            // Nothing waits on losing focus.
+            core.FocusLater(StateMachineNative.FocusOp.Clear, OnRiveEventReported != null, result => LandFocus(core, result));
+        }
+
+        Rect IRiveFocusWidget.GetPanelSpaceRect(RectTransform panelContainer)
+        {
+            return FocusSpatialNavigator.GetRectInPanelSpace(RectTransform, panelContainer);
+        }
+
+        Rect IRiveFocusWidget.GetOriginRect(RectTransform panelContainer)
+        {
+            Rect widgetRect = FocusSpatialNavigator.GetRectInPanelSpace(RectTransform, panelContainer);
+            WidgetCore core = Core;
+            if (core == null || !core.Focus.HasBounds ||
+                RenderObjectWithArtboard == null ||
+                !RenderObjectWithArtboard.TryGetArtboardSize(out Vector2 artboardSize))
+            {
+                return widgetRect;
+            }
+
+            return FocusBoundsTransformer.TryTransformToPanel(
+                    core.Focus.Bounds,
+                    artboardSize,
+                    Fit,
+                    Alignment,
+                    GetEffectiveScaleFactor(),
+                    RectTransform,
+                    panelContainer,
+                    out Rect transformed)
+                ? transformed
+                : widgetRect;
+        }
+
+        private WidgetCore m_focusWatchedCore;
+
+        // A script calling FocusNext on StateMachine shows in the panel straight away.
+        private void WatchFocusChangesOutside()
+        {
+            if (m_focusWatchedCore != null)
+            {
+                m_focusWatchedCore.FocusChangedOutside -= HandleFocusChangedOutside;
+            }
+            m_focusWatchedCore = Core;
+            if (m_focusWatchedCore != null)
+            {
+                m_focusWatchedCore.FocusChangedOutside += HandleFocusChangedOutside;
+            }
+        }
+
+        private void HandleFocusChangedOutside()
+        {
+            if (this == null)
+            {
+                return;
+            }
+            TriggerRedrawNeededEvent();
+            RivePanel?.FocusController.PollFocus();
+        }
+
+        void IRiveFocusWidget.KeyInput(
+            RiveKey key, RiveKeyModifiers modifiers, bool pressed, bool repeat, KeySelection selection, Action<StateMachineNative.FocusResult> done)
+        {
+            uint flags = selection == KeySelection.Cut ? StateMachineNative.FocusCutSelection
+                : selection == KeySelection.Copy ? StateMachineNative.FocusReadSelection
+                : 0;
+            SendInput(
+                (core, collect) => core.KeyAndWait(key, modifiers, pressed, repeat, flags, collect),
+                (core, collect, landed) => core.KeyLater(key, modifiers, pressed, repeat, flags, collect, landed),
+                done);
+        }
+
+        // Main thread, from the panel before it ticks.
+        internal void SyncGamepads(GamepadFrame frame, bool live)
+        {
+            WidgetCore core = Core;
+            if (core != null && Status == WidgetStatus.Loaded && core.SyncGamepads(frame, live))
+            {
+                TriggerRedrawNeededEvent();
+            }
+        }
+
+        void IRiveFocusWidget.TextInput(string text, Action<StateMachineNative.FocusResult> done)
+        {
+            SendInput(
+                (core, collect) => core.TextAndWait(text, collect),
+                (core, collect, landed) => core.TextLater(text, collect, landed),
+                done);
+        }
+
+        private void Focus(StateMachineNative.FocusOp op, Action<StateMachineNative.FocusResult> done)
+        {
+            SendInput(
+                (core, collect) => core.FocusAndWait(op, collect),
+                (core, collect, landed) => core.FocusLater(op, collect, landed),
+                done);
+        }
+
+        // Waits in a panel that waits for Rive, otherwise done runs once Rive answers. done can be null.
+        private void SendInput(
+            Func<WidgetCore, bool, StateMachineNative.FocusResult> wait,
+            Action<WidgetCore, bool, Action<StateMachineNative.FocusResult>> later,
+            Action<StateMachineNative.FocusResult> done)
+        {
+            WidgetCore core = Core;
+            if (core == null || Status != WidgetStatus.Loaded)
+            {
+                done?.Invoke(default);
+                return;
+            }
+
+            bool collectEvents = OnRiveEventReported != null;
+            if (PanelThreadingMode == ThreadingMode.MainThread)
+            {
+                bool hadFocus = core.Focus.HasFocus;
+                StateMachineNative.FocusResult result = wait(core, collectEvents);
+                if (result.Moved || hadFocus != result.State.HasFocus)
+                {
+                    Controller.DispatchCollectedEvents(ReportedEventPoolingMode);
+                    Orchestrator.Instance?.FlushPropertyCallbacksForImmediateAdvance();
+                    TriggerRedrawNeededEvent();
+                }
+                done?.Invoke(result);
+                return;
+            }
+
+            later(core, collectEvents, result =>
+            {
+                StateMachineNative.FocusResult landed = LandFocus(core, result);
+                done?.Invoke(landed);
+            });
+        }
+
+        // A reply for a core a reload replaced counts as nothing.
+        private StateMachineNative.FocusResult LandFocus(WidgetCore core, StateMachineNative.FocusResult result)
+        {
+            if (this == null || !ReferenceEquals(Core, core) || Status != WidgetStatus.Loaded)
+            {
+                return default;
+            }
+            // Rive already applied what focus listeners set, so it only needs drawing.
+            TriggerRedrawNeededEvent();
+            DispatchAdvanceCallbacks();
+            return result;
+        }
+
+        private static StateMachineNative.FocusOp ToFocusOp(FocusNavigationDirection direction)
+        {
+            switch (direction)
+            {
+                case FocusNavigationDirection.Previous:
+                    return StateMachineNative.FocusOp.Previous;
+                case FocusNavigationDirection.Left:
+                    return StateMachineNative.FocusOp.Left;
+                case FocusNavigationDirection.Right:
+                    return StateMachineNative.FocusOp.Right;
+                case FocusNavigationDirection.Up:
+                    return StateMachineNative.FocusOp.Up;
+                case FocusNavigationDirection.Down:
+                    return StateMachineNative.FocusOp.Down;
+                default:
+                    return StateMachineNative.FocusOp.Next;
+            }
+        }
 
     }
 }

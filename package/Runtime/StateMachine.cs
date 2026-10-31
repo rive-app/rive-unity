@@ -352,6 +352,191 @@ namespace Rive
         }
 
         /// <summary>
+        /// True if anything in this state machine can take focus, even if nothing has it yet.
+        /// </summary>
+        public bool HasFocusNodes => Focus(StateMachineNative.FocusOp.Query).State.HasFocusNodes;
+
+        /// <summary>
+        /// True if something in this state machine has focus.
+        /// </summary>
+        public bool HasFocus => Focus(StateMachineNative.FocusOp.Query).State.HasFocus;
+
+        /// <summary>
+        /// Moves focus to the next focusable node in tree order.
+        /// </summary>
+        /// <returns>True if focus moved, including into the tree. False at the end, or at an edge that stops.</returns>
+        public bool FocusNext() => Focus(StateMachineNative.FocusOp.Next).Moved;
+
+        /// <summary>
+        /// Moves focus to the previous focusable node in tree order.
+        /// </summary>
+        /// <returns>True if focus moved, including into the tree. False at the start, or at an edge that stops.</returns>
+        public bool FocusPrevious() => Focus(StateMachineNative.FocusOp.Previous).Moved;
+
+        /// <summary>
+        /// Moves focus to the nearest focusable node to the left. Does nothing when nothing has focus.
+        /// </summary>
+        /// <returns>True if focus moved.</returns>
+        public bool FocusLeft() => Focus(StateMachineNative.FocusOp.Left).Moved;
+
+        /// <summary>
+        /// Moves focus to the nearest focusable node to the right. Does nothing when nothing has focus.
+        /// </summary>
+        /// <returns>True if focus moved.</returns>
+        public bool FocusRight() => Focus(StateMachineNative.FocusOp.Right).Moved;
+
+        /// <summary>
+        /// Moves focus to the nearest focusable node above. Does nothing when nothing has focus.
+        /// </summary>
+        /// <returns>True if focus moved.</returns>
+        public bool FocusUp() => Focus(StateMachineNative.FocusOp.Up).Moved;
+
+        /// <summary>
+        /// Moves focus to the nearest focusable node below. Does nothing when nothing has focus.
+        /// </summary>
+        /// <returns>True if focus moved.</returns>
+        public bool FocusDown() => Focus(StateMachineNative.FocusOp.Down).Moved;
+
+        /// <summary>
+        /// Drops focus from this state machine, which runs the file's blur behavior.
+        /// </summary>
+        public void ClearFocus() => Focus(StateMachineNative.FocusOp.Clear);
+
+        /// <summary>
+        /// True if the focused node takes typed text, like a text input. False when nothing has focus.
+        /// </summary>
+        public bool ExpectsKeyboardInput => FocusState.ExpectsKeyboardInput;
+
+        /// <summary>
+        /// The text selected in the focused node, or an empty string when nothing is selected. Use it to copy to the clipboard.
+        /// </summary>
+        public string SelectedText
+        {
+            get
+            {
+                if (!IsNativeStateMachineValid())
+                {
+                    return string.Empty;
+                }
+                return StateMachineNative.FocusAndWait(
+                    m_nativeStateMachine, StateMachineNative.FocusOp.Query, StateMachineNative.FocusReadSelection).SelectedText ?? string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// Sends a key press or release to the focused node, then to its ancestors until one handles it. What it changes shows on the next advance.
+        /// </summary>
+        /// <param name="key">The key.</param>
+        /// <param name="modifiers">The modifier keys held with it.</param>
+        /// <param name="pressed">True when the key goes down, false when it comes up.</param>
+        /// <param name="repeat">True for a repeat while the key is held.</param>
+        /// <returns>True if something handled the key.</returns>
+        public bool KeyInput(RiveKey key, RiveKeyModifiers modifiers, bool pressed, bool repeat = false)
+        {
+            if (!IsNativeStateMachineValid())
+            {
+                return false;
+            }
+            return Changed(StateMachineNative.KeyAndWait(m_nativeStateMachine, key, modifiers, pressed, repeat)).Claimed;
+        }
+
+        /// <summary>
+        /// Types text into the focused node, when it takes text. Send keys like Backspace and Enter with <see cref="KeyInput"/>. The text shows on the next advance.
+        /// </summary>
+        /// <param name="text">The committed text.</param>
+        /// <returns>True if something took the text.</returns>
+        public bool TextInput(string text)
+        {
+            if (string.IsNullOrEmpty(text) || !IsNativeStateMachineValid())
+            {
+                return false;
+            }
+            return Changed(StateMachineNative.TextAndWait(m_nativeStateMachine, text)).Claimed;
+        }
+
+        /// <summary>
+        /// Sets how far a gamepad button is pressed. Listeners hear it through the focused node and its ancestors, and scripts with a gamepad handler hear it whatever has focus. Only sent when the value changed, and shows on the next advance.
+        /// </summary>
+        /// <remarks>
+        /// A panel already sends Unity's gamepads to its widgets when the Input System is in use, unless its Gamepad Input setting says otherwise.
+        /// </remarks>
+        /// <param name="deviceId">Any number that stays the same for one gamepad. The first value from a new one announces it as connected.</param>
+        /// <param name="button">The button.</param>
+        /// <param name="value">From 0, released, to 1, fully pressed. Anything from 0.5 counts as pressed.</param>
+        public void SetGamepadButton(int deviceId, RiveGamepadButton button, float value)
+        {
+            if (IsNativeStateMachineValid())
+            {
+                StateMachineNative.SendGamepad(m_nativeStateMachine, Gamepads.SetButton(deviceId, button, value));
+            }
+        }
+
+        /// <summary>
+        /// Sets a gamepad axis. Heard the same way as <see cref="SetGamepadButton"/>.
+        /// </summary>
+        /// <param name="deviceId">Any number that stays the same for one gamepad. The first value from a new one announces it as connected.</param>
+        /// <param name="axis">The axis.</param>
+        /// <param name="value">From -1 to 1 for a stick, with up and left negative, or 0 to 1 for a trigger.</param>
+        public void SetGamepadAxis(int deviceId, RiveGamepadAxis axis, float value)
+        {
+            if (IsNativeStateMachineValid())
+            {
+                StateMachineNative.SendGamepad(m_nativeStateMachine, Gamepads.SetAxis(deviceId, axis, value));
+            }
+        }
+
+        /// <summary>
+        /// Tells listeners a gamepad went away. Does nothing for one this state machine hasn't heard from.
+        /// </summary>
+        /// <param name="deviceId">The number its values were sent with.</param>
+        public void DisconnectGamepad(int deviceId)
+        {
+            if (IsNativeStateMachineValid())
+            {
+                StateMachineNative.SendGamepad(m_nativeStateMachine, Gamepads.Disconnect(deviceId));
+            }
+        }
+
+        /// Main thread. What this state machine was last sent per gamepad,
+        /// shared with the panel that sends Unity's gamepads.
+        internal GamepadTracker Gamepads { get; } = new GamepadTracker();
+
+        /// The state machine's focus right now. Waits.
+        internal FocusState FocusState => Focus(StateMachineNative.FocusOp.Query).State;
+
+        /// The focused node's bounds in artboard space. Waits.
+        internal bool TryGetPrimaryFocusBounds(out AABB bounds)
+        {
+            FocusState state = FocusState;
+            bounds = state.Bounds;
+            return state.HasBounds;
+        }
+
+        /// Main thread. Raised after a focus move, key or text here, so a widget
+        /// showing this state machine hears about it before its next advance.
+        internal event Action<StateMachineNative.FocusResult> FocusChanged;
+
+        // Waits. Advance afterwards to show what focus listeners set.
+        private StateMachineNative.FocusResult Focus(StateMachineNative.FocusOp op)
+        {
+            if (!IsNativeStateMachineValid())
+            {
+                return default;
+            }
+            StateMachineNative.FocusResult result = StateMachineNative.FocusAndWait(m_nativeStateMachine, op);
+            return op == StateMachineNative.FocusOp.Query ? result : Changed(result);
+        }
+
+        private StateMachineNative.FocusResult Changed(StateMachineNative.FocusResult result)
+        {
+            if (result.Found)
+            {
+                FocusChanged?.Invoke(result);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// A list of all the reported events received in the past frame.
         /// </summary>
         public List<ReportedEvent> ReportedEvents()

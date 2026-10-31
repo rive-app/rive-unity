@@ -29,7 +29,9 @@ namespace Rive.EditorTools
         [InitializeOnLoadMethod]
         private static void ShowOnEditorOpen()
         {
-            if (!IsShowOnStart())
+            // Batchmode has no window to show, and on CI machines without a
+            // desktop, trying crashes the editor.
+            if (Application.isBatchMode || !IsShowOnStart())
             {
                 return;
             }

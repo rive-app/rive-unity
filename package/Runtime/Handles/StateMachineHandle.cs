@@ -32,7 +32,8 @@ namespace Rive
         private bool m_isDisposed;
 
         internal StateMachineHandle(
-            NativeSlot<NativeStateMachineHandle> native, HandleResolution resolution, ArtboardHandle artboard, string name, bool owned, NativeLifetime lifetime)
+            NativeSlot<NativeStateMachineHandle> native, HandleResolution resolution, ArtboardHandle artboard, string name, bool owned, NativeLifetime lifetime,
+            GamepadTracker gamepads = null)
         {
             m_native = native;
             m_resolution = resolution;
@@ -40,6 +41,7 @@ namespace Rive
             m_name = name;
             m_owned = owned;
             m_lifetime = lifetime;
+            m_gamepads = gamepads ?? new GamepadTracker();
         }
 
         ~StateMachineHandle()
@@ -99,6 +101,178 @@ namespace Rive
             StateMachineNative.AdvanceLater(m_native.Value, seconds);
             // No panel captures for a state machine you drive yourself.
             PropertyCallbacksHub.Instance.SubmitCaptureAfterAdvance();
+        }
+
+        /// <summary>
+        /// Whether anything in this state machine can take focus, even if nothing has it yet.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with the answer, in order with other writes.</returns>
+        public Future<bool> HasFocusNodesAsync() => FocusAsync(nameof(HasFocusNodesAsync), StateMachineNative.FocusOp.Query, s_hasFocusNodes);
+
+        /// <summary>
+        /// Whether something in this state machine has focus.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with the answer, in order with other writes.</returns>
+        public Future<bool> HasFocusAsync() => FocusAsync(nameof(HasFocusAsync), StateMachineNative.FocusOp.Query, s_hasFocus);
+
+        /// <summary>
+        /// Moves focus to the next focusable node in tree order. Queued, in order with other writes.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with true if focus moved, including into the tree. False at the end, or at an edge that stops.</returns>
+        public Future<bool> FocusNextAsync() => FocusAsync(nameof(FocusNextAsync), StateMachineNative.FocusOp.Next, s_moved);
+
+        /// <summary>
+        /// Moves focus to the previous focusable node in tree order. Queued, in order with other writes.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with true if focus moved, including into the tree. False at the start, or at an edge that stops.</returns>
+        public Future<bool> FocusPreviousAsync() => FocusAsync(nameof(FocusPreviousAsync), StateMachineNative.FocusOp.Previous, s_moved);
+
+        /// <summary>
+        /// Moves focus to the nearest focusable node to the left. Does nothing when nothing has focus. Queued, in order with other writes.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with true if focus moved.</returns>
+        public Future<bool> FocusLeftAsync() => FocusAsync(nameof(FocusLeftAsync), StateMachineNative.FocusOp.Left, s_moved);
+
+        /// <summary>
+        /// Moves focus to the nearest focusable node to the right. Does nothing when nothing has focus. Queued, in order with other writes.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with true if focus moved.</returns>
+        public Future<bool> FocusRightAsync() => FocusAsync(nameof(FocusRightAsync), StateMachineNative.FocusOp.Right, s_moved);
+
+        /// <summary>
+        /// Moves focus to the nearest focusable node above. Does nothing when nothing has focus. Queued, in order with other writes.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with true if focus moved.</returns>
+        public Future<bool> FocusUpAsync() => FocusAsync(nameof(FocusUpAsync), StateMachineNative.FocusOp.Up, s_moved);
+
+        /// <summary>
+        /// Moves focus to the nearest focusable node below. Does nothing when nothing has focus. Queued, in order with other writes.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with true if focus moved.</returns>
+        public Future<bool> FocusDownAsync() => FocusAsync(nameof(FocusDownAsync), StateMachineNative.FocusOp.Down, s_moved);
+
+        /// <summary>
+        /// Drops focus from this state machine, which runs the file's blur behavior. Queued, in order with other writes.
+        /// </summary>
+        public void ClearFocus()
+        {
+            if (!CheckUsable(nameof(ClearFocus)))
+            {
+                return;
+            }
+            StateMachineNative.FocusAsync(m_native.Value, StateMachineNative.FocusOp.Clear, s_moved);
+        }
+
+        /// <summary>
+        /// Whether the focused node takes typed text, like a text input.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with the answer, in order with other writes. False when nothing has focus.</returns>
+        public Future<bool> ExpectsKeyboardInputAsync() => FocusAsync(nameof(ExpectsKeyboardInputAsync), StateMachineNative.FocusOp.Query, s_expectsKeyboardInput);
+
+        /// <summary>
+        /// Reads the text selected in the focused node, to copy to the clipboard.
+        /// </summary>
+        /// <returns>An operation that finishes on the main thread with the selection, in order with other writes. Empty when nothing is selected.</returns>
+        public Future<string> SelectedTextAsync()
+        {
+            if (!CheckUsable(nameof(SelectedTextAsync)))
+            {
+                return Future<string>.FromResult(string.Empty);
+            }
+            return StateMachineNative.FocusAsync(
+                m_native.Value, StateMachineNative.FocusOp.Query, s_selectedText, StateMachineNative.FocusReadSelection);
+        }
+
+        /// <summary>
+        /// Sends a key press or release to the focused node, then to its ancestors until one handles it. Queued, in order with other writes.
+        /// </summary>
+        /// <param name="key">The key.</param>
+        /// <param name="modifiers">The modifier keys held with it.</param>
+        /// <param name="pressed">True when the key goes down, false when it comes up.</param>
+        /// <param name="repeat">True for a repeat while the key is held.</param>
+        /// <returns>An operation that finishes on the main thread with true if something handled the key.</returns>
+        public Future<bool> KeyInputAsync(RiveKey key, RiveKeyModifiers modifiers, bool pressed, bool repeat = false)
+        {
+            if (!CheckUsable(nameof(KeyInputAsync)))
+            {
+                return Future<bool>.FromResult(false);
+            }
+            return StateMachineNative.KeyAsync(m_native.Value, key, modifiers, pressed, repeat, s_claimed);
+        }
+
+        /// <summary>
+        /// Types text into the focused node, when it takes text. Send keys like Backspace and Enter with <see cref="KeyInputAsync"/>. Queued, in order with other writes.
+        /// </summary>
+        /// <param name="text">The committed text.</param>
+        /// <returns>An operation that finishes on the main thread with true if something took the text.</returns>
+        public Future<bool> TextInputAsync(string text)
+        {
+            if (string.IsNullOrEmpty(text) || !CheckUsable(nameof(TextInputAsync)))
+            {
+                return Future<bool>.FromResult(false);
+            }
+            return StateMachineNative.TextAsync(m_native.Value, text, s_claimed);
+        }
+
+        /// <summary>
+        /// Sets how far a gamepad button is pressed. Listeners hear it through the focused node and its ancestors, and scripts with a gamepad handler hear it whatever has focus. Only sent when the value changed. Queued, in order with other writes.
+        /// </summary>
+        /// <param name="deviceId">Any number that stays the same for one gamepad. The first value from a new one announces it as connected.</param>
+        /// <param name="button">The button.</param>
+        /// <param name="value">From 0, released, to 1, fully pressed. Anything from 0.5 counts as pressed.</param>
+        public void SetGamepadButton(int deviceId, RiveGamepadButton button, float value)
+        {
+            if (CheckUsable(nameof(SetGamepadButton)))
+            {
+                StateMachineNative.SendGamepad(m_native.Value, m_gamepads.SetButton(deviceId, button, value));
+            }
+        }
+
+        /// <summary>
+        /// Sets a gamepad axis. Heard the same way as <see cref="SetGamepadButton"/>. Queued, in order with other writes.
+        /// </summary>
+        /// <param name="deviceId">Any number that stays the same for one gamepad. The first value from a new one announces it as connected.</param>
+        /// <param name="axis">The axis.</param>
+        /// <param name="value">From -1 to 1 for a stick, with up and left negative, or 0 to 1 for a trigger.</param>
+        public void SetGamepadAxis(int deviceId, RiveGamepadAxis axis, float value)
+        {
+            if (CheckUsable(nameof(SetGamepadAxis)))
+            {
+                StateMachineNative.SendGamepad(m_native.Value, m_gamepads.SetAxis(deviceId, axis, value));
+            }
+        }
+
+        /// <summary>
+        /// Tells listeners a gamepad went away. Does nothing for one this state machine hasn't heard from. Queued, in order with other writes.
+        /// </summary>
+        /// <param name="deviceId">The number its values were sent with.</param>
+        public void DisconnectGamepad(int deviceId)
+        {
+            if (CheckUsable(nameof(DisconnectGamepad)))
+            {
+                StateMachineNative.SendGamepad(m_native.Value, m_gamepads.Disconnect(deviceId));
+            }
+        }
+
+        // Shared with the StateMachine a widget's handle views, so both know what was already sent.
+        private readonly GamepadTracker m_gamepads;
+
+        internal GamepadTracker Gamepads => m_gamepads;
+
+        private static readonly Func<StateMachineNative.FocusResult, bool> s_moved = result => result.Moved;
+        private static readonly Func<StateMachineNative.FocusResult, bool> s_claimed = result => result.Claimed;
+        private static readonly Func<StateMachineNative.FocusResult, bool> s_expectsKeyboardInput = result => result.State.ExpectsKeyboardInput;
+        private static readonly Func<StateMachineNative.FocusResult, string> s_selectedText = result => result.SelectedText ?? string.Empty;
+        private static readonly Func<StateMachineNative.FocusResult, bool> s_hasFocus = result => result.State.HasFocus;
+        private static readonly Func<StateMachineNative.FocusResult, bool> s_hasFocusNodes = result => result.State.HasFocusNodes;
+
+        private Future<bool> FocusAsync(string what, StateMachineNative.FocusOp op, Func<StateMachineNative.FocusResult, bool> pick)
+        {
+            if (!CheckUsable(what))
+            {
+                return Future<bool>.FromResult(false);
+            }
+            return StateMachineNative.FocusAsync(m_native.Value, op, pick);
         }
 
         /// <summary>

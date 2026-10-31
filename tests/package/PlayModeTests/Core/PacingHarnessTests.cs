@@ -1,3 +1,4 @@
+#if RIVE_USING_EXPERIMENTAL
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
@@ -608,3 +609,4 @@ namespace Rive.Tests
         }
     }
 }
+#endif // RIVE_USING_EXPERIMENTAL

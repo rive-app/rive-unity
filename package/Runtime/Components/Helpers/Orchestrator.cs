@@ -85,6 +85,7 @@ namespace Rive.Components
 #endif
             m_modules.Add(new PropertyCaptureFrameModule());
             m_modules.Add(m_pointerInput);
+            m_modules.Add(new GamepadInputModule(m_registeredPanels));
 
             // The core frame loop runs these, after every script's Update
             // and LateUpdate, so the order is fixed rather than whatever
