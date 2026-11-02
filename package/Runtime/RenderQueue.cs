@@ -587,8 +587,13 @@ namespace Rive
                 return;
             }
             IntPtr pointer = GetNativeTexturePointer(Texture);
-            // Make sure null pointers are set too or the native side could be
-            // left with an invalid/discarded texture.
+            if (pointer == IntPtr.Zero)
+            {
+                // Unity still hasn't made it. GetNativeTexturePointer queued
+                // another try, and native already has no texture, so there's
+                // nothing to send yet.
+                return;
+            }
             renderQueueUpdateRenderTexture(
                 m_nativeRenderQueue,
                 pointer,
