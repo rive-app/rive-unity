@@ -320,7 +320,7 @@ namespace Rive.Components
 
         public bool Enabled => this != null && this.enabled && this.gameObject != null && this.gameObject.activeInHierarchy;
 
-        private void InitializeDefaultRenderTargetStrategyIfNeeded()
+        internal void InitializeDefaultRenderTargetStrategyIfNeeded()
         {
             if (m_renderTargetStrategy != null)
             {

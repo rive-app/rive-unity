@@ -154,6 +154,40 @@ namespace Rive.Tests
             }
         }
 
+        [TestCase(true, 615)]
+        [TestCase(false, 240)]
+        public void MatchCanvasResolution_RendererEnabledBeforePanel_UsesExpectedResolution(bool matchCanvasResolution, int expectedSize)
+        {
+            m_mockLogger = new MockLogger();
+            DebugLogger.Instance = m_mockLogger;
+
+            m_canvas = new GameObject("Canvas").AddComponent<Canvas>();
+            m_canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            m_canvas.scaleFactor = 2.5625f;
+
+            var panelObject = new GameObject("RivePanel", typeof(RectTransform));
+            panelObject.SetActive(false);
+            panelObject.transform.SetParent(m_canvas.transform, false);
+            m_realPanel = panelObject.AddComponent<RivePanel>();
+            m_realPanel.enabled = false;
+            m_realPanel.SetDimensions(new Vector2(240, 240));
+            m_renderer = panelObject.AddComponent<RiveCanvasRenderer>();
+            m_renderer.MatchCanvasResolution = matchCanvasResolution;
+
+            // The renderer must attach canvas sizing even when the panel's OnEnable runs later.
+            panelObject.SetActive(true);
+            m_realPanel.enabled = true;
+
+            var strategy = (SimpleRenderTargetStrategy)m_realPanel.RenderTargetStrategy;
+            strategy.DrawTiming = DrawTimingOption.DrawImmediate;
+            strategy.DrawPanel(m_realPanel);
+
+            var texture = m_realPanel.RenderTexture;
+            Assert.IsNotNull(texture);
+            Assert.AreEqual(expectedSize, texture.width);
+            Assert.AreEqual(expectedSize, texture.height);
+        }
+
         [UnityTest]
         public IEnumerator UpdateVisualTarget_UpdatesRawImageProperties()
         {

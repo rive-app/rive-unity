@@ -118,6 +118,8 @@ namespace Rive.Components
             var concretePanel = panel as RivePanel;
             if (concretePanel == null) return;
 
+            // The renderer can enable before the panel initializes its render target strategy.
+            concretePanel.InitializeDefaultRenderTargetStrategyIfNeeded();
             var strategy = concretePanel.RenderTargetStrategy as RenderTargetStrategy;
             if (strategy == null) return;
 
