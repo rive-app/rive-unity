@@ -3,101 +3,88 @@
 
 # Rive Unity
 
-![rive x unity image](https://github.com/rive-app/rive/assets/13705472/65130bf0-dff8-49cd-ae3a-9abe159c4b20)
+![Rive hero image](https://cdn.rive.app/rive_logo_dark_bg.png)
 
-A Unity runtime library for [Rive](https://rive.app). This is currently a **technical preview** for Mac and Windows installs of Unity. We're hoping to gather feedback about the API and feature-set as we expand platform support.
+The Unity runtime for [Rive](https://rive.app). It uses the [Rive Renderer](https://rive.app/renderer) and stays up to date with the latest Rive C++ runtime. Install it from the [Unity Asset Store](https://assetstore.unity.com/packages/tools/gui/rive-350858) or from this repo.
 
-## Unity Version Support
+## Unity version support
 
 The package supports Unity LTS versions from 2021 upwards (including Unity 6).
 
 ### Rendering support
 
-Currently supported platforms and backends include:
-
 - [WebGL](WEBGL.md)
 - Metal on Mac
 - Metal on iOS
 - D3D11 on Windows
+- D3D12 on Windows
 - OpenGL on Windows
 - OpenGL on Android
 - Vulkan on Windows
 - Vulkan on Android
-- Vulkan on Linux (x86_64)
+- Vulkan on Ubuntu 24.04+ (x86_64)
 
 Planned support for:
 
-- D3D12
+- Consoles
 
 ### Feature support
 
-The rive-unity runtime uses the latest Rive C++ runtime.
-
-| Feature                                                                                                                                  | Supported   |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| [Animation Playback](https://rive.app/community/doc/animation-playback/docDKKxsr7ko)                            | ✅           |
-| [Fit and Alignment](https://rive.app/community/doc/layout/docBl81zd1GB)                               | ✅           |
-| [Listeners](https://rive.app/community/doc/listeners/docRlEVvrCZW)                         | ✅           |
-| [Setting State Machine Inputs](https://rive.app/community/doc/state-machines/docHnjaSeIIr) | ✅           |
-| [Listening to Events](https://rive.app/community/doc/rive-events/docvlavjXfq8)             | ✅           |
-| [Updating text at runtime](https://rive.app/community/doc/text/docn2E6y1lXo)               | ✅           |
-| [Out-of-band assets](https://rive.app/community/doc/loading-assets/doc1etuJJdEC)           | ✅           |
-| [Procedural rendering](https://rive.app/community/doc/procedural-rendering/docF2fNqCP1W)   | ✅           |
-| PNG images                                                                                                                               | ✅           |
-| WEBP and JPEG images                                                                                                                     | ✅  |
-
+See [Feature Support](https://rive.app/docs/feature-support) for which Rive features each runtime supports, including Unity. The Unity docs have pages for [Data Binding](https://rive.app/docs/game-runtimes/unity/data-binding), [State Machines](https://rive.app/docs/game-runtimes/unity/state-machines), [Listeners](https://rive.app/docs/game-runtimes/unity/listeners), [Layouts](https://rive.app/docs/game-runtimes/unity/layouts), [Loading Assets](https://rive.app/docs/game-runtimes/unity/loading-assets), [Audio](https://rive.app/docs/game-runtimes/unity/audio), [Procedural Rendering](https://rive.app/docs/game-runtimes/unity/procedural-rendering), [Runtime Asset Swapping](https://rive.app/docs/game-runtimes/unity/runtime-asset-swapping), and, for older files, [Inputs](https://rive.app/docs/game-runtimes/unity/inputs), [Text](https://rive.app/docs/game-runtimes/unity/text), and [Rive Events](https://rive.app/docs/game-runtimes/unity/rive-events).
 
 ## Table of contents
 
 - ⭐️ [Rive Overview](#rive-overview)
+- 🤖 [Build with your agent](#build-with-your-agent)
 - 🚀 [Getting Started](#getting-started)
 - 👨‍💻 [Contributing](#contributing)
 - ❓ [Issues](#issues)
 
 ## Rive overview
 
-[Rive](https://rive.app) is a real-time interactive design and animation tool that helps teams
-create and run interactive animations anywhere. Designers and developers use our collaborative
-editor to create motion graphics that respond to different states and user inputs. Our lightweight
-open-source runtime libraries allow them to load their animations into apps, games, and websites.
+[Rive](https://rive.app) is an agent-native 2D and 3D engine for games, apps, and interactive UI. Use it as your whole engine, or add it to the products you already have. Build with your coding agent through the [Rive CLI](https://rive.app/agents), or draw, rig, and animate by hand with the professional design and animation tools in the [Rive Editor](https://rive.app/editor). Both work on the same files. Open-source runtimes, no royalties or runtime fees. Rive files (`.riv`) play natively on web, mobile, desktop, game engines, consoles, smart TVs, and cars.
 
 🏡 [Homepage](https://rive.app/)
 
-📘 [General help docs](https://rive.app/community/doc/introduction/docvphVOrBbl) · [Rive Unity docs](https://rive.app/community/doc/unity/doc31LHoppdv)
+📘 [Rive docs](https://rive.app/docs/) · [Rive Unity docs](https://rive.app/docs/game-runtimes/unity/unity)
 
-🛠 [Learning Rive](https://rive.app/learn-rive/)
+🛠 [Learn Rive](https://rive.app/docs/tutorials/learn-rive)
+
+## Build with your agent
+
+Paste this into Claude Code, Codex, Cursor, or any agent that runs commands on your computer:
+
+```text
+Install the Rive CLI from rive.app/cli. Build a game menu and HUD as a Rive file and add them to my Unity project with the Rive runtime.
+```
+
+Your agent installs the [Rive CLI](https://rive.app/agents), writes the scene, and opens a preview window that rebuilds every time it saves. Keep giving it notes, or open the same file in the [Rive Editor](https://editor.rive.app/) and shape it by hand. Trying it needs no account. Writing the `.riv` that ships in your game needs a free Rive account. Free exports play a short Rive splash screen; [paid plans](https://rive.app/pricing) export without it. See [Getting started with the Rive CLI](https://rive.app/docs/cli/getting-started).
 
 ## Getting started
 
-See the official examples repository to easily run a project locally: https://github.com/rive-app/rive-unity-examples
+See [Getting Started](https://rive.app/docs/game-runtimes/unity/getting-started) in the Rive Unity docs. To try Rive in Unity quickly, run one of the [example projects](https://github.com/rive-app/rive-unity-examples).
 
-See the [Rive Unity docs](https://rive.app/community/doc/unity/doc31LHoppdv) for more information.
+Install the package from the [Unity Asset Store](https://assetstore.unity.com/packages/tools/gui/rive-350858) (stable releases), or from GitHub to also get canary tags with [Early Access features](https://rive.app/docs/feature-support).
 
-You will need a Unity editor that supports OpenGL or D3D11 for Windows, or a Mac with ARM64 (M1, M2, etc) architecture and OS 11.0 or later.
-
-Select either D3D11/OpenGL for Windows, or Metal for Mac/iOS as the Graphics API under Project Settings -> Player in Unity.
-
-You can install the Rive package for Unity by opening the Package Manager (Window -> Package Manager) and adding the [latest release](https://github.com/rive-app/rive-unity/releases) as a git dependency, for example (replace 0.0.0 with the [latest release](https://github.com/rive-app/rive-unity/releases)):
-
-```
-git@github.com:rive-app/rive-unity.git?path=package#v0.0.0
-```
-
-Or through HTTP (replace 0.0.0 with the [latest release](https://github.com/rive-app/rive-unity/releases)):
+From GitHub, open **Window -> Package Manager**, choose **Add package from git URL...**, and paste this URL (replace `0.0.0` with the [latest release](https://github.com/rive-app/rive-unity/releases)):
 
 ```
 https://github.com/rive-app/rive-unity.git?path=package#v0.0.0
 ```
 
-You can also add it manually to your projects `Packages/manifest.json` file (replace 0.0.0 with the [latest release](https://github.com/rive-app/rive-unity/releases)):
+Or add it to your project's `Packages/manifest.json`:
 
 ```json
 {
   "dependencies": {
-    "app.rive.rive-unity": "git@github.com:rive-app/rive-unity.git?path=package#v0.0.0"
+    "app.rive.rive-unity": "https://github.com/rive-app/rive-unity.git?path=package#v0.0.0"
   }
 }
 ```
+
+Unity can crash when it upgrades the package while the Editor is running. If that happens, close Unity, update the version in `Packages/manifest.json`, then reopen the project.
+
+Once you have a `.riv` file, drag it into the Unity **Project** window. Unity imports it as a **Rive Asset** you can reference from components and scripts.
 
 ### Awesome Rive
 
@@ -113,3 +100,5 @@ Have an issue with using the runtime, or want to suggest a feature/API to help m
 life better? Log an issue in our [issues](https://github.com/rive-app/rive-unity/issues) tab! You
 can also browse older issues and discussion threads there to see solutions that may have worked for
 common problems.
+
+For crashes, attach the **Editor.log** from right after the crash. The [Unity docs](https://docs.unity3d.com/Manual/LogFiles.html) say where to find it.

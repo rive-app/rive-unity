@@ -2,10 +2,10 @@
   "name": "app.rive.rive-unity",
   "version": "0.5.3-canary.108",
   "displayName": "Rive",
-  "description": "Create and ship interactive animations to any platform",
+  "description": "Unity runtime for Rive, the agent-native 2D and 3D engine for games, apps, and interactive UI.",
   "unity": "2021.3",
   "unityRelease": "0a10",
-  "documentationUrl": "https://rive.app/community/doc/getting-started/docQycIiNOv4",
+  "documentationUrl": "https://rive.app/docs/game-runtimes/unity/getting-started",
   "changelogUrl": "https://github.com/rive-app/rive-unity/tags",
   "licensesUrl": "https://github.com/rive-app/rive-unity/license",
   "keywords": [
