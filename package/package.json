@@ -1,6 +1,6 @@
 {
   "name": "app.rive.rive-unity",
-  "version": "0.5.3-canary.138",
+  "version": "0.5.3-canary.139",
   "displayName": "Rive",
   "description": "Unity runtime for Rive, the agent-native 2D and 3D engine for games, apps, and interactive UI.",
   "unity": "2021.3",
