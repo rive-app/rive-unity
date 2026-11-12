@@ -206,7 +206,7 @@ namespace Rive
                 s_handOverBuffer.Clear();
             }
             s_handOverBuffer.IssuePluginEventAndData(
-                getHandOverTexturesCallback(), 0, RenderLifetime.EventData(serial));
+                getHandOverTexturesCallback(), RenderLifetime.EventId, RenderLifetime.EventData(serial));
             Graphics.ExecuteCommandBuffer(s_handOverBuffer);
         }
 

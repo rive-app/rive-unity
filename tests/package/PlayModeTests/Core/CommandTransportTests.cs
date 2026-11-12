@@ -131,6 +131,10 @@ namespace Rive.Tests
         [Test]
         public void Start_UsesAThreadInPlayMode()
         {
+            if (!CommandTransport.IsThreaded && Application.platform == RuntimePlatform.WebGLPlayer)
+            {
+                Assert.Ignore("WebGL without Native C/C++ Multithreading runs Rive's work inline.");
+            }
             Assert.IsTrue(CommandTransport.IsThreaded,
                           "Play mode should get a real server thread.");
         }

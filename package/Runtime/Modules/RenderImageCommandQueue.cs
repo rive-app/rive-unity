@@ -44,6 +44,9 @@ namespace Rive
         private static uint s_nextTicket = 1;
         private static bool s_loggedUnsupportedBackend;
         private static RenderImageCommandQueue s_instance;
+        // Keeps counting across sessions, so native can tell an old session's
+        // events by their serial.
+        private static ulong s_lastEnqueuedSerial;
 
         internal static RenderImageCommandQueue Instance
         {
@@ -108,7 +111,6 @@ namespace Rive
             new Dictionary<uint, ImageCommand>();
         private readonly Stack<ImageCommand> m_freeCommands = new Stack<ImageCommand>();
         private readonly ProducerChannel<Batch, BatchResult> m_batches;
-        private ulong m_lastEnqueuedSerial;
         private ulong m_lastSubmittedSerial;
         private uint m_lastGeneration;
         private bool m_haveGeneration;
@@ -121,6 +123,8 @@ namespace Rive
 
         private RenderImageCommandQueue()
         {
+            // Native's count outlives a domain reload, ours doesn't.
+            s_lastEnqueuedSerial = Math.Max(s_lastEnqueuedSerial, riveRenderImageSerialSeen());
             m_batches = new ProducerChannel<Batch, BatchResult>(
                 ChannelMode.Fifo,
                 SendBatch,
@@ -254,7 +258,7 @@ namespace Rive
             command.PropertyCount = 0;
             command.Destroy = false;
             command.Ticket = 0;
-            m_lastEnqueuedSerial++;
+            s_lastEnqueuedSerial++;
         }
 
         // A clear is a build with no texture. The render thread nulls the bound
@@ -275,7 +279,7 @@ namespace Rive
                 command.Ticket = ticket;
             }
             command.Destroy = true;
-            m_lastEnqueuedSerial++;
+            s_lastEnqueuedSerial++;
         }
 
         // Lands a finished batch, which issues its render event, then sends
@@ -302,7 +306,7 @@ namespace Rive
                 batch.Commands = new ImageCommand[capacity];
             }
             batch.Count = m_pending.Count;
-            batch.LastSerial = m_lastEnqueuedSerial;
+            batch.LastSerial = s_lastEnqueuedSerial;
             m_pending.Values.CopyTo(batch.Commands, 0);
             m_pending.Clear();
             if (batch.Retires == null || batch.Retires.Length < m_retires.Count)
@@ -498,7 +502,7 @@ namespace Rive
                 m_commandBuffer.Clear();
             }
             m_commandBuffer.IssuePluginEventAndData(
-                getProcessRenderImageCommandsCallback(), (int)generation,
+                getProcessRenderImageCommandsCallback(), RenderLifetime.EventIdFor(generation),
                 RenderLifetime.EventData((uint)serial));
             Graphics.ExecuteCommandBuffer(m_commandBuffer);
             ImagePipelineTrace.ForTests?.Invoke(ImagePipelineTrace.Step.FillIssued, 0, generation);
@@ -572,6 +576,25 @@ namespace Rive
 
         internal object LastBatchCommandsForTests => m_lastBatchCommands;
 
+        /// Tests only. The generation the last batch landed under, and the
+        /// newest serial, which a test can move on.
+        internal uint GenerationForTests => m_lastGeneration;
+
+        internal static ulong LastSerialForTests
+        {
+            get => s_lastEnqueuedSerial;
+            set => s_lastEnqueuedSerial = value;
+        }
+
+        /// Tests only. A render event for a generation and serial, issued
+        /// into a buffer the test runs when it wants.
+        internal static void IssueRenderEventForTests(CommandBuffer buffer, uint generation, ulong serial)
+        {
+            buffer.IssuePluginEventAndData(
+                getProcessRenderImageCommandsCallback(), RenderLifetime.EventIdFor(generation),
+                RenderLifetime.EventData((uint)serial));
+        }
+
         private static readonly PayloadWriter s_batchWriter = new PayloadWriter();
 
         // These write server owned state, the view model image properties
@@ -600,6 +623,9 @@ namespace Rive
             RequestTicket ticket = CommandTransport.Send(id => riveClearRenderImages(id));
             CommandTransport.Join(ref ticket);
         }
+
+        [DllImport(NativeLibrary.name)]
+        private static extern uint riveRenderImageSerialSeen();
 
         // Any thread, it only reads a flag.
         [DllImport(NativeLibrary.name)]

@@ -727,13 +727,32 @@ namespace Rive.Tests
                 new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(400, 800), Point = new Vector2(0.50f, 0.12f), ExpectedDown = BottomDown, ExpectHit = (bool?)true },
                 new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(400, 800), Point = new Vector2(0.05f, 0.95f), ExpectedDown = (string)null, ExpectHit = (bool?)null },
 
-                // Test the Layout artboard using multiple panel sizes and scaling settings.
-                // Even with these changes, the center "hit zones" should remain in the middle.
-    
+                // The same artboard at other panel sizes and scaling settings. Off-center
+                // hits and nearby misses come from where the targets land at each one, so
+                // a wrong scale moves a point onto or off a target.
                 new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.88f), ExpectedDown = TopDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.12f), ExpectedDown = BottomDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.06f, 0.50f), ExpectedDown = (string)null, ExpectHit = (bool?)null },
+                // At 2x the center target starts at 0.28 and the gap under it widens, so
+                // these misses would hit at 1x.
                 new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 2f, Panel = new Vector2Int(1080, 1920), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 2f, Panel = new Vector2Int(1080, 1920), Point = new Vector2(0.50f, 0.87f), ExpectedDown = TopDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 2f, Panel = new Vector2Int(1080, 1920), Point = new Vector2(0.50f, 0.13f), ExpectedDown = BottomDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 2f, Panel = new Vector2Int(1080, 1920), Point = new Vector2(0.22f, 0.50f), ExpectedDown = (string)null, ExpectHit = (bool?)null },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 2f, Panel = new Vector2Int(1080, 1920), Point = new Vector2(0.50f, 0.25f), ExpectedDown = (string)null, ExpectHit = (bool?)null },
+                // And at 0.5x these hit where 2x misses.
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 0.5f, Panel = new Vector2Int(1080, 1920), Point = new Vector2(0.18f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 0.5f, Panel = new Vector2Int(1080, 1920), Point = new Vector2(0.50f, 0.03f), ExpectedDown = BottomDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ReferenceArtboardSize, Scale = 0.5f, Panel = new Vector2Int(1080, 1920), Point = new Vector2(0.50f, 0.89f), ExpectedDown = TopDown, ExpectHit = (bool?)true },
                 new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPixelSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPixelSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.89f), ExpectedDown = TopDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPixelSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.11f), ExpectedDown = BottomDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPixelSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.06f, 0.50f), ExpectedDown = (string)null, ExpectHit = (bool?)null },
                 new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPhysicalSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.50f), ExpectedDown = CenterDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPhysicalSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.88f), ExpectedDown = TopDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPhysicalSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.50f, 0.12f), ExpectedDown = BottomDown, ExpectHit = (bool?)true },
+                new { Artboard = "Layout", Fit = Fit.Layout, Scaling = LayoutScalingMode.ConstantPhysicalSize, Scale = 1f, Panel = new Vector2Int(1920, 1080), Point = new Vector2(0.06f, 0.50f), ExpectedDown = (string)null, ExpectHit = (bool?)null },
             };
 
             string loadedArtboard = null;

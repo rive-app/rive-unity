@@ -82,7 +82,7 @@ namespace Rive
                     s_commandBuffer = new CommandBuffer { name = "RiveFlushPendingCanvasWork" };
                 }
                 s_commandBuffer.Clear();
-                s_commandBuffer.IssuePluginEvent(getFlushPendingCanvasWork(), 0);
+                s_commandBuffer.IssuePluginEvent(getFlushPendingCanvasWork(), RenderLifetime.EventId);
                 Graphics.ExecuteCommandBuffer(s_commandBuffer);
             }
             catch (DllNotFoundException)

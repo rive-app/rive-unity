@@ -82,6 +82,7 @@ namespace Rive.Tests
             m_assets?.UnloadAllAssets();
         }
 
+        [NeedsManagedThreads]
         [UnityTest]
         public IEnumerator BackgroundPanel_WithRiveLateOnSomeFrames_ShowsEveryFrameOnce()
         {
@@ -145,6 +146,7 @@ namespace Rive.Tests
                 $"No frame should skip a step when Rive is late. Bars (* = Rive late): {log}");
         }
 
+        [NeedsManagedThreads]
         [UnityTest]
         public IEnumerator BackgroundPanel_WithRiveBehindForFrames_CatchesUpOnTheNewest()
         {
@@ -214,6 +216,7 @@ namespace Rive.Tests
             }
         }
 
+        [NeedsManagedThreads]
         [UnityTest]
         public IEnumerator BackgroundPanels_ChangedWhileRiveWaits_ShowTheirLatestState()
         {
@@ -271,6 +274,7 @@ namespace Rive.Tests
             }
         }
 
+        [NeedsManagedThreads]
         [UnityTest]
         public IEnumerator BackgroundRecords_WaitingOnRive_OnlyTheNewestDraws()
         {
@@ -323,6 +327,7 @@ namespace Rive.Tests
             }
         }
 
+        [NeedsManagedThreads]
         [UnityTest]
         public IEnumerator SupersededRecord_PassesItsForcedRedraw_ToTheNewest()
         {
@@ -534,7 +539,7 @@ namespace Rive.Tests
             commandBuffer.SetRenderTarget(texture);
             commandBuffer.IssuePluginEventAndData(
                 Renderer.getRenderCommandBufferCallback(),
-                0,
+                Rive.Producer.RenderLifetime.EventId,
                 Rive.Producer.RenderLifetime.EventData(queue.RenderId, Rive.Producer.RenderLifetime.FrameBound()));
             Graphics.ExecuteCommandBuffer(commandBuffer);
             commandBuffer.Release();

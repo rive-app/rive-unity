@@ -261,6 +261,165 @@ namespace Rive.Tests
         }
 
         [Test]
+        public void StaleRenderEvent_DoesNotTakeNewSessionWork()
+        {
+            if (!TextureHelper.SupportsRenderTextureImageSource())
+            {
+                Assert.Ignore("Only backends with render texture images fill them.");
+            }
+            RenderTexture rt = CreateTrackUnityRenderTexture();
+
+            // An old session with some serials behind it.
+            RenderImageCommandQueue.Shutdown();
+            var queue = RenderImageCommandQueue.Instance;
+            for (int i = 0; i < 8; i++)
+            {
+                queue.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+            }
+            queue.Flush();
+            CommandTransport.Barrier();
+            queue.Flush();
+            ulong oldSerial = RenderImageCommandQueue.LastSerialForTests;
+
+            RenderImageCommandQueue.Shutdown();
+            queue = RenderImageCommandQueue.Instance;
+            queue.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+            queue.Flush();
+            CommandTransport.Barrier();
+            queue.Flush();
+            WaitForRenderThread(rt);
+
+            // An old session's event still queued after 16 resets has the same
+            // low generation bits as the new session.
+            var stale = new CommandBuffer { name = "Rive.StaleRenderEvent" };
+            RenderImageCommandQueue.IssueRenderEventForTests(stale, queue.GenerationForTests - 16, oldSerial);
+
+            // New work Rive's thread has taken, with its own event not out yet.
+            RenderImageCommandQueue.riveRenderImageCountForTests(true);
+            try
+            {
+                queue.EnqueueBuild(
+                    RenderImageCommandQueue.NextHandle(), rt.GetNativeTexturePtr(), rt.width, rt.height, false, null);
+                // A destroy in the batch holds its event until the reply lands.
+                queue.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+                queue.Flush();
+                CommandTransport.Barrier();
+                TakeImageCounts();
+
+                Graphics.ExecuteCommandBuffer(stale);
+                WaitForRenderThread(rt);
+                Assert.AreEqual(0, TakeImageCounts(), "The old event shouldn't build the new session's image.");
+
+                queue.Flush();
+                WaitForRenderThread(rt);
+                Assert.Greater(TakeImageCounts(), 0, "The new session's own event should build it.");
+            }
+            finally
+            {
+                RenderImageCommandQueue.riveRenderImageCountForTests(false);
+                stale.Release();
+            }
+        }
+
+        // Serials go out as 32 bits, so a long-running app wraps them.
+        [Test]
+        public void SerialWrap_StillFillsAndDropsStaleEvents()
+        {
+            if (!TextureHelper.SupportsRenderTextureImageSource())
+            {
+                Assert.Ignore("Only backends with render texture images fill them.");
+            }
+            RenderTexture rt = CreateTrackUnityRenderTexture();
+
+            RenderImageCommandQueue.Shutdown();
+            var queue = RenderImageCommandQueue.Instance;
+            var stale = new CommandBuffer { name = "Rive.StaleRenderEvent" };
+            RenderImageCommandQueue.riveRenderImageCountForTests(true);
+            try
+            {
+                // Up to just short of the wrap in steps, like a long session.
+                const ulong nearWrap = uint.MaxValue - 4;
+                while (RenderImageCommandQueue.LastSerialForTests < nearWrap)
+                {
+                    RenderImageCommandQueue.LastSerialForTests +=
+                        Math.Min(1UL << 30, nearWrap - RenderImageCommandQueue.LastSerialForTests);
+                    queue.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+                    LandBatch(queue);
+                }
+                Assert.Greater(BuildAndFill(queue, rt), 0, "A build just short of the wrap should fill.");
+
+                for (int i = 0; i < 8; i++)
+                {
+                    queue.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+                }
+                LandBatch(queue);
+                Assert.Less((uint)RenderImageCommandQueue.LastSerialForTests, 16u, "The serials should have wrapped.");
+                Assert.Greater(BuildAndFill(queue, rt), 0, "A build after the wrap should fill.");
+                ulong oldSerial = RenderImageCommandQueue.LastSerialForTests;
+
+                RenderImageCommandQueue.Shutdown();
+                queue = RenderImageCommandQueue.Instance;
+                queue.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+                LandBatch(queue);
+                WaitForRenderThread(rt);
+                RenderImageCommandQueue.IssueRenderEventForTests(stale, queue.GenerationForTests - 16, oldSerial);
+
+                queue.EnqueueBuild(
+                    RenderImageCommandQueue.NextHandle(), rt.GetNativeTexturePtr(), rt.width, rt.height, false, null);
+                queue.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+                queue.Flush();
+                CommandTransport.Barrier();
+                TakeImageCounts();
+                Graphics.ExecuteCommandBuffer(stale);
+                WaitForRenderThread(rt);
+                Assert.AreEqual(0, TakeImageCounts(), "An event from before the reset shouldn't build anything.");
+                queue.Flush();
+                WaitForRenderThread(rt);
+                Assert.Greater(TakeImageCounts(), 0, "A build after the reset should fill.");
+            }
+            finally
+            {
+                RenderImageCommandQueue.riveRenderImageCountForTests(false);
+                stale.Release();
+            }
+        }
+
+        private static void LandBatch(RenderImageCommandQueue queue)
+        {
+            queue.Flush();
+            CommandTransport.Barrier();
+            queue.Flush();
+        }
+
+        // How much the native side built for a new image. The destroy holds
+        // the batch's event until the reply lands.
+        private static uint BuildAndFill(RenderImageCommandQueue queue, RenderTexture rt)
+        {
+            queue.EnqueueBuild(
+                RenderImageCommandQueue.NextHandle(), rt.GetNativeTexturePtr(), rt.width, rt.height, false, null);
+            queue.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+            queue.Flush();
+            CommandTransport.Barrier();
+            TakeImageCounts();
+            queue.Flush();
+            WaitForRenderThread(rt);
+            return TakeImageCounts();
+        }
+
+        private static uint TakeImageCounts()
+        {
+            RenderImageCommandQueue.riveRenderImageTakeCounts(
+                out uint bornUnfilled, out uint bornFilled, out uint wrapsCached, out uint wrapsNotCached);
+            return bornUnfilled + bornFilled + wrapsCached + wrapsNotCached;
+        }
+
+        // The readback queues behind what's already on the render thread.
+        private static void WaitForRenderThread(RenderTexture rt)
+        {
+            AsyncGPUReadback.Request(rt).WaitForCompletion();
+        }
+
+        [Test]
         public void Source_ReturnsProvidedTexture()
         {
             var rt = CreateTrackUnityRenderTexture();

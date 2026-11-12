@@ -365,6 +365,7 @@ namespace Rive.Tests
             Assert.AreEqual(0.6f, total, 0.0001f, "No time should be lost.");
         }
 
+        [NeedsManagedThreads]
         [NeedsRiveThread]
         [UnityTest]
         public IEnumerator AsynchronousRecords_ReplaceWorkThatHasNotStarted()

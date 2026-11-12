@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Rive.Host;
@@ -23,6 +24,37 @@ namespace Rive.Producer
         private static readonly ConcurrentQueue<Retirement> s_pending =
             new ConcurrentQueue<Retirement>();
         private static CommandBuffer s_commandBuffer;
+
+        // Matches kRiveRenderEventIdCount in plugin.hpp.
+        private const uint EventIdCount = 16;
+        private static int s_eventId = -1;
+
+        /// The render event id every Rive event goes out with, from the range
+        /// Unity reserves for us.
+        internal static int EventId
+        {
+            get
+            {
+                if (s_eventId < 0)
+                {
+                    int id = getRenderEventIdBase();
+                    if (id < 0)
+                    {
+                        // The plugin hasn't loaded yet, so don't keep it.
+                        return 0;
+                    }
+                    s_eventId = id;
+                }
+                return s_eventId;
+            }
+        }
+
+        /// A render image event's id. Its offset carries the generation's low
+        /// bits, so native can drop stale events.
+        internal static int EventIdFor(uint generation)
+        {
+            return EventId + (int)(generation & (EventIdCount - 1));
+        }
 
         /// What a render event carries. The id fits in a pointer on 32 bit.
         internal static IntPtr EventData(uint renderId)
@@ -79,9 +111,12 @@ namespace Rive.Producer
             while (s_pending.TryDequeue(out Retirement retirement))
             {
                 s_commandBuffer.IssuePluginEventAndData(
-                    retirement.Callback, 0, EventData(retirement.RenderId));
+                    retirement.Callback, EventId, EventData(retirement.RenderId));
             }
             Graphics.ExecuteCommandBuffer(s_commandBuffer);
         }
+
+        [DllImport(NativeLibrary.name)]
+        private static extern int getRenderEventIdBase();
     }
 }

@@ -56,13 +56,21 @@ namespace Rive.Tests
             public GameObject StrategyObject;
         }
 
-        [SetUp]
-        public void Setup()
+        [UnitySetUp]
+        public IEnumerator Setup()
         {
             m_assetLoader = new TestAssetLoadingManager();
             m_camera = new GameObject("Camera").AddComponent<Camera>();
             m_camera.tag = "MainCamera";
             m_spawned.Add(m_camera.gameObject);
+
+            // Files earlier fixtures never disposed get deleted by their
+            // finalizers whenever the GC runs. Get that done now so it can't
+            // land mid-test and move the counts.
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            yield return WaitFrames(SettleFrames);
         }
 
         [UnityTearDown]
@@ -524,6 +532,107 @@ namespace Rive.Tests
                 heldTexture.Release();
                 UnityEngine.Object.Destroy(heldTexture);
             }
+        }
+
+        // Stale render image events can still get past the generation check
+        // after 16 resets. They shouldn't count as drains for frames waiting to
+        // replay, or 8 of them retire the frames early.
+        [UnityTest]
+        public IEnumerator StaleImageEvents_LeaveWaitingCanvasFramesAlone()
+        {
+            yield return RequireGpuCanvas();
+
+            Asset riveAsset = null;
+            yield return m_assetLoader.LoadAssetCoroutine<Asset>(
+                TestAssetReferences.riv_ore,
+                asset => riveAsset = asset,
+                () => Assert.Fail($"Failed to load asset at {TestAssetReferences.riv_ore}"));
+
+            RivePanel panel = RivePanelTestUtils.CreatePanel();
+            m_spawned.Add(panel.gameObject);
+            panel.SetDimensions(new Vector2(512, 512));
+            panel.StopRendering();
+
+            RiveWidget widget = RivePanelTestUtils.CreateWidget<RiveWidget>();
+            widget.transform.SetParent(panel.WidgetContainer, false);
+            RivePanelTestUtils.MakeWidgetFillPanel(widget);
+            yield return WaitFrames(SettleFrames);
+
+            File file = File.Load(riveAsset.Bytes, HeldFrameOreCacheId);
+            m_files.Add(file);
+            widget.Load(file);
+            for (int i = 0; i < 120 && widget.Status != WidgetStatus.Loaded; ++i)
+            {
+                yield return null;
+            }
+            Assert.AreEqual(
+                WidgetStatus.Loaded, widget.Status, "Widget never loaded ore.riv");
+            yield return WaitFrames(3);
+
+            var heldTexture = new RenderTexture(TextureHelper.Descriptor(512, 512));
+            heldTexture.Create();
+            var heldQueue = new RenderQueue(heldTexture);
+            var stale = new UnityEngine.Rendering.CommandBuffer { name = "Rive.StaleRenderEvents" };
+            try
+            {
+                // An old image session with some serials behind it, then a
+                // new one.
+                RenderImageCommandQueue.Shutdown();
+                var images = RenderImageCommandQueue.Instance;
+                images.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+                images.Flush();
+                Rive.Host.CommandTransport.Barrier();
+                images.Flush();
+                ulong oldSerial = RenderImageCommandQueue.LastSerialForTests;
+
+                RenderImageCommandQueue.Shutdown();
+                images = RenderImageCommandQueue.Instance;
+                images.EnqueueDestroy(RenderImageCommandQueue.NextHandle());
+                images.Flush();
+                Rive.Host.CommandTransport.Barrier();
+                images.Flush();
+                WaitForRenderThread(heldTexture);
+
+                // Same low generation bits as the new session, like an old
+                // event still queued after 16 resets.
+                for (int i = 0; i < 10; i++)
+                {
+                    RenderImageCommandQueue.IssueRenderEventForTests(
+                        stale, images.GenerationForTests - 16, oldSerial);
+                }
+
+                // A frame that waits to replay, since nothing submits its queue.
+                Renderer held = heldQueue.Renderer();
+                held.Align(Fit.Contain, Alignment.Center, widget.Artboard);
+                held.Draw(widget.Artboard);
+                uint pendingBefore = Residency().PendingFrames;
+                held.RecordForGpuCanvas();
+                uint pending = Residency().PendingFrames;
+                Assert.Greater(
+                    pending, pendingBefore,
+                    "The held queue didn't take a frame, so this isn't testing " +
+                    "anything.");
+
+                Graphics.ExecuteCommandBuffer(stale);
+                WaitForRenderThread(heldTexture);
+
+                Assert.AreEqual(
+                    pending, Residency().PendingFrames,
+                    "Stale image events retired a frame that was still waiting to replay.");
+            }
+            finally
+            {
+                stale.Release();
+                heldQueue.Dispose();
+                heldTexture.Release();
+                UnityEngine.Object.Destroy(heldTexture);
+            }
+        }
+
+        // The readback queues behind what's already on the render thread.
+        private static void WaitForRenderThread(RenderTexture rt)
+        {
+            UnityEngine.Rendering.AsyncGPUReadback.Request(rt).WaitForCompletion();
         }
 
         // The replayer's Ore views only point at the canvases the script made,

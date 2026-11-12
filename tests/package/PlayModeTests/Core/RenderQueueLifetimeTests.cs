@@ -427,7 +427,7 @@ namespace Rive.Tests
                 while (!parkedAgain.IsSet && timer.ElapsedMilliseconds < 2000)
                 {
                     CommandTransport.Drain();
-                    Thread.Yield();
+                    HostNative.riveHostYield();
                 }
                 Assert.IsTrue(parkedAgain.IsSet, "The server should park after taking doomed.");
 

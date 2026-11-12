@@ -41,7 +41,9 @@ namespace Rive.Tests
             while (!started.IsSet && timer.ElapsedMilliseconds < 2000)
             {
                 CommandTransport.Drain();
-                Thread.Yield();
+                // Runs what the server proxies to us on threaded WebGL, like
+                // its prints, or it can't reach the hold while we spin.
+                HostNative.riveHostYield();
             }
             CommandTransport.IsDone(ref ticket);
         }

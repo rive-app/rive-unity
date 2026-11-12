@@ -36,9 +36,10 @@ namespace Rive.Tests
             {
                 Assert.Ignore($"No {GraphicsJobsArgument} argument.");
             }
-            // Every jobs mode has Jobs in its name, on 2022 and Unity 6 alike.
+            // Every jobs mode has Job in its name (LegacyJobified too), and Unity 6
+            // adds one, so this beats listing them.
             RenderingThreadingMode mode = SystemInfo.renderingThreadingMode;
-            bool jobs = mode.ToString().Contains("Jobs");
+            bool jobs = mode.ToString().Contains("Job");
             Assert.AreEqual(expected == "1", jobs, $"Threading mode is {mode}.");
         }
 

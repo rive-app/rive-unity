@@ -240,7 +240,7 @@ namespace Rive
 
             commandBuffer.IssuePluginEventAndData(
                 getRenderCommandBufferCallback(),
-                0,
+                RenderLifetime.EventId,
                 RenderLifetime.EventData(m_renderId, RenderLifetime.FrameBound())
             );
             Graphics.ExecuteCommandBuffer(commandBuffer);
@@ -289,10 +289,10 @@ namespace Rive
 
             commandBuffer.IssuePluginEventAndData(
                 getRenderCommandBufferCallback(),
-                0,
+                RenderLifetime.EventId,
                 RenderLifetime.EventData(m_renderId, RenderLifetime.FrameBound())
             );
-            commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
+            commandBuffer.IssuePluginEvent(getInvalidateState(), RenderLifetime.EventId);
         }
 
 #if UNITY_2023_1_OR_NEWER && RIVE_USING_URP
@@ -318,10 +318,10 @@ namespace Rive
 
             commandBuffer.IssuePluginEventAndData(
                 getRenderCommandBufferCallback(),
-                0,
+                RenderLifetime.EventId,
                 RenderLifetime.EventData(m_renderId, RenderLifetime.FrameBound())
             );
-            commandBuffer.IssuePluginEvent(getInvalidateState(), 0);
+            commandBuffer.IssuePluginEvent(getInvalidateState(), RenderLifetime.EventId);
         }
 
 #endif
