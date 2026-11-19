@@ -181,7 +181,11 @@ namespace Rive
         public float Width
         {
             get => ArtboardNative.GetInfo(m_nativeArtboard).Size.Width;
-            set => ArtboardNative.SetWidth(m_nativeArtboard, value);
+            set
+            {
+                ArtboardNative.SetWidth(m_nativeArtboard, value);
+                SizeVersion++;
+            }
         }
 
         /// <summary>
@@ -190,7 +194,11 @@ namespace Rive
         public float Height
         {
             get => ArtboardNative.GetInfo(m_nativeArtboard).Size.Height;
-            set => ArtboardNative.SetHeight(m_nativeArtboard, value);
+            set
+            {
+                ArtboardNative.SetHeight(m_nativeArtboard, value);
+                SizeVersion++;
+            }
         }
 
         /// <summary>
@@ -448,7 +456,12 @@ namespace Rive
         public void ResetArtboardSize()
         {
             ArtboardNative.ResetSize(m_nativeArtboard);
+            SizeVersion++;
         }
+
+        /// Goes up whenever the size is set here, so a cached size can tell
+        /// it's out of date.
+        internal int SizeVersion { get; private set; }
 
 
         /// <summary>

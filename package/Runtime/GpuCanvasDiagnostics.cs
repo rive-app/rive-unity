@@ -76,8 +76,8 @@ namespace Rive
         private static bool s_available = true;
 
         /// Turns residency tracking on. Off by default, it costs the
-        /// render thread a lock per replay. Only the tests ask, from an
-        /// editor assembly that ships with them.
+        /// render thread a lock per replay. Only the tests ask, from their
+        /// editor assembly and, in players, their PlayMode one.
         ///
         /// Has to happen before anything renders, the first replay fixes
         /// it for the session.

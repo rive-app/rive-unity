@@ -2832,12 +2832,12 @@ namespace Rive.Tests
                 yield return null;
 
                 // <-- Case 4: Assign ArtboardControlled with no custom instance again -->
-                // This will show the same visuals as Custom Instance 2 or the last assigned instance (this is how the c++ runtime treats it). Whether this is the expected behavior or not is TBD, but the important part for this test is that it doesn't cause a crash and we know what the behavior is for now.
+                // Goes back to the default instance rather than keeping custom instance 2.
                 assign(0);
                 yield return new WaitForEndOfFrame();
                 yield return WaitForChangesToLand(panel);
                 yield return m_goldenHelper.AssertWithRenderTexture(
-                    "RivePanel_ArtboardDataBinding_Controlled_CustomInstance2",
+                    "RivePanel_ArtboardDataBinding_Controlled_DefaultInstance",
                     panel.RenderTexture
                 );
 

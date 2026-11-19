@@ -117,7 +117,7 @@ namespace Rive.Components
 
 #if RIVE_USING_EXPERIMENTAL
         [InspectorField(RivePanelInspectorSections.Advanced, "Antialiasing (Experimental)")]
-        [Tooltip("How this panel antialiases what it draws.\n\n- Default: the renderer's usual antialiasing.\n- Inkbleed: antialiases strokes by bleeding them out half a pixel. Fills aren't antialiased, non-clockwise fills draw as clockwise, and layer masks are dropped. Not supported on Metal yet.")]
+        [Tooltip("How this panel antialiases what it draws.\n\n- Default: the renderer's usual antialiasing.\n- Inkbleed: the renderer's inkbleed antialiasing, which can be faster on some devices. Some content can look different, so check how yours looks. Not supported on Metal yet.")]
         [OnValueChanged(nameof(OnAntialiasingModeChanged))]
         [SerializeField] private AntialiasingMode m_antialiasingMode = AntialiasingMode.Default;
 #endif

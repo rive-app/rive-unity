@@ -297,6 +297,29 @@ namespace Rive.Tests
             Assert.IsFalse(m_renderer.ClipWasCalled, "Clip should not be called when not needed");
         }
 
+        [UnityTest]
+        public IEnumerator DrawContent_ClipsAfterTheArtboardIsResizedDirectly()
+        {
+            yield return CreateArtboard(100, 100);
+
+            m_renderObject = new ArtboardRenderObject(m_artboard, Alignment.Center, Fit.None, 1.0f);
+            // What a widget's advance would leave behind.
+            m_renderObject.SetArtboardSize(new Vector2(100, 100));
+
+            var frame = new AABB(0, 0, 150, 150);
+            var renderContext = new RenderContext(RenderContext.ClippingModeSetting.CheckClipping);
+            m_renderObject.DrawContent(m_renderer, frame, renderContext);
+            Assert.IsFalse(m_renderer.ClipWasCalled, "The artboard fits the frame.");
+
+            // No advance runs between this and the draw.
+            m_artboard.Width = 200;
+            m_renderer = new MockRenderer();
+            m_renderObject.DrawContent(m_renderer, frame, renderContext);
+
+            Assert.IsTrue(m_renderer.ClipWasCalled,
+                "Clipping should see the new width, not the size cached before it.");
+        }
+
         public class MockRenderer : IRenderer
         {
             public bool ClipWasCalled { get; private set; }

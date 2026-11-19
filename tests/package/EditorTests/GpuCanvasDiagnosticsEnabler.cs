@@ -6,7 +6,8 @@ namespace Rive.Tests
     /// <summary>
     /// Residency tracking is off in the package, it costs the render
     /// thread a lock per replay. The tests need it, and this assembly only
-    /// exists when they do.
+    /// exists when they do. Players get it from
+    /// GpuCanvasPlayerDiagnosticsEnabler.
     ///
     /// On editor domain load, the earliest hook there is. A replay before
     /// this latches it off for the session.

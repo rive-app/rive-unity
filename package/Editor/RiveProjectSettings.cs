@@ -1,15 +1,36 @@
 #if UNITY_EDITOR
 
+using System.Runtime.CompilerServices;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
+[assembly: InternalsVisibleTo("Rive.Editor.Components")]
+
 namespace Rive.EditorTools
 {
+    /// <summary>
+    /// The threading mode the editor gives panels it creates.
+    /// </summary>
+    internal enum NewPanelThreading
+    {
+        // Unity can't save "no value", and a missing field reads as 0, so this
+        // stands in for it. Projects that never picked one follow the package
+        // default when it changes.
+        PackageDefault = 0,
+        MainThread = 1,
+        BackgroundThread = 2
+    }
+
     [FilePath("ProjectSettings/RiveProjectSettings.asset", FilePathAttribute.Location.ProjectFolder)]
     internal class RiveProjectSettings : ScriptableSingleton<RiveProjectSettings>
     {
         [SerializeField] private bool m_DisableWasmSimd;
+        [SerializeField] private NewPanelThreading m_NewPanelThreading;
+
+        // What PackageDefault means for now. Background thread is where we're
+        // heading, so we'll flip this in a later release.
+        internal const NewPanelThreading PackageDefaultThreading = NewPanelThreading.MainThread;
 
         internal bool DisableWasmSimd
         {
@@ -21,6 +42,24 @@ namespace Rive.EditorTools
                 Save(true);
             }
         }
+
+        /// <summary>
+        /// What the project picked, or <see cref="NewPanelThreading.PackageDefault"/> if it never did.
+        /// The settings page saves it.
+        /// </summary>
+        internal NewPanelThreading NewPanelThreading
+        {
+            get => m_NewPanelThreading;
+            set => m_NewPanelThreading = value;
+        }
+
+        /// <summary>
+        /// The mode new panels get, with the package default filled in.
+        /// </summary>
+        internal NewPanelThreading ResolvedNewPanelThreading => Resolve(m_NewPanelThreading);
+
+        internal static NewPanelThreading Resolve(NewPanelThreading choice) =>
+            choice == NewPanelThreading.PackageDefault ? PackageDefaultThreading : choice;
 
         internal void SaveSettings() => Save(true);
     }
@@ -50,6 +89,9 @@ namespace Rive.EditorTools
             EditorGUILayout.Space();
             EditorGUI.indentLevel++;
 
+            DrawPanelSettings();
+
+            EditorGUILayout.Space();
             EditorGUILayout.LabelField("WebGL", EditorStyles.boldLabel);
 
 
@@ -93,12 +135,40 @@ namespace Rive.EditorTools
             EditorGUI.indentLevel--;
         }
 
+        private static readonly GUIContent s_NewPanelThreadingLabel = new GUIContent(
+            "New Panel Threading Mode",
+            "The threading mode for panels created from the GameObject menu, by dropping in a .riv " +
+            "file, or with Add Component. Panels that already exist keep theirs. Background Thread " +
+            "is where Rive is heading, and the package default will switch to it in a later release.");
+
+        private static readonly GUIContent[] s_NewPanelThreadingOptions =
+        {
+            new GUIContent($"Package Default ({ObjectNames.NicifyVariableName(RiveProjectSettings.PackageDefaultThreading.ToString())})"),
+            new GUIContent("Main Thread"),
+            new GUIContent("Background Thread"),
+        };
+
+        private void DrawPanelSettings()
+        {
+            EditorGUILayout.LabelField("Panels", EditorStyles.boldLabel);
+            var settings = RiveProjectSettings.instance;
+            EditorGUI.BeginChangeCheck();
+            int picked = EditorGUILayout.Popup(
+                s_NewPanelThreadingLabel, (int)settings.NewPanelThreading, s_NewPanelThreadingOptions);
+            if (EditorGUI.EndChangeCheck())
+            {
+                settings.NewPanelThreading = (NewPanelThreading)picked;
+                settings.SaveSettings();
+                m_SerializedSettings.Update();
+            }
+        }
+
         [SettingsProvider]
         internal static SettingsProvider Create()
         {
             return new RiveProjectSettingsProvider
             {
-                keywords = new[] { "Rive", "WebGL", "SIMD", "Safari", "iOS", "compatibility" }
+                keywords = new[] { "Rive", "WebGL", "SIMD", "Safari", "iOS", "compatibility", "Panel", "Threading", "Background" }
             };
         }
     }

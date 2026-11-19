@@ -13,6 +13,9 @@ namespace Rive.Producer
     internal static class UserCallbacks
     {
         private static int s_depth;
+        // Channel deliveries on the stack. Afterward waits for these too, a
+        // join from inside one would throw.
+        private static int s_deliveries;
         private static readonly List<Action> s_afterward = new List<Action>();
 
         /// True while user code we called is running.
@@ -36,7 +39,29 @@ namespace Rive.Producer
                     return;
                 }
                 m_wait.Dispose();
-                if (--s_depth == 0)
+                if (--s_depth == 0 && s_deliveries == 0)
+                {
+                    RunAfterward();
+                }
+            }
+        }
+
+        internal readonly struct DeliveryScope : IDisposable
+        {
+            private readonly bool m_active;
+
+            internal DeliveryScope(bool active)
+            {
+                m_active = active;
+            }
+
+            public void Dispose()
+            {
+                if (!m_active)
+                {
+                    return;
+                }
+                if (--s_deliveries == 0 && s_depth == 0)
                 {
                     RunAfterward();
                 }
@@ -49,11 +74,20 @@ namespace Rive.Producer
             return new CallbackScope(CommandTransport.UserCode());
         }
 
-        /// Runs once the user code on the stack has returned, or now if there
-        /// isn't any. For changes that would join or reorder delivery.
+        /// For a channel landing a result. User code it calls can ask for
+        /// Afterward, and that waits until the delivery has finished.
+        internal static DeliveryScope Delivery()
+        {
+            s_deliveries++;
+            return new DeliveryScope(true);
+        }
+
+        /// Runs once the user code and channel deliveries on the stack have
+        /// returned, or now if there aren't any. For changes that would join
+        /// or reorder delivery.
         internal static void Afterward(Action action)
         {
-            if (s_depth == 0)
+            if (s_depth == 0 && s_deliveries == 0)
             {
                 action();
                 return;

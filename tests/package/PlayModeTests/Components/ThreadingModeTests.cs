@@ -153,6 +153,55 @@ namespace Rive.Tests
             Assert.IsTrue(m_mockLogger.LoggedWarningsContains("can't change"));
         }
 
+        [NeedsRiveThread]
+        [UnityTest]
+        public IEnumerator ThreadingMode_SetFromATickAsyncCallback_Applies()
+        {
+            RivePanel panel = CreatePanel(ThreadingMode.BackgroundThread);
+            panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+
+            // The callback runs while the advance is landing, where switching
+            // would join the channel delivering it.
+            Future tick = panel.TickAsync(1f / 60f);
+            tick.Completed += _ => panel.ThreadingMode = ThreadingMode.MainThread;
+
+            float deadline = Time.realtimeSinceStartup + 10f;
+            while (!tick.IsDone)
+            {
+                Assert.Less(Time.realtimeSinceStartup, deadline, "The tick didn't finish within 10 seconds.");
+                yield return null;
+            }
+
+            Assert.AreEqual(ThreadingMode.MainThread, panel.ThreadingMode);
+            Assert.IsFalse(m_mockLogger.AnyLogTypeContains("JoinAll"),
+                "The switch should wait until the delivery has finished.");
+        }
+
+        [UnityTest]
+        public IEnumerator AdvanceSentBeforeADirectResize_DoesntRestoreTheOldSize()
+        {
+            Asset asset = null;
+            yield return LoadAsset(a => asset = a);
+            RivePanel panel = CreatePanel(ThreadingMode.MainThread);
+            panel.UpdateMode = RivePanel.PanelUpdateMode.Manual;
+            RiveWidget widget = CreateWidget(panel);
+            widget.Load(asset);
+            Assert.AreEqual(WidgetStatus.Loaded, widget.Status);
+
+            // An advance that went out before the resize and lands after it.
+            var slot = new WidgetAdvance { Widget = widget };
+            widget.PrepareAdvance(slot);
+            slot.HasSize = true;
+            slot.ArtboardSize = new Vector2(100, 100);
+            widget.Artboard.Width = 200;
+            widget.ApplyAdvance(slot);
+
+            ArtboardRenderObject renderObject = widget.RenderObjectWithArtboard;
+            Assert.IsFalse(
+                renderObject.TryGetArtboardSize(out Vector2 size) && size.x == 100,
+                "The older advance's size shouldn't count as current.");
+        }
+
         [UnityTest]
         public IEnumerator FileHandle_InAMainThreadPanel_GivesItsFile()
         {

@@ -118,6 +118,7 @@ namespace Rive.EditorTools
 
             // Temporarily disable so that re-enabling the gameobjects triggers a refresh when everything is set up. Otherwise, the RivePanel might not be initialized correctly for editor preview.
             panelObj.SetActive(false);
+            NewPanelDefaults.Apply(panelObj.GetComponent<RivePanel>());
 
             // Create and configure widget. We also want it to fill the parent.
             GameObject widgetObj = new GameObject("Rive Widget", typeof(RectTransform), typeof(RiveWidget));

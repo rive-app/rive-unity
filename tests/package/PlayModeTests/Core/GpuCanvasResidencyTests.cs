@@ -482,12 +482,15 @@ namespace Rive.Tests
             Assert.AreEqual(
                 WidgetStatus.Loaded, widget.Status, "Widget never loaded ore.riv");
 
-            // Give the scripts a few ticks to record their canvas content.
-            yield return WaitFrames(3);
-
+            // Made before the wait, since Vulkan may not have the texture's
+            // pointer until the end of the frame.
             var heldTexture = new RenderTexture(TextureHelper.Descriptor(512, 512));
             heldTexture.Create();
             var heldQueue = new RenderQueue(heldTexture);
+
+            // Give the scripts a few ticks to record their canvas content.
+            yield return WaitFrames(3);
+
             try
             {
                 // Same artboard instance, so this frame takes everything pending
@@ -534,6 +537,7 @@ namespace Rive.Tests
             }
         }
 
+#if RIVE_USING_EXPERIMENTAL
         // Stale render image events can still get past the generation check
         // after 16 resets. They shouldn't count as drains for frames waiting to
         // replay, or 8 of them retire the frames early.
@@ -567,11 +571,13 @@ namespace Rive.Tests
             }
             Assert.AreEqual(
                 WidgetStatus.Loaded, widget.Status, "Widget never loaded ore.riv");
-            yield return WaitFrames(3);
-
+            // Made before the wait, since Vulkan may not have the texture's
+            // pointer until the end of the frame.
             var heldTexture = new RenderTexture(TextureHelper.Descriptor(512, 512));
             heldTexture.Create();
             var heldQueue = new RenderQueue(heldTexture);
+            yield return WaitFrames(3);
+
             var stale = new UnityEngine.Rendering.CommandBuffer { name = "Rive.StaleRenderEvents" };
             try
             {
@@ -634,6 +640,7 @@ namespace Rive.Tests
         {
             UnityEngine.Rendering.AsyncGPUReadback.Request(rt).WaitForCompletion();
         }
+#endif
 
         // The replayer's Ore views only point at the canvases the script made,
         // so a canvas has to outlive every view of it. Otherwise a frame that

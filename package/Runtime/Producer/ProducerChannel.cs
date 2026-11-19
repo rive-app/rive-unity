@@ -448,6 +448,14 @@ namespace Rive.Producer
 
         private void Land(Entry entry)
         {
+            using (UserCallbacks.Delivery())
+            {
+                LandInScope(entry);
+            }
+        }
+
+        private void LandInScope(Entry entry)
+        {
             bool deliver = !entry.Dropped && !entry.Failed;
             if (deliver && m_onLanded != null)
             {

@@ -23,6 +23,7 @@ namespace Rive.Components
         internal bool CollectEvents;
         internal bool LayoutFix;
         internal int SizeVersion;
+        internal int ArtboardSizeVersion;
         internal int FocusVersion;
         // Whether it added a tick entry.
         internal bool HasEntry;
@@ -72,6 +73,7 @@ namespace Rive.Components
             CollectEvents = false;
             LayoutFix = false;
             SizeVersion = 0;
+            ArtboardSizeVersion = 0;
             FocusVersion = 0;
             HasEntry = false;
             HasSize = false;

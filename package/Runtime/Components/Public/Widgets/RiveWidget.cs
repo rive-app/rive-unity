@@ -680,6 +680,7 @@ namespace Rive.Components
             slot.LayoutFix = m_needsLayoutRecalculationFix;
             m_needsLayoutRecalculationFix = false;
             slot.SizeVersion = m_artboardSizeVersion;
+            slot.ArtboardSizeVersion = RenderObjectWithArtboard?.ArtboardSizeVersion ?? 0;
             slot.FocusVersion = slot.Core.FocusVersion;
         }
 
@@ -702,8 +703,10 @@ namespace Rive.Components
             {
                 slot.Core.ApplyFocus(slot.Result, slot.FocusVersion);
             }
-            // A local resize since it went out is newer than what it saw.
-            if (!slot.HasSize || slot.SizeVersion != m_artboardSizeVersion)
+            // A local resize since it went out, here or on the artboard, is
+            // newer than what it saw.
+            if (!slot.HasSize || slot.SizeVersion != m_artboardSizeVersion ||
+                slot.ArtboardSizeVersion != (RenderObjectWithArtboard?.ArtboardSizeVersion ?? 0))
             {
                 return;
             }

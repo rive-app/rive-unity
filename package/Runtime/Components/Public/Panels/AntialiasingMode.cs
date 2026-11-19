@@ -12,10 +12,9 @@ namespace Rive.Components
         Default = 0,
 
         /// <summary>
-        /// Antialiases strokes by bleeding them out half a pixel, which can be faster on some
-        /// devices. Fills aren't antialiased, and fills that don't use the clockwise fill rule
-        /// are drawn as if they did. Layer masks are drawn without their mask. Only takes effect
-        /// on Direct3D 11, Direct3D 12, Vulkan and OpenGL, not Metal, see
+        /// The renderer's inkbleed antialiasing, which can be faster on some devices. Some content
+        /// can look different than with <see cref="Default"/>, so check how yours looks. Only
+        /// takes effect on Direct3D 11, Direct3D 12, Vulkan and OpenGL, not Metal, see
         /// <see cref="RivePanel.EffectiveAntialiasingMode"/>.
         /// </summary>
         Inkbleed = 1,

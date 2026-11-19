@@ -14,6 +14,9 @@ namespace Rive.Components
         // Last known size, so drawing doesn't have to ask native.
         private Vector2 m_artboardSize;
         private bool m_hasArtboardSize;
+        // The artboard's SizeVersion when it was cached. Setting the size on
+        // the artboard directly moves it on.
+        private int m_artboardSizeVersion;
 
         private Alignment m_alignment;
 
@@ -80,9 +83,11 @@ namespace Rive.Components
             // We do this for performance (as clipping can be expensive), so we only clip if the render object overflows the frame
             // A widget keeps this up to date from its advances. Without one,
             // ask native.
-            Vector2 artboardSize = m_hasArtboardSize
-                ? m_artboardSize
-                : (Vector2)m_artboard.Size;
+            if (!HasCurrentArtboardSize)
+            {
+                SetArtboardSize((Vector2)m_artboard.Size);
+            }
+            Vector2 artboardSize = m_artboardSize;
             bool needsClipping = NeedsClipping(this.Fit, artboardSize, new Vector2(rect.width, rect.height));
 
             if (needsClipping)
@@ -95,12 +100,19 @@ namespace Rive.Components
         {
             m_artboardSize = size;
             m_hasArtboardSize = true;
+            m_artboardSizeVersion = m_artboard != null ? m_artboard.SizeVersion : 0;
         }
+
+        internal int ArtboardSizeVersion => m_artboard != null ? m_artboard.SizeVersion : 0;
+
+        private bool HasCurrentArtboardSize =>
+            m_hasArtboardSize &&
+            (m_artboard == null || m_artboard.SizeVersion == m_artboardSizeVersion);
 
         internal bool TryGetArtboardSize(out Vector2 size)
         {
             size = m_artboardSize;
-            return m_hasArtboardSize;
+            return HasCurrentArtboardSize;
         }
 
         internal void Init(Artboard artboard, Alignment alignment, Fit fit, float scaleFactor)

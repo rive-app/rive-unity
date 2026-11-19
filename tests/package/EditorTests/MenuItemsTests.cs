@@ -116,6 +116,46 @@ namespace Rive.Tests.EditorTests
             Assert.AreEqual(panel.transform, widget.transform.parent);
         }
 
+        [TestCase(ThreadingMode.MainThread)]
+        [TestCase(ThreadingMode.BackgroundThread)]
+        public void CreateRivePanelInternal_UsesTheProjectsNewPanelThreading(ThreadingMode expected)
+        {
+            NewPanelThreading picked = expected == ThreadingMode.BackgroundThread
+                ? NewPanelThreading.BackgroundThread
+                : NewPanelThreading.MainThread;
+            var settings = RiveProjectSettings.instance;
+            NewPanelThreading before = settings.NewPanelThreading;
+            settings.NewPanelThreading = picked;
+            try
+            {
+                foreach (var context in new[] { MenuItems.PanelContext.Standalone, MenuItems.PanelContext.Canvas })
+                {
+                    var panel = MenuItems.CreateRivePanelInternal(new MenuCommand(m_testParent), context);
+                    Assert.AreEqual(expected, panel.ThreadingMode, $"{context} panel");
+                }
+
+                // Add Component goes through the ObjectFactory hook instead.
+                var added = ObjectFactory.AddComponent<RivePanel>(new GameObject("Added Panel"));
+                added.transform.SetParent(m_testParent.transform);
+                Assert.AreEqual(expected, added.ThreadingMode, "Added panel");
+            }
+            finally
+            {
+                settings.NewPanelThreading = before;
+            }
+        }
+
+        [Test]
+        public void NewPanelThreading_PackageDefault_FollowsThePackage()
+        {
+            // A project that never picked one has nothing saved, which reads as
+            // PackageDefault, so it moves with the package when the default flips.
+            Assert.AreEqual(NewPanelThreading.PackageDefault, default(NewPanelThreading));
+            Assert.AreEqual(RiveProjectSettings.PackageDefaultThreading,
+                RiveProjectSettings.Resolve(NewPanelThreading.PackageDefault));
+            Assert.AreNotEqual(NewPanelThreading.PackageDefault, RiveProjectSettings.PackageDefaultThreading);
+        }
+
         private bool DoesWidgetFillParent(RiveWidget widget)
         {
             var widgetRect = widget.GetComponent<RectTransform>();
