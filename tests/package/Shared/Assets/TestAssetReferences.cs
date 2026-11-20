@@ -12,6 +12,9 @@ namespace Rive.Tests.Utils
                 // how inkbleed antialiases.
                 public const string riv_inkbleedFixture = "Packages/app.rive.rive-unity.tests/Shared/Assets/inkbleed_fixture.riv";
 
+                // Red and blue halves under an alpha layer mask that fades out from the center.
+                public const string riv_layerMask = "Packages/app.rive.rive-unity.tests/Shared/Assets/layer_mask.riv";
+
                 public const string riv_ore = "Packages/app.rive.rive-unity.tests/Shared/Assets/ore.riv";
 
                 public const string riv_oreViewChurn = "Packages/app.rive.rive-unity.tests/Shared/Assets/ore_view_churn.riv";

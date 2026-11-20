@@ -585,6 +585,10 @@ namespace Rive
             cmb.Clear();
             if (drawAgain)
             {
+                // The first render sets the size on the render thread, so
+                // wait for it or this record skips too. This call syncs
+                // with the render thread.
+                rt.GetNativeTexturePtr();
                 cmb.SetRenderTarget(rt);
                 m_renderer.AddToCommandBuffer(cmb);
                 Graphics.ExecuteCommandBuffer(cmb);
